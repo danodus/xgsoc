@@ -1,0 +1,13 @@
+rtl/tb/*.out
+rtl/tb/*.vcd
+firmware/*.hex
+firmware/*.bin
+firmware/*.elf
+firmware/*.lst
+rtl/**/*.log
+rtl/**/*.hex
+rtl/**/*.asc
+rtl/**/*.bin
+rtl/**/*.json
+rtl/sim/logs
+rtl/sim/obj_dir
