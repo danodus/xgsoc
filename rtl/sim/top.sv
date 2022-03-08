@@ -53,10 +53,19 @@ module top #(
         .BAUDS(115200)
     ) soc(
         .clk(clk),
+        .clk_pix(clk),
         .reset_i(reset_i),
+        
         .display_o(display_o),
+
         .rx_i(),
-        .tx_o()
+        .tx_o(),
+
+        .vga_hsync_o(vga_hsync),
+        .vga_vsync_o(vga_vsync),
+        .vga_r_o(vga_r),
+        .vga_g_o(vga_g),
+        .vga_b_o(vga_b)
     );
     
 endmodule
