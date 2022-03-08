@@ -15,6 +15,9 @@ SRC := ../../external/cpu/rtl/processor.sv \
 		../spram.sv \
 		../uart.sv \
 		../soc.sv \
+		../vga_timings.sv \
+		../vga.sv \
+		clock_gen_480p.sv \
 		top.sv
 
 DEFINES := -DSPRAM

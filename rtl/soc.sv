@@ -18,10 +18,18 @@ module soc #(
     parameter BAUDS    = 115200
     ) (
     input  wire logic       clk,
+    input  wire logic       clk_pix,
     input  wire logic       reset_i,
     output      logic [7:0] display_o,
+
     input  wire logic       rx_i,
-    output      logic       tx_o
+    output      logic       tx_o,
+
+    output      logic       vga_hsync_o,
+    output      logic       vga_vsync_o,
+    output      logic [3:0] vga_r_o,
+    output      logic [3:0] vga_g_o,
+    output      logic [3:0] vga_b_o
     );
 
     // bus
@@ -70,7 +78,7 @@ module soc #(
         .data_out_o(ram_data_out)
     );
 
-    processor processor(
+    processor cpu(
         .clk(clk),
         .reset_i(reset_i),
         .addr_o(addr),
@@ -99,6 +107,24 @@ module soc #(
     always_comb begin
         mem_data_out = (addr[31:28] == 4'h1) ? ram_data_out : rom_data_out;
     end
+    
+    vga vga(
+        .clk(clk_pix),
+        .reset_i(reset_i),
+
+        .vram_sel_o(),
+        .vram_wr_o(),
+        .vram_mask_o(),
+        .vram_addr_o(),
+        .vram_data_in_i(),
+        .vram_data_out_o(),   
+
+        .vga_hsync_o(vga_hsync_o),
+        .vga_vsync_o(vga_vsync_o),
+        .vga_r_o(vga_r_o),
+        .vga_g_o(vga_g_o),
+        .vga_b_o(vga_b_o)
+    );
 
     // address decoding
     always_comb begin

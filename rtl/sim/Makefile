@@ -12,6 +12,7 @@ clean:
 
 sim: top.sv sim_main.cpp ../../firmware/firmware.hex
 	cp $(PROGRAM) program.hex
+	cp ../*.mem .
 	$(VERILATOR) -cc --exe $(CFLAGS) $(LDFLAGS) top.sv sim_main.cpp -I.. -I../../external/cpu/rtl -Wno-PINMISSING -Wno-WIDTH -Wno-CASEINCOMPLETE
 	$(MAKE) -j 4 -C obj_dir -f Vtop.mk
 
