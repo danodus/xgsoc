@@ -36,6 +36,11 @@ void print(const char *s)
     }
 }
 
+struct Command {
+    uint32_t opcode : 8;
+    uint32_t param : 24;
+};
+
 void main(void)
 {
     MEM_WRITE(DISPLAY, 0x00);

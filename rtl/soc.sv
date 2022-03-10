@@ -53,6 +53,11 @@ module soc #(
     logic uart_wr = 0;
     logic uart_rd = 0;
 
+    // VGA
+    logic           vga_axis_tvalid;
+    logic           vga_axis_tready;
+    logic [31:0]    vga_axis_tdata;
+
     bram bram(
         .clk(clk),
         .sel_i(addr[31:28] == 4'h0),
@@ -107,12 +112,9 @@ module soc #(
         .clk(clk_pix),
         .reset_i(reset_i),
 
-        .vram_sel_o(),
-        .vram_wr_o(),
-        .vram_mask_o(),
-        .vram_addr_o(),
-        .vram_data_in_i(),
-        .vram_data_out_o(),   
+        .cmd_axis_tvalid_i(vga_axis_tvalid),
+        .cmd_axis_tready_o(vga_axis_tready),
+        .cmd_axis_tdata_i(vga_axis_tdata),
 
         .vga_hsync_o(vga_hsync_o),
         .vga_vsync_o(vga_vsync_o),
@@ -130,6 +132,8 @@ module soc #(
         cpu_data_in = mem_data_out;
         uart_tx_strobe = 1'b0;
         uart_rx_strobe = 1'b0;
+        vga_axis_tvalid = 1'b0;
+        vga_axis_tdata = cpu_data_out;
         if (cpu_we) begin
             // write
             if (addr[31:28] == 4'h2) begin
@@ -144,6 +148,13 @@ module soc #(
                         if (addr[11:0] == 12'd0) begin
                             // data
                             uart_tx_strobe = 1'b1;
+                        end
+                    end
+                    2'b11: begin
+                        // VGA
+                        if (addr[11:0] == 12'd0) begin
+                            // data
+                            vga_axis_tvalid = 1'b1;
                         end
                     end
                 endcase
@@ -167,6 +178,10 @@ module soc #(
                             cpu_data_in = {30'd0, uart_valid, uart_busy};
                         end
                     end
+                    2'b11: begin
+                        // VGA
+                        cpu_data_in = {31'd0, vga_axis_tready};
+                    end                    
                 endcase
             end
         end
