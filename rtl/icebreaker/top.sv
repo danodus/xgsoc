@@ -1,9 +1,9 @@
 module top(
     input  wire logic  CLK,
     input  wire logic  BTN_N,
-    output      logic P1B1, P1B2, P1B3, P1B4, P1B7, P1B8, P1B9, P1B10,
     input  wire logic RX,
-    output      logic TX
+    output      logic TX,
+    output      logic [4:0] LED 
     );
 
     // reset
@@ -12,6 +12,8 @@ module top(
     logic reset;
 
     logic [7:0] display;
+
+    assign LED[4:0] = display[4:0];
 
     soc #(
         .FREQ_MHZ(12),
@@ -31,11 +33,5 @@ module top(
 	always @(posedge CLK) begin
 		auto_reset_counter <= auto_reset_counter + auto_reset;
 	end
-
-    // display
-    always_comb begin
-        {P1B1, P1B2, P1B3, P1B4, P1B7, P1B8, P1B9, P1B10} = display;
-    end
-
 
 endmodule

@@ -19,6 +19,8 @@ FPGA based system on chip
 ## Getting Started
 ```bash
 git clone --recurse-submodules https://github.com/dcliche/soc.git
-cd soc/rtl/sim
+cd firmware
+make
+cd ../soc/rtl/sim
 make run
 ```
