@@ -59,11 +59,11 @@ module top(
 
     // reset
     assign auto_reset = auto_reset_counter < 5'b11111;
-    assign reset = auto_reset || !BTN_N;
+    assign reset = auto_reset || !BTN_N || !clk_locked;
 
 	always @(posedge clk_pix_half) begin
-        if (clk_locked)
-		    auto_reset_counter <= auto_reset_counter + auto_reset;
+        if (clk_locked)        
+            auto_reset_counter <= auto_reset_counter + auto_reset;
 	end
 
 endmodule
