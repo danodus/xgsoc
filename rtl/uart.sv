@@ -20,7 +20,7 @@
  // January 2022, Daniel Cliche: Conversion to SV
 
 module uart #(
-  parameter FREQ_MHZ = 12,
+  parameter FREQ_HZ = 12 * 1000000,
   parameter BAUDS    = 115200	       
 ) (
     input  wire logic       clk,
@@ -38,7 +38,7 @@ module uart #(
     output      logic       valid_o
 );
 
-    parameter divider = FREQ_MHZ * 1000000 / BAUDS;
+    parameter divider = FREQ_HZ / BAUDS;
    
     logic [3:0] recv_state;
     logic [31:0] recv_divcnt;   // Counts to divider. Reserve enough bytes !

@@ -14,7 +14,7 @@
 */
 
 module soc #(
-    parameter FREQ_MHZ = 12,
+    parameter FREQ_HZ = 12 * 1000000,
     parameter BAUDS    = 115200
     ) (
     input  wire logic       clk,
@@ -84,7 +84,7 @@ module soc #(
     );
 
     uart #(
-        .FREQ_MHZ(FREQ_MHZ),
+        .FREQ_HZ(FREQ_HZ),
         .BAUDS(BAUDS)
     ) uart(
         .clk(clk),

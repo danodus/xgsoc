@@ -41,7 +41,7 @@ module top(
     );
 
     soc #(
-        .FREQ_MHZ(12),
+        .FREQ_HZ(25125000 / 2),
         .BAUDS(115200)
     ) soc(
         .clk(clk_pix_half),
