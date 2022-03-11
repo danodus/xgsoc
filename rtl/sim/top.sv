@@ -49,7 +49,7 @@ module top #(
     );
 
     soc #(
-        .FREQ_MHZ(1),
+        .FREQ_HZ(1 * 1000000),
         .BAUDS(115200)
     ) soc(
         .clk(clk),
