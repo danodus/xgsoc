@@ -1,16 +1,21 @@
-
-#define DISPLAY         0x20001000
-#define UART_DATA       0x20002000
-#define UART_STATUS     0x20002004
-
-#define MEM_WRITE(_addr_, _value_) (*((volatile unsigned int *)(_addr_)) = _value_)
-#define MEM_READ(_addr_)           (*((volatile unsigned int *)(_addr_)))
+#include <io.h>
 
 int test_mem(void) {
-    for (unsigned int i = 0x10001000; i < 0x10001100; i++) {
-        MEM_WRITE(i, 0x12345678);
-        if (MEM_READ(i) != 0x12345678)
+    unsigned int expected = 0x12345678;
+    for (unsigned int addr = 0x10001000; addr < 0x10001100; addr++) {
+        MEM_WRITE(addr, expected);
+        unsigned int read = MEM_READ(addr);
+        if (read != expected) {
+            char s[16];
+            print("Mismatch detected at address=");
+            print(itoa(addr, s, 16));
+            print(" expected=");
+            print(itoa(expected, s, 16));
+            print(" read=");
+            print(itoa(read, s, 16));
+            print("\r\n");
             return 0;
+        }
     }
     return 1;
 }
@@ -25,4 +30,6 @@ void main(void)
         // success
         MEM_WRITE(DISPLAY, 0x1E);
     }
+
+    for (;;);
 }
