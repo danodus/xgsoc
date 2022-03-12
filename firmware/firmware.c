@@ -1,4 +1,3 @@
-
 #define DISPLAY         0x20001000
 #define UART_DATA       0x20002000
 #define UART_STATUS     0x20002004
@@ -27,8 +26,22 @@ unsigned int read_word()
     return word;
 }
 
+void print(const char *s)
+{
+    while (*s) {
+        
+        while(MEM_READ(UART_STATUS) & 1);
+        MEM_WRITE(UART_DATA, *s);
+        s++;
+    }
+}
+
 void main(void)
 {
+    MEM_WRITE(DISPLAY, 0x00);
+    print("RISC-V SOC\r\nCopyright (c) 2022 Daniel Cliche\r\n\r\n");
+    print("Ready to receive...\r\n");
+
     // Read program
     unsigned int addr = 0x10000000;
     unsigned int size;
@@ -45,5 +58,6 @@ void main(void)
         addr += 4;
         MEM_WRITE(DISPLAY, i << 1);        
     }
+    MEM_WRITE(DISPLAY, 0x00);
     start_prog();
 }

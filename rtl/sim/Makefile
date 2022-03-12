@@ -1,4 +1,4 @@
-PROGRAM = ../../examples/hello/program.hex
+PROGRAM = ../../examples/test_mem/program.hex
 
 VERILATOR = verilator
 

@@ -3,6 +3,7 @@
     .global main
 
 _start:
+
     add x1,x0,x0
     add x2,x0,x0
     add x3,x0,x0
@@ -18,10 +19,12 @@ _start:
     add x13,x0,x0
     add x14,x0,x0
     add x15,x0,x0
-
+    
     lui sp, %hi(__stacktop);
     addi sp, sp, %lo(__stacktop);
 
     jal ra,main
 loop:
-    j loop
+    lui a0,0
+    addi a0,x0,0
+    jalr x0,a0,0
