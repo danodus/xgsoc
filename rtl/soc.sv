@@ -73,7 +73,7 @@ module soc #(
         .sel_i(addr[31:28] == 4'h1),
         .wr_en_i(mem_we),
         .wr_mask_i(wr_mask),
-        .address_in_i(15'(addr[27:0] >> 2)),
+        .address_in_i(16'(addr[27:0] >> 2)),
         .data_in_i(mem_data_in), 
         .data_out_o(spram_data_out)
     );

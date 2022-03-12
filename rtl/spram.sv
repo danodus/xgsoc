@@ -7,13 +7,13 @@ module spram(
     input wire logic        sel_i,
     input wire logic        wr_en_i,
     input wire logic [3:0]  wr_mask_i,
-    input wire logic [14:0] address_in_i,
+    input wire logic [15:0] address_in_i,
     input wire logic [31:0] data_in_i,
     output     logic [31:0] data_out_o
 );
 
 `ifndef SYNTHESIS
-    logic [31:0] memory[32768];
+    logic [31:0] memory[65536];
 
     initial begin
         $readmemh("program.hex", memory);

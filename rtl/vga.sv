@@ -146,7 +146,7 @@ module vga(
         if (de) begin
             text_r <= char_bit ? 4'hF : 4'h0;
             text_g <= char_bit ? 4'hF : 4'h0;
-            text_b <= char_bit ? 4'hF : 4'hD;
+            text_b <= char_bit ? 4'hF : 4'h0;
             font_x <= font_x + 1;
 
         end
@@ -172,7 +172,7 @@ module vga(
         if (reset_i) begin
             font_x <= 0;
             font_y <= 0;
-            char <= 8'h42;
+            char <= 8'h00;
         end
     end
 
