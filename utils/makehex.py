@@ -10,13 +10,19 @@
 from sys import argv
 
 binfile = argv[1]
-nwords = int(argv[2])
+
+nwords = -1
+if len(argv) > 2:
+    nwords = int(argv[2])
 
 with open(binfile, "rb") as f:
     bindata = f.read()
 
-assert len(bindata) < 4*nwords
-assert len(bindata) % 4 == 0
+if nwords >= 0:
+    assert len(bindata) < 4*nwords
+    assert len(bindata) % 4 == 0
+else:
+    nwords = len(bindata) // 4
 
 for i in range(nwords):
     if i < len(bindata) // 4:

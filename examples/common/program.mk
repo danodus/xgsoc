@@ -8,7 +8,7 @@ OBJCOPY = ${RISCV_TOOLCHAIN_PATH}${RISVC_TOOLCHAIN_PREFIX}objcopy
 OBJDUMP = ${RISCV_TOOLCHAIN_PATH}${RISVC_TOOLCHAIN_PREFIX}objdump
 CC = ${RISCV_TOOLCHAIN_PATH}${RISVC_TOOLCHAIN_PREFIX}gcc
 
-PROGRAM_SOURCE = ../common/start.s program.c
+PROGRAM_SOURCE = ../common/start.s ../common/io.c program.c
 SERIAL = /dev/tty.usbserial-ibNy7k1v1
 
 all: program.hex
@@ -25,12 +25,12 @@ program.lst: program.elf
 	${OBJDUMP} --disassemble program.elf > program.lst
 
 program.hex: program.bin
-	$(PYTHON) ../../utils/makehex.py program.bin 16384 > program.hex
+	$(PYTHON) ../../utils/makehex.py program.bin > program.hex
 
 program.bin: program.elf program.lst
 	${OBJCOPY} -O binary program.elf program.bin
 
 program.elf: $(PROGRAM_SOURCE)
-	${CC} -nostartfiles -O3 -T ../common/program.ld $(PROGRAM_SOURCE) -o program.elf -lm
+	${CC} -nostartfiles -O3 -T ../common/program.ld -I ../common $(PROGRAM_SOURCE) -o program.elf -lm
 
 .PHONY: all clean run program
