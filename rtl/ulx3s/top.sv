@@ -2,8 +2,8 @@ module top(
     input  wire logic       clk_25mhz,
     input  wire logic [6:0] btn,
     output      logic [7:0] led,
-    input  wire logic       ftdi_rxd,
-    output      logic       ftdi_txd
+    input  wire logic       ftdi_txd,
+    output      logic       ftdi_rxd
     );
 
     // reset
@@ -20,8 +20,8 @@ module top(
         .clk(clk_25mhz),
         .reset_i(reset),
         .display_o(display),
-        .rx_i(ftdi_rxd),
-        .tx_o(ftdi_txd)
+        .rx_i(ftdi_txd),
+        .tx_o(ftdi_rxd)
     );
 
     // reset

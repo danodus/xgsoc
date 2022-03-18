@@ -28,7 +28,7 @@ module soc #(
     logic [31:0] addr;
     logic        mem_we, cpu_we;
     logic [31:0] mem_data_in, cpu_data_in;
-    logic [31:0] bram_data_out, spram_data_out, mem_data_out, cpu_data_out;
+    logic [31:0] rom_data_out, ram_data_out, mem_data_out, cpu_data_out;
     logic [3:0]  wr_mask;
 
     // display
@@ -45,24 +45,29 @@ module soc #(
     logic uart_wr = 0;
     logic uart_rd = 0;
 
-    bram bram(
+    bram #(.SIZE(1024)) rom(
         .clk(clk),
         .sel_i(addr[31:28] == 4'h0),
-        .wr_en_i(mem_we),
+        .wr_en_i(1'b0),
         .wr_mask_i(wr_mask),
-        .address_in_i(10'(addr[27:0] >> 2)),
+        .address_in_i(32'(addr[27:0] >> 2)),
         .data_in_i(mem_data_in), 
-        .data_out_o(bram_data_out)
+        .data_out_o(rom_data_out)
     );
 
-    spram spram(
+`ifdef SPRAM
+    spram ram(
+        .address_in_i(15'(addr[27:0] >> 2)),
+`else
+    bram #(.SIZE(32768)) ram(
+        .address_in_i(32'(addr[27:0] >> 2)),
+`endif
         .clk(clk),
         .sel_i(addr[31:28] == 4'h1),
         .wr_en_i(mem_we),
         .wr_mask_i(wr_mask),
-        .address_in_i(15'(addr[27:0] >> 2)),
         .data_in_i(mem_data_in), 
-        .data_out_o(spram_data_out)
+        .data_out_o(ram_data_out)
     );
 
     processor processor(
@@ -92,7 +97,7 @@ module soc #(
     );
 
     always_comb begin
-        mem_data_out = (addr[31:28] == 4'h1) ? spram_data_out : bram_data_out;
+        mem_data_out = (addr[31:28] == 4'h1) ? ram_data_out : rom_data_out;
     end
 
     // address decoding
