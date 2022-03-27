@@ -3,7 +3,8 @@
 // SPDX-License-Identifier: MIT
 
 module bram #(
-    parameter SIZE = 1024
+    parameter SIZE = 1024,
+    parameter INIT_FILE = ""
     ) (
     input  wire logic        clk,
     input  wire logic        sel_i,
@@ -21,7 +22,9 @@ module bram #(
     assign addr = address_in_i[$clog2(SIZE)-1:0];
 
     initial begin
-        $readmemh("firmware.hex", mem_array);
+        if (INIT_FILE != "") begin
+            $readmemh(INIT_FILE, mem_array);
+        end
     end
 
     always_ff @(posedge clk) begin

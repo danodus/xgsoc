@@ -15,21 +15,27 @@
 
 module soc #(
     parameter FREQ_HZ = 12 * 1000000,
-    parameter BAUDS    = 115200
+    parameter BAUDS    = 115200,
+    parameter RAM_SIZE = 128*1024
     ) (
     input  wire logic       clk,
+`ifdef VGA    
     input  wire logic       clk_pix,
+`endif
     input  wire logic       reset_i,
     output      logic [7:0] display_o,
 
     input  wire logic       rx_i,
     output      logic       tx_o,
 
+`ifdef VGA
     output      logic       vga_hsync_o,
     output      logic       vga_vsync_o,
     output      logic [3:0] vga_r_o,
     output      logic [3:0] vga_g_o,
-    output      logic [3:0] vga_b_o
+    output      logic [3:0] vga_b_o,
+    output      logic       vga_de_o
+`endif
     );
 
     // bus
@@ -53,7 +59,17 @@ module soc #(
     logic uart_wr = 0;
     logic uart_rd = 0;
 
-    bram #(.SIZE(1024)) rom(
+`ifdef VGA
+    // VGA
+    logic           vga_axis_tvalid;
+    logic           vga_axis_tready;
+    logic [31:0]    vga_axis_tdata;
+`endif
+
+    bram #(
+        .SIZE(1024),
+        .INIT_FILE("firmware.hex")
+    ) rom(
         .clk(clk),
         .sel_i(addr[31:28] == 4'h0),
         .wr_en_i(1'b0),
@@ -67,7 +83,11 @@ module soc #(
     spram ram(
         .address_in_i(15'(addr[27:0] >> 2)),
 `else
-    bram #(.SIZE(32768)) ram(
+    bram #(.SIZE(RAM_SIZE/4)
+`ifndef SYNTHESIS
+        ,.INIT_FILE("program.hex")
+`endif
+        ) ram(
         .address_in_i(32'(addr[27:0] >> 2)),
 `endif
         .clk(clk),
@@ -107,24 +127,24 @@ module soc #(
     always_comb begin
         mem_data_out = (addr[31:28] == 4'h1) ? ram_data_out : rom_data_out;
     end
-    
+
+`ifdef VGA    
     vga vga(
         .clk(clk_pix),
         .reset_i(reset_i),
-
-        .vram_sel_o(),
-        .vram_wr_o(),
-        .vram_mask_o(),
-        .vram_addr_o(),
-        .vram_data_in_i(),
-        .vram_data_out_o(),   
+           
+        .cmd_axis_tvalid_i(vga_axis_tvalid),
+        .cmd_axis_tready_o(vga_axis_tready),
+        .cmd_axis_tdata_i(vga_axis_tdata),
 
         .vga_hsync_o(vga_hsync_o),
         .vga_vsync_o(vga_vsync_o),
         .vga_r_o(vga_r_o),
         .vga_g_o(vga_g_o),
-        .vga_b_o(vga_b_o)
+        .vga_b_o(vga_b_o),
+        .vga_de_o(vga_de_o)
     );
+`endif
 
     // address decoding
     always_comb begin
@@ -135,6 +155,10 @@ module soc #(
         cpu_data_in = mem_data_out;
         uart_tx_strobe = 1'b0;
         uart_rx_strobe = 1'b0;
+`ifdef VGA        
+        vga_axis_tvalid = 1'b0;
+        vga_axis_tdata = cpu_data_out;
+`endif
         if (cpu_we) begin
             // write
             if (addr[31:28] == 4'h2) begin
@@ -151,6 +175,15 @@ module soc #(
                             uart_tx_strobe = 1'b1;
                         end
                     end
+`ifdef VGA                    
+                    2'b11: begin
+                        // VGA
+                        if (addr[11:0] == 12'd0) begin
+                            // data
+                            vga_axis_tvalid = 1'b1;
+                        end
+                    end
+`endif
                 endcase
             end else begin
                 // memory
@@ -172,6 +205,12 @@ module soc #(
                             cpu_data_in = {30'd0, uart_valid, uart_busy};
                         end
                     end
+`ifdef VGA                    
+                    2'b11: begin
+                        // VGA
+                        cpu_data_in = {31'd0, vga_axis_tready};
+                    end
+`endif                    
                 endcase
             end
         end

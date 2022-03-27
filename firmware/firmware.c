@@ -38,7 +38,7 @@ void print(const char *s)
 
 void main(void)
 {
-    MEM_WRITE(DISPLAY, 0x00);
+    MEM_WRITE(DISPLAY, 0xFF);
     print("RISC-V SOC\r\nCopyright (c) 2022 Daniel Cliche\r\n\r\n");
     print("Ready to receive...\r\n");
 
