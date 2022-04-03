@@ -7,7 +7,7 @@ DEVICE := 85k
 PACKAGE := CABGA381
 
 PIN_DEF := ulx3s.lpf
-SRC := ../../external/cpu/rtl/processor.sv \
+SRC_CORE := ../../external/cpu/rtl/processor.sv \
 		../../external/cpu/rtl/alu.sv \
 		../../external/cpu/rtl/decoder.sv \
 		../../external/cpu/rtl/register_file.sv \
@@ -15,9 +15,7 @@ SRC := ../../external/cpu/rtl/processor.sv \
 		../uart.sv \
 		../vga_timings.sv \
 		../vga.sv \
-		../vram.sv \
-		../../external/graphite/rtl/graphite.sv \
-		../../external/graphite/rtl/reciprocal.sv \
+		../vram2.sv \
 		../soc.sv \
 		generated_pll_25.v \
 		generated_pll_33_75.v \
@@ -25,7 +23,14 @@ SRC := ../../external/cpu/rtl/processor.sv \
 		hdmi_encoder.v \
 		top.sv
 
-DEFINES := -DVGA
+SRC_GRAPHITE :=  ../../external/graphite/rtl/graphite.sv \
+		../../external/graphite/rtl/reciprocal.sv
+
+SRC_XOSERA := $(wildcard ../../external/Xosera/rtl/*.sv)
+
+SRC := $(SRC_CORE) $(SRC_XOSERA)
+
+DEFINES := -DVGA -DXOSERA -DNO_CS_BUS_DELAY
 
 all: top.bin
 

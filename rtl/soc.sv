@@ -60,10 +60,41 @@ module soc #(
     logic uart_rd = 0;
 
 `ifdef VGA
-    // VGA
+    // Graphite
     logic           vga_axis_tvalid;
     logic           vga_axis_tready;
     logic [31:0]    vga_axis_tdata;
+
+    // Xosera
+    logic         xosera_bus_cs_n, xosera_bus_cs_n_r;           // register select strobe (active low)
+    logic         xosera_bus_rd_nwr, xosera_bus_rd_nwr_r;         // 0 = write, 1 = read
+    logic [3:0]   xosera_bus_reg_num, xosera_bus_reg_num_r;        // register number
+    logic         xosera_bus_bytesel, xosera_bus_bytesel_r;        // 0 = even byte, 1 = odd byte
+    logic [7:0]   xosera_bus_data_in, xosera_bus_data_in_r;        // 8-bit data bus input
+    logic [7:0]   xosera_bus_data_out;       // 8-bit data bus output    
+    logic pulse_xosera_bus;
+
+    always_ff @(posedge clk) begin
+        if (reset_i) begin
+            pulse_xosera_bus <= 1'b0;
+            xosera_bus_cs_n_r <= 1'b1;
+        end else begin
+            if (pulse_xosera_bus) begin
+                xosera_bus_cs_n_r <= 1'b0;
+                pulse_xosera_bus <= 1'b0;
+            end else begin
+                xosera_bus_cs_n_r <= 1'b1;
+            end
+            if (!xosera_bus_cs_n) begin
+                xosera_bus_rd_nwr_r <= xosera_bus_rd_nwr;
+                xosera_bus_reg_num_r <= xosera_bus_reg_num;
+                xosera_bus_bytesel_r <= xosera_bus_bytesel;
+                xosera_bus_data_in_r <= xosera_bus_data_in;
+                pulse_xosera_bus <= 1'b1;
+            end
+        end
+    end
+
 `endif
 
     bram #(
@@ -132,10 +163,21 @@ module soc #(
     vga vga(
         .clk(clk_pix),
         .reset_i(reset_i),
-           
+
+`ifdef GRAPHITE           
         .cmd_axis_tvalid_i(vga_axis_tvalid),
         .cmd_axis_tready_o(vga_axis_tready),
         .cmd_axis_tdata_i(vga_axis_tdata),
+`endif
+
+`ifdef XOSERA
+        .xosera_bus_cs_n_i(xosera_bus_cs_n_r),
+        .xosera_bus_rd_nwr_i(xosera_bus_rd_nwr_r),
+        .xosera_bus_reg_num_i(xosera_bus_reg_num_r),
+        .xosera_bus_bytesel_i(xosera_bus_bytesel_r),
+        .xosera_bus_data_i(xosera_bus_data_in_r),
+        .xosera_bus_data_o(xosera_bus_data_out),
+`endif
 
         .vga_hsync_o(vga_hsync_o),
         .vga_vsync_o(vga_vsync_o),
@@ -158,6 +200,11 @@ module soc #(
 `ifdef VGA        
         vga_axis_tvalid = 1'b0;
         vga_axis_tdata = cpu_data_out;
+        xosera_bus_cs_n = 1'b1;
+        xosera_bus_rd_nwr = 1'b1;
+        xosera_bus_data_in = cpu_data_out[7:0];
+        xosera_bus_bytesel = addr[8];
+        xosera_bus_reg_num = addr[7:4];
 `endif
         if (cpu_we) begin
             // write
@@ -178,8 +225,12 @@ module soc #(
 `ifdef VGA                    
                     2'b11: begin
                         // VGA
-                        if (addr[11:0] == 12'd0) begin
-                            // data
+                        if (addr[11] == 1'b0) begin
+                            // xosera
+                            xosera_bus_rd_nwr = 1'b0;
+                            xosera_bus_cs_n = 1'b0;
+                        end else if (addr[11] == 1'b1) begin
+                            // graphite
                             vga_axis_tvalid = 1'b1;
                         end
                     end
@@ -208,7 +259,14 @@ module soc #(
 `ifdef VGA                    
                     2'b11: begin
                         // VGA
-                        cpu_data_in = {31'd0, vga_axis_tready};
+                        if (addr[11] == 1'b0) begin
+                            // xosera
+                            xosera_bus_cs_n = 1'b0;
+                            cpu_data_in = {24'd0, xosera_bus_data_out};
+                        end else if (addr[11] == 1'b1) begin
+                            // graphite
+                            cpu_data_in = {31'd0, vga_axis_tready};
+                        end
                     end
 `endif                    
                 endcase

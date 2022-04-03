@@ -1,13 +1,22 @@
-//`define GRAPHITE
-
 module vga(
     input wire  logic        clk,
     input wire  logic        reset_i,
 
+`ifdef GRAPHITE
     // AXI stream command interface (slave)
     input  wire logic                        cmd_axis_tvalid_i,
     output      logic                        cmd_axis_tready_o,
     input  wire logic [31:0]                 cmd_axis_tdata_i,
+`endif 
+
+`ifdef XOSERA
+    input  wire logic         xosera_bus_cs_n_i,           // register select strobe (active low)
+    input  wire logic         xosera_bus_rd_nwr_i,         // 0 = write, 1 = read
+    input  wire logic [3:0]   xosera_bus_reg_num_i,        // register number
+    input  wire logic         xosera_bus_bytesel_i,        // 0 = even byte, 1 = odd byte
+    input  wire logic [7:0]   xosera_bus_data_i,           // 8-bit data bus input
+    output logic      [7:0]   xosera_bus_data_o,           // 8-bit data bus output
+`endif
 
     output      logic        vga_hsync_o,
     output      logic        vga_vsync_o,
@@ -17,12 +26,15 @@ module vga(
     output      logic        vga_de_o
 );
 
+
+`ifdef GRAPHITE
+
     // display timings
     localparam CORDW = 16;
     logic signed [CORDW-1:0] sx, sy;
     logic hsync, vsync, de, frame, line;
 
-    logic [3:0] text_r, text_g, text_b;
+    logic [3:0] xosera_r, xosera_g, xosera_b;
     
     vga_timings #(.CORDW(CORDW)) vga_timings(
         .clk_pix(clk),
@@ -61,13 +73,13 @@ module vga(
             col_counter <= col_counter + 1;
             if (line_counter < 12'd128 && col_counter < 12'd128) begin
                 vga_read_addr <= vga_read_addr + 1;
-                vga_r_o <= text_r | vram_data_out[11:8];
-                vga_g_o <= text_g | vram_data_out[7:4];
-                vga_b_o <= text_b | vram_data_out[3:0];
+                vga_r_o <= vram_data_out[11:8];
+                vga_g_o <= vram_data_out[7:4];
+                vga_b_o <= vram_data_out[3:0];
             end else begin
-                vga_r_o <= text_r | 4'h1;
-                vga_g_o <= text_g | 4'h1;
-                vga_b_o <= text_b | 4'h1;
+                vga_r_o <= 4'h1;
+                vga_g_o <= 4'h1;
+                vga_b_o <= 4'h1;
             end
         end else begin
             vga_r_o <= 4'h0;
@@ -101,7 +113,7 @@ module vga(
     assign vram_address = graphite_vram_sel ? graphite_vram_address[15:0] : {2'd0, vga_read_addr};
     assign vram_data_in = graphite_vram_sel ? graphite_vram_data_out : 16'd0;
 
-    vram vram(
+    vram2 vram(
         .clk(clk),
         .sel_i(1'b1),
         .wr_en_i(vram_wr),
@@ -126,55 +138,32 @@ module vga(
         .swap_o()
     );
 
-    logic [3:0] font_x, font_y;
-    logic [7:0] char_pattern;
-    logic       char_bit;
+`endif // GRAPHITE
 
-    logic [15:0] font[256*4];
+`ifdef XOSERA
 
-    logic [7:0] char;
-    logic [15:0] char_addr;
+    xosera_main xosera(
+        .bus_cs_n_i(xosera_bus_cs_n_i),           // register select strobe (active low)
+        .bus_rd_nwr_i(xosera_bus_rd_nwr_i),       // 0 = write, 1 = read
+        .bus_reg_num_i(xosera_bus_reg_num_i),     // register number
+        .bus_bytesel_i(xosera_bus_bytesel_i),     // 0 = even byte, 1 = odd byte
+        .bus_data_i(xosera_bus_data_i),           // 8-bit data bus input
+        .bus_data_o(xosera_bus_data_o),           // 8-bit data bus output
+        .bus_intr_o(),                            // Xosera CPU interrupt strobe
+        .red_o(vga_r_o),                          // red color gun output
+        .green_o(vga_g_o),                        // green color gun output
+        .blue_o(vga_b_o),                         // blue color gun output
+        .hsync_o(vga_hsync_o),
+        .vsync_o(vga_vsync_o),                    // horizontal and vertical sync
+        .dv_de_o(vga_de_o),                       // pixel visible (aka display enable)
+        .audio_l_o(),
+        .audio_r_o(),                             // left and right audio PWM output
+        .reconfig_o(),                            // reconfigure iCE40 from flash
+        .boot_select_o(),                         // reconfigure congigureation number (0-3)
+        .reset_i(reset_i),                        // reset signal
+        .clk(clk)                                 // pixel clock        
+    );
 
-    initial begin
-        $readmemb("ANSI_PC_8x8w.mem", font);
-    end
-
-    assign char_addr = 4 * char + font_y / 2;
-    assign char_pattern = font_y[0] ? font[char_addr][7:0] : font[char_addr][15:8];
-    assign char_bit = char_pattern[7-font_x];
-
-    always_ff @(posedge clk) begin
-        if (de) begin
-            text_r <= char_bit ? 4'hF : 4'h0;
-            text_g <= char_bit ? 4'hF : 4'h0;
-            text_b <= char_bit ? 4'hF : 4'h0;
-            font_x <= font_x + 1;
-
-        end
-
-        if (font_x == 7) begin
-            font_x <= 0;
-        end
-
-        if (font_y == 8) begin
-            font_y <= 0;
-        end
-
-        if (line && sy > 0) begin
-            font_y <= font_y + 1;
-        end
-
-        if (frame) begin
-            font_x <= 0;
-            font_y <= 0;
-            //char <= char + 1;
-        end
-
-        if (reset_i) begin
-            font_x <= 0;
-            font_y <= 0;
-            char <= 8'h00;
-        end
-    end
+`endif // XOSERA
 
 endmodule

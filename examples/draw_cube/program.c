@@ -3,7 +3,7 @@
 #include <graphite.h>
 #include <cube.h>
 
-#define VGA             0x20003000
+#define GRAPHITE             0x20003800
 
 #define OP_SET_X0 0
 #define OP_SET_Y0 1
@@ -44,8 +44,8 @@ struct Command {
 
 void send_command(struct Command *cmd)
 {
-    while (!MEM_READ(VGA));
-    MEM_WRITE(VGA, (cmd->opcode << 24) | cmd->param);
+    while (!MEM_READ(GRAPHITE));
+    MEM_WRITE(GRAPHITE, (cmd->opcode << 24) | cmd->param);
 }
 
 void xd_draw_triangle(fx32 x0, fx32 y0, fx32 z0, fx32 u0, fx32 v0, fx32 r0, fx32 g0, fx32 b0, fx32 a0, fx32 x1, fx32 y1,

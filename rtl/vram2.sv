@@ -1,4 +1,4 @@
-module vram(
+module vram2(
     input wire logic        clk,
     input wire logic        sel_i,
     input wire logic        wr_en_i,
