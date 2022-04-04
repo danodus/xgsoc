@@ -2,15 +2,21 @@ import sys
 import serial
 import time
 
+delay = 0.001
+
 def send(ser, bytes):
     ser.write(bytes)
-    time.sleep(0.001)
+    time.sleep(delay)
 
 def main(argv):
     if (len(argv) < 2):
-        print("Usage: sendhex.py <serial device> <hex file>")
+        print("Usage: sendhex.py <serial device> <hex file> [delay per word in ms]")
         exit(0)
     else:
+        if (len(argv) >= 3):
+            global delay
+            delay = float(argv[2])
+
         ser = serial.Serial(argv[0], baudrate=115200)
         file = open(argv[1], 'r')
         lines = file.read().splitlines()
