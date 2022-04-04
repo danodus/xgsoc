@@ -5,7 +5,8 @@ module top(
     input  wire logic       ftdi_txd,
     output      logic       ftdi_rxd,
     output      logic [3:0] gpdi_dp,
-    output      logic [3:0] gpdi_dn    
+    output      logic [3:0] gpdi_dn,
+    output      logic [3:0] audio_l, audio_r
     );
 
     // reset
@@ -68,8 +69,13 @@ module top(
         .vga_r_o(vga_r),
         .vga_g_o(vga_g),
         .vga_b_o(vga_b),
-        .vga_de_o(vga_de)
+        .vga_de_o(vga_de),
+        .audio_l_o(audio_l[3]),
+        .audio_r_o(audio_r[3])
     );
+
+    assign audio_l[2:0] = 3'd0;
+    assign audio_r[2:0] = 3'd0;
 
     // reset
     assign auto_reset = auto_reset_counter < 5'b11111;

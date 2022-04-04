@@ -16,6 +16,8 @@ module vga(
     input  wire logic         xosera_bus_bytesel_i,        // 0 = even byte, 1 = odd byte
     input  wire logic [7:0]   xosera_bus_data_i,           // 8-bit data bus input
     output logic      [7:0]   xosera_bus_data_o,           // 8-bit data bus output
+    output      logic         xosera_audio_l_o,
+    output      logic         xosera_audio_r_o,
 `endif
 
     output      logic        vga_hsync_o,
@@ -156,8 +158,8 @@ module vga(
         .hsync_o(vga_hsync_o),
         .vsync_o(vga_vsync_o),                    // horizontal and vertical sync
         .dv_de_o(vga_de_o),                       // pixel visible (aka display enable)
-        .audio_l_o(),
-        .audio_r_o(),                             // left and right audio PWM output
+        .audio_l_o(xosera_audio_l_o),
+        .audio_r_o(xosera_audio_r_o),             // left and right audio PWM output
         .reconfig_o(),                            // reconfigure iCE40 from flash
         .boot_select_o(),                         // reconfigure congigureation number (0-3)
         .reset_i(reset_i),                        // reset signal

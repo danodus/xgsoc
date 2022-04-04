@@ -34,7 +34,9 @@ module soc #(
     output      logic [3:0] vga_r_o,
     output      logic [3:0] vga_g_o,
     output      logic [3:0] vga_b_o,
-    output      logic       vga_de_o
+    output      logic       vga_de_o,
+    output      logic       audio_l_o,
+    output      logic       audio_r_o,
 `endif
     );
 
@@ -177,6 +179,8 @@ module soc #(
         .xosera_bus_bytesel_i(xosera_bus_bytesel_r),
         .xosera_bus_data_i(xosera_bus_data_in_r),
         .xosera_bus_data_o(xosera_bus_data_out),
+        .xosera_audio_l_o(audio_l_o),
+        .xosera_audio_r_o(audio_r_o),
 `endif
 
         .vga_hsync_o(vga_hsync_o),
