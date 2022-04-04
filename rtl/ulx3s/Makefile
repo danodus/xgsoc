@@ -29,6 +29,7 @@ SRC_CORE := ../../external/cpu/rtl/processor.sv \
 		pll_ecp5.v \
 		hdmi_encoder.v \
 		generated_pll_usb.v \
+		ps2kbd.v \
 		top.sv
 
 SRC_GRAPHITE :=  ../../external/graphite/rtl/graphite.sv \
@@ -38,7 +39,8 @@ SRC_XOSERA := $(wildcard ../../external/Xosera/rtl/*.sv)
 
 SRC := $(SRC_CORE) $(SRC_XOSERA)
 
-DEFINES := -DUSB -DVGA -DXOSERA -DNO_CS_BUS_DELAY
+#DEFINES := -DUSB -DVGA -DXOSERA -DNO_CS_BUS_DELAY
+DEFINES := -DPS2
 
 all: top.bin
 

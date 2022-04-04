@@ -13,7 +13,12 @@ module top(
     inout  wire logic       usb_fpga_bd_dp,
     inout  wire logic       usb_fpga_bd_dn,
     output      logic       usb_fpga_pu_dp,
-    output      logic       usb_fpga_pu_dn
+    output      logic       usb_fpga_pu_dn,
+
+    input  wire logic       gn0,    // C2
+    input  wire logic       gn1,    // C1
+    input  wire logic       gn2,    // D2
+    input  wire logic       gn3     // D1
     );
 
     localparam USB_REPORT_NB_BYTES = 8;
@@ -69,11 +74,14 @@ module top(
         .RAM_SIZE(256*1024)
     ) soc(
         .clk(clk_pix),
+`ifdef VGA        
         .clk_pix(clk_pix),
+`endif
         .reset_i(reset),
         .display_o(display),
         .rx_i(ftdi_txd),
         .tx_o(ftdi_rxd),
+`ifdef VGA
         .vga_hsync_o(vga_hsync),
         .vga_vsync_o(vga_vsync),
         .vga_r_o(vga_r),
@@ -82,8 +90,11 @@ module top(
         .vga_de_o(vga_de),
         .audio_l_o(audio_l[3]),
         .audio_r_o(audio_r[3]),
+`endif
+`ifdef USB
         .usb_report_i(usb_report),
         .usb_report_valid_i(usb_report_valid)
+`endif
     );
 
     assign audio_l[2:0] = 3'd0;
@@ -99,9 +110,26 @@ module top(
 	end
 
     // display
-    always_comb begin
-        led = display;
-    end
+    //always_comb begin
+    //    led = display;
+    //end
+
+    // ps/2
+
+    logic ps2_clk;
+    logic ps2_data;
+
+    assign ps2_clk = gn1;
+    assign ps2_data = gn3;
+
+    ps2kbd kbd(
+        .clk(clk_25mhz),
+        .ps2_clk(ps2_clk),
+        .ps2_data(ps2_data),
+        .ps2_code(led),
+        .strobe(),
+        .err()
+    );
 
     //
     // USB
