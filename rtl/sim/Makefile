@@ -1,4 +1,4 @@
-PROGRAM = ../../examples/test_mem/program.hex
+PROGRAM = ../../examples/xosera_test/program.hex
 
 VERILATOR = verilator
 
@@ -10,9 +10,12 @@ all: sim
 clean:
 	rm -rf obj_dir
 
-sim: top.sv sim_main.cpp ../../firmware/firmware.hex
+sim: top.sv sim_main.cpp $(PROGRAM)
 	cp $(PROGRAM) program.hex
-	$(VERILATOR) -cc --exe $(CFLAGS) $(LDFLAGS) top.sv sim_main.cpp -I.. -I../../external/cpu/rtl -Wno-PINMISSING -Wno-WIDTH -Wno-CASEINCOMPLETE
+	cp ../../external/Xosera/rtl/*.mem .
+	mkdir -p tilesets
+	cp ../../external/Xosera/rtl/tilesets/*.mem tilesets
+	$(VERILATOR) -cc --exe $(CFLAGS) $(LDFLAGS) top.sv sim_main.cpp -DVGA -DXOSERA -DNO_CS_BUS_DELAY -I.. -I../../external/cpu/rtl -I../../external/graphite/rtl -I../../external/Xosera/rtl -Wno-PINMISSING -Wno-WIDTH -Wno-CASEINCOMPLETE -Wno-TIMESCALEMOD
 	$(MAKE) -j 4 -C obj_dir -f Vtop.mk
 
 run: sim

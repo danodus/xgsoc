@@ -11,7 +11,7 @@ SRC := ../../external/cpu/rtl/processor.sv \
 		../../external/cpu/rtl/alu.sv \
 		../../external/cpu/rtl/decoder.sv \
 		../../external/cpu/rtl/register_file.sv \
-		../memory.sv \
+		../bram.sv \
 		../uart.sv \
 		../soc.sv \
 		top.sv

@@ -1,8 +1,8 @@
 module top(
-    input  wire logic  CLK,
-    input  wire logic  BTN_N,
-    input  wire logic RX,
-    output      logic TX,
+    input  wire logic       CLK,
+    input  wire logic       BTN_N,
+    input  wire logic       RX,
+    output      logic       TX,
     output      logic [4:0] LED 
     );
 
@@ -16,7 +16,7 @@ module top(
     assign LED[4:0] = display[4:0];
 
     soc #(
-        .FREQ_MHZ(12),
+        .FREQ_HZ(12000000),
         .BAUDS(115200)
     ) soc(
         .clk(CLK),
@@ -31,7 +31,7 @@ module top(
     assign reset = auto_reset || !BTN_N;
 
 	always @(posedge CLK) begin
-		auto_reset_counter <= auto_reset_counter + auto_reset;
+        auto_reset_counter <= auto_reset_counter + auto_reset;
 	end
 
 endmodule

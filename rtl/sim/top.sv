@@ -27,10 +27,7 @@ Pixel Clock @60Hz: 25.2 MHz
             bit 1: valid
 */
 
-module top #(
-    parameter FREQ_MHZ = 12,
-    parameter BAUDS    = 115200
-    ) (
+module top (
     input  wire logic       clk,
     input  wire logic       reset_i,
     output      logic [7:0] display_o,
@@ -49,14 +46,24 @@ module top #(
     );
 
     soc #(
-        .FREQ_MHZ(1),
-        .BAUDS(115200)
+        .FREQ_HZ(1 * 1000000),
+        .BAUDS(115200),
+        .RAM_SIZE(256*1024)
     ) soc(
         .clk(clk),
+        .clk_pix(clk),
         .reset_i(reset_i),
+        
         .display_o(display_o),
+
         .rx_i(),
-        .tx_o()
+        .tx_o(),
+
+        .vga_hsync_o(vga_hsync),
+        .vga_vsync_o(vga_vsync),
+        .vga_r_o(vga_r),
+        .vga_g_o(vga_g),
+        .vga_b_o(vga_b)
     );
     
 endmodule

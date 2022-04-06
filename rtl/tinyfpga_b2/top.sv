@@ -22,8 +22,9 @@ module top(
     logic [7:0] display;
 
     soc #(
-        .FREQ_MHZ(16),
-        .BAUDS(115200)
+        .FREQ_HZ(16000000),
+        .BAUDS(115200),
+        .RAM_SIZE(8192)
     ) soc(
         .clk(pin3_clk_16mhz),
         .reset_i(reset),

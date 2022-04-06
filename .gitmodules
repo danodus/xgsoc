@@ -1,3 +1,9 @@
 [submodule "external/cpu"]
 	path = external/cpu
 	url = https://github.com/dcliche/cpu
+[submodule "external/graphite"]
+	path = external/graphite
+	url = https://github.com/dcliche/graphite.git
+[submodule "external/Xosera"]
+	path = external/Xosera
+	url = https://github.com/dcliche/Xosera.git
