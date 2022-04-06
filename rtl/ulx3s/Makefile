@@ -17,10 +17,18 @@ SRC_CORE := ../../external/cpu/rtl/processor.sv \
 		../vga.sv \
 		../vram2.sv \
 		../soc.sv \
+		usb/usb_phy.v \
+		usb/usb_rx_phy.v \
+		usb/usb_tx_phy.v \
+		usb/usbh_crc5.v \
+		usb/usbh_crc16.v \
+		usb/usbh_host_hid.v \
+		usb/usbh_sie.v \
 		generated_pll_25.v \
 		generated_pll_33_75.v \
 		pll_ecp5.v \
 		hdmi_encoder.v \
+		generated_pll_usb.v \
 		top.sv
 
 SRC_GRAPHITE :=  ../../external/graphite/rtl/graphite.sv \
@@ -30,7 +38,7 @@ SRC_XOSERA := $(wildcard ../../external/Xosera/rtl/*.sv)
 
 SRC := $(SRC_CORE) $(SRC_XOSERA)
 
-DEFINES := -DVGA -DXOSERA -DNO_CS_BUS_DELAY
+DEFINES := -DUSB -DVGA -DXOSERA -DNO_CS_BUS_DELAY
 
 all: top.bin
 

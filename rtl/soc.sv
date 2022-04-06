@@ -1,4 +1,4 @@
-// graphite.sv
+// soc.sv
 // Copyright (c) 2022 Daniel Cliche
 // SPDX-License-Identifier: MIT
 
@@ -11,6 +11,11 @@
         0x20002004: Status Register (Read-only)
             bit 0: busy
             bit 1: valid
+    0x20003000 - 0x00003FFF: VGA
+    0x20004000 - 0x20004FFF: USB
+        0x20004000: report valid
+        0x20004004: 64-bit report MSW (32-bit)
+        0x20004008: 64-bit report LSW (32-bit)
 */
 
 module soc #(
@@ -37,6 +42,11 @@ module soc #(
     output      logic       vga_de_o,
     output      logic       audio_l_o,
     output      logic       audio_r_o,
+`endif
+
+`ifdef USB
+    input  wire logic [63:0] usb_report_i,
+    input  wire logic        usb_report_valid_i,
 `endif
     );
 
@@ -214,12 +224,12 @@ module soc #(
             // write
             if (addr[31:28] == 4'h2) begin
                 // peripheral
-                case (addr[13:12])
-                    2'b01: begin
+                case (addr[15:12])
+                    4'h1: begin
                         // display
                         display_we = 1'b1;
                     end
-                    2'b10: begin
+                    4'h2: begin
                         // UART
                         if (addr[11:0] == 12'd0) begin
                             // data
@@ -248,8 +258,8 @@ module soc #(
             // read
             if (addr[31:28] == 4'h2) begin
                 // peripheral
-                case (addr[13:12])
-                    2'b10: begin
+                case (addr[15:12])
+                    4'h2: begin
                         // UART
                         if (addr[11:0] == 12'd0) begin
                             // data
@@ -261,7 +271,7 @@ module soc #(
                         end
                     end
 `ifdef VGA                    
-                    2'b11: begin
+                    4'h3: begin
                         // VGA
                         if (addr[11] == 1'b0) begin
                             // xosera
@@ -273,6 +283,21 @@ module soc #(
                         end
                     end
 `endif                    
+`ifdef USB
+                    4'h4: begin
+                        // USB
+                        if (addr[11:0] == 12'd0) begin
+                            // report valid
+                            cpu_data_in = {31'd0, usb_report_valid_i};
+                        end else if (addr[11:0] == 12'd4) begin
+                            // report MSW
+                            cpu_data_in = usb_report_i[63:32];
+                        end else if (addr[11:0] == 12'd8) begin
+                            // report LSW
+                            cpu_data_in = usb_report_i[31:0];
+                        end
+                    end
+`endif // USB
                 endcase
             end
         end
