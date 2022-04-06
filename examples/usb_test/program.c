@@ -34,16 +34,23 @@ void main(void)
     unsigned int counter = 0;
     char s[64];
 
+    unsigned int last_report_msw = 0, last_report_lsw = 0;
+
     for (;;) {
         if (MEM_READ(USB_STATUS) & 0x1) {
-            print("USB report detected: ");
             unsigned int report_msw = MEM_READ(USB_REPORT_MSW);
             unsigned int report_lsw = MEM_READ(USB_REPORT_LSW);
-            uitoa(report_msw, s, 16);
-            print(s);
-            uitoa(report_lsw, s, 16);
-            print(s);
-            print("\r\n");
+            if (last_report_lsw != report_lsw || last_report_msw != report_msw) {
+                print("USB report detected: ");
+                uitoa(report_msw, s, 16);
+                print(s);
+                uitoa(report_lsw, s, 16);
+                print(s);
+                print("\r\n");
+
+                last_report_msw = report_msw;
+                last_report_lsw = report_lsw;
+            }
         } 
     }
 }

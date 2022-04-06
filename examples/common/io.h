@@ -1,3 +1,6 @@
+#ifndef IO_H
+#define IO_H
+
 #define DISPLAY         0x20001000
 #define UART_DATA       0x20002000
 #define UART_STATUS     0x20002004
@@ -7,3 +10,5 @@
 
 char *itoa(int value, char* result, int base);
 void print(const char *s);
+
+#endif // IO_H

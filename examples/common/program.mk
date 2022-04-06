@@ -8,7 +8,7 @@ OBJCOPY = ${RISCV_TOOLCHAIN_PATH}${RISVC_TOOLCHAIN_PREFIX}objcopy
 OBJDUMP = ${RISCV_TOOLCHAIN_PATH}${RISVC_TOOLCHAIN_PREFIX}objdump
 CC = ${RISCV_TOOLCHAIN_PATH}${RISVC_TOOLCHAIN_PREFIX}gcc
 
-PROGRAM_SOURCE = ../common/start.s ../common/io.c program.c
+PROGRAM_SOURCE = ../common/start.s ../common/io.c ../common/gamepad.c program.c
 SERIAL ?= /dev/tty.usbserial-ibNy7k1v1
 
 all: program.hex
