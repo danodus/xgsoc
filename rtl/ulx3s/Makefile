@@ -14,6 +14,14 @@ SRC := ../../external/cpu/rtl/processor.sv \
 		../bram.sv \
 		../uart.sv \
 		../soc.sv \
+		usb/usb_phy.v \
+		usb/usb_rx_phy.v \
+		usb/usb_tx_phy.v \
+		usb/usbh_crc5.v \
+		usb/usbh_crc16.v \
+		usb/usbh_host_hid.v \
+		usb/usbh_sie.v \
+		generated_pll_usb.v \
 		top.sv
 
 all: top.bin

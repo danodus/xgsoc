@@ -11,7 +11,13 @@
         0x20002004: Status Register (Read-only)
             bit 0: busy
             bit 1: valid
+    0x20004000 - 0x20004FFF: USB
+        0x20004000: report valid
+        0x20004004: 64-bit report MSW (32-bit)
+        0x20004008: 64-bit report LSW (32-bit)
 */
+
+`define USB
 
 module soc #(
     parameter FREQ_MHZ = 12,
@@ -21,7 +27,11 @@ module soc #(
     input  wire logic       reset_i,
     output      logic [7:0] display_o,
     input  wire logic       rx_i,
-    output      logic       tx_o
+    output      logic       tx_o,
+`ifdef USB
+    input  wire logic [63:0] usb_report_i,
+    input  wire logic        usb_report_valid_i,
+`endif
     );
 
     // bus
@@ -113,12 +123,12 @@ module soc #(
             // write
             if (addr[31:28] == 4'h2) begin
                 // peripheral
-                case (addr[13:12])
-                    2'b01: begin
+                case (addr[15:12])
+                    4'h1: begin
                         // display
                         display_we = 1'b1;
                     end
-                    2'b10: begin
+                    4'h2: begin
                         // UART
                         if (addr[11:0] == 12'd0) begin
                             // data
@@ -134,8 +144,8 @@ module soc #(
             // read
             if (addr[31:28] == 4'h2) begin
                 // peripheral
-                case (addr[13:12])
-                    2'b10: begin
+                case (addr[15:12])
+                    4'h2: begin
                         // UART
                         if (addr[11:0] == 12'd0) begin
                             // data
@@ -146,6 +156,21 @@ module soc #(
                             cpu_data_in = {30'd0, uart_valid, uart_busy};
                         end
                     end
+`ifdef USB
+                    4'h4: begin
+                        // USB
+                        if (addr[11:0] == 12'd0) begin
+                            // report valid
+                            cpu_data_in = {31'd0, usb_report_valid_i};
+                        end else if (addr[11:0] == 12'd4) begin
+                            // report MSW
+                            cpu_data_in = usb_report_i[63:32];
+                        end else if (addr[11:0] == 12'd8) begin
+                            // report LSW
+                            cpu_data_in = usb_report_i[31:0];
+                        end
+                    end
+`endif // USB
                 endcase
             end
         end
