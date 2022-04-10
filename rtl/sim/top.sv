@@ -42,7 +42,11 @@ module top (
     output logic vga_vsync,
     output logic [3:0] vga_r,
     output logic [3:0] vga_g,
-    output logic [3:0] vga_b
+    output logic [3:0] vga_b,
+
+    input  wire logic [7:0]  ps2_kbd_code_i,
+    input  wire logic        ps2_kbd_strobe_i,
+    input  wire logic        ps2_kbd_err_i
     );
 
     soc #(
@@ -63,7 +67,11 @@ module top (
         .vga_vsync_o(vga_vsync),
         .vga_r_o(vga_r),
         .vga_g_o(vga_g),
-        .vga_b_o(vga_b)
+        .vga_b_o(vga_b),
+
+        .ps2_kbd_code_i(ps2_kbd_code_i),
+        .ps2_kbd_strobe_i(ps2_kbd_strobe_i),
+        .ps2_kbd_err_i()
     );
     
 endmodule

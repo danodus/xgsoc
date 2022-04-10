@@ -93,7 +93,12 @@ module top(
 `endif
 `ifdef USB
         .usb_report_i(usb_report),
-        .usb_report_valid_i(usb_report_valid)
+        .usb_report_valid_i(usb_report_valid),
+`endif
+`ifdef PS2
+        .ps2_kbd_code_i(ps2_kbd_code),
+        .ps2_kbd_strobe_i(ps2_kbd_strobe),
+        .ps2_kbd_err_i(ps2_kbd_err)
 `endif
     );
 
@@ -110,25 +115,29 @@ module top(
 	end
 
     // display
-    //always_comb begin
-    //    led = display;
-    //end
+    always_comb begin
+        led = display;
+    end
 
     // ps/2
 
     logic ps2_clk;
     logic ps2_data;
 
+    logic [7:0] ps2_kbd_code;
+    logic       ps2_kbd_strobe;
+    logic       ps2_kbd_err;
+
     assign ps2_clk = gn1;
     assign ps2_data = gn3;
 
-    ps2kbd kbd(
+    ps2kbd ps2_kbd(
         .clk(clk_25mhz),
         .ps2_clk(ps2_clk),
         .ps2_data(ps2_data),
-        .ps2_code(led),
-        .strobe(),
-        .err()
+        .ps2_code(ps2_kbd_code),
+        .strobe(ps2_kbd_strobe),
+        .err(ps2_kbd_err)
     );
 
     //

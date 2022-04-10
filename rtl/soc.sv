@@ -16,6 +16,11 @@
         0x20004000: report valid
         0x20004004: 64-bit report MSW (32-bit)
         0x20004008: 64-bit report LSW (32-bit)
+    0x20005000 - 0x20005FFF: PS/2 Keyboard
+        0x20005000: Status
+            bit 0: strobe
+            bit 1: error
+        0x20005004: Code
 */
 
 module soc #(
@@ -47,6 +52,12 @@ module soc #(
 `ifdef USB
     input  wire logic [63:0] usb_report_i,
     input  wire logic        usb_report_valid_i,
+`endif
+
+`ifdef PS2
+    input  wire logic [7:0]  ps2_kbd_code_i,
+    input  wire logic        ps2_kbd_strobe_i,
+    input  wire logic        ps2_kbd_err_i,
 `endif
     );
 
@@ -107,6 +118,62 @@ module soc #(
         end
     end
 
+`endif
+
+`ifdef PS2
+
+    logic ps2_kbd_enq;
+    logic ps2_kbd_deq;
+    logic ps2_kbd_fifo_empty, ps2_kbd_fifo_full;
+
+    fifo #(
+        .ADDR_LEN(5),
+        .DATA_WIDTH(8)
+    ) ps2_kbd_fifo(
+        .clk(clk),
+        .reset_i(reset_i),
+        .reader_q_o(ps2_kbd_code),
+        .reader_deq_i(ps2_kbd_deq),
+        .reader_empty_o(ps2_kbd_fifo_empty),
+        .reader_alm_empty_o(),
+
+        .writer_d_i(ps2_kbd_code_i),
+        .writer_enq_i(ps2_kbd_enq),
+        .writer_full_o(ps2_kbd_fifo_full),
+        .writer_alm_full_o()
+    );
+
+    logic       ps2_kbd_req_deq;
+    logic [7:0] ps2_kbd_code, ps2_kbd_code_r;
+    always_ff @(posedge clk) begin
+        if (reset_i) begin
+            ps2_kbd_enq <= 1'b0;
+            ps2_kbd_deq <= 1'b0;
+        end begin
+            ps2_kbd_enq <= 1'b0;
+            if (ps2_kbd_deq) begin
+                $display("Keyboard code: %x", ps2_kbd_code_r);
+                ps2_kbd_deq <= 1'b0;
+                ps2_kbd_code_r <= ps2_kbd_code; 
+            end
+            if (ps2_kbd_req_deq) begin
+                if (!ps2_kbd_fifo_empty) begin
+                    $display("Keyboard dequeue");
+                    ps2_kbd_deq <= 1'b1;
+                end else begin
+                    $display("Keyboard dequeue requested but empty!");
+                end
+            end
+            if (ps2_kbd_strobe_i) begin
+                if (!ps2_kbd_fifo_full) begin
+                    $display("Keyboard enqueue");
+                    ps2_kbd_enq <= 1'b1;
+                end else begin
+                    $display("Keyboard enqueue requested but full!");
+                end
+            end
+        end
+    end
 `endif
 
     bram #(
@@ -220,6 +287,9 @@ module soc #(
         xosera_bus_bytesel = addr[8];
         xosera_bus_reg_num = addr[7:4];
 `endif
+`ifdef PS2
+        ps2_kbd_req_deq = 1'b0;
+`endif
         if (cpu_we) begin
             // write
             if (addr[31:28] == 4'h2) begin
@@ -249,6 +319,16 @@ module soc #(
                         end
                     end
 `endif
+`ifdef PS2
+                    4'h5: begin
+                        // PS/2 Keyboard
+                        if (addr[11:0] == 12'd0) begin
+                            if (!ps2_kbd_fifo_empty)
+                                ps2_kbd_req_deq = 1'b1;
+                        end
+                    end
+`endif // PS2
+
                 endcase
             end else begin
                 // memory
@@ -298,6 +378,19 @@ module soc #(
                         end
                     end
 `endif // USB
+`ifdef PS2
+                    4'h5: begin
+                        // PS/2 Keyboard
+                        if (addr[11:0] == 12'd0) begin
+                            // status
+                            cpu_data_in = {31'd0, ~ps2_kbd_fifo_empty};
+                        end else if (addr[11:0] == 12'd4) begin
+                            // code
+                            $display("Read %x", ps2_kbd_code_r);
+                            cpu_data_in = {24'd0, ps2_kbd_code_r};
+                        end
+                    end
+`endif // PS2
                 endcase
             end
         end

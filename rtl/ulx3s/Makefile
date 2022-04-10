@@ -16,6 +16,7 @@ SRC_CORE := ../../external/cpu/rtl/processor.sv \
 		../vga_timings.sv \
 		../vga.sv \
 		../vram2.sv \
+		../fifo.sv \
 		../soc.sv \
 		usb/usb_phy.v \
 		usb/usb_rx_phy.v \
@@ -39,8 +40,7 @@ SRC_XOSERA := $(wildcard ../../external/Xosera/rtl/*.sv)
 
 SRC := $(SRC_CORE) $(SRC_XOSERA)
 
-#DEFINES := -DUSB -DVGA -DXOSERA -DNO_CS_BUS_DELAY
-DEFINES := -DPS2
+DEFINES := -DUSB -DPS2 -DVGA -DXOSERA -DNO_CS_BUS_DELAY
 
 all: top.bin
 

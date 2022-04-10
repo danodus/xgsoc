@@ -97,6 +97,8 @@ int main(int argc, char **argv, char **env)
         //if (contextp->time() > 500)
         //    break;
 
+        top->ps2_kbd_strobe_i = 0;
+
         contextp->timeInc(1);
         top->clk = 0;
         top->eval();
@@ -205,6 +207,11 @@ int main(int argc, char **argv, char **env)
                         case SDLK_TAB:
                             top->btn_ctrl = 1;
                             std::cout << "Ctrl pressed\n";
+                            break;
+                        case SDLK_a:
+                            std::cout << "PS/2 character sent\n";
+                            top->ps2_kbd_code_i = 0x55;
+                            top->ps2_kbd_strobe_i = 1;
                             break;
                         }
                     }
