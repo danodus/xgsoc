@@ -9,6 +9,7 @@
 #define MEM_READ(_addr_)           (*((volatile unsigned int *)(_addr_)))
 
 char *itoa(int value, char* result, int base);
+void print_chr(char c);
 void print(const char *s);
 
 #endif // IO_H
