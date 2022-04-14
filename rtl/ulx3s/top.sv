@@ -140,7 +140,7 @@ module top(
     assign ps2_data = gn3;
 
     ps2kbd ps2_kbd(
-        .clk(clk_25mhz),
+        .clk(clk_pix),
         .ps2_clk(ps2_clk),
         .ps2_data(ps2_data),
         .ps2_code(ps2_kbd_code),
