@@ -40,7 +40,7 @@ SRC_XOSERA := $(wildcard ../../external/Xosera/rtl/*.sv)
 
 SRC := $(SRC_CORE) $(SRC_XOSERA)
 
-DEFINES := -DUSB -DPS2 -DVGA -DXOSERA -DNO_CS_BUS_DELAY
+DEFINES := -DUSB -DPS2 -DVGA -DXOSERA -DNO_CS_BUS_DELAY -DMODE_848x480
 
 all: top.bin
 
@@ -49,7 +49,7 @@ clean:
 
 top.json: $(SRC) ../../firmware/firmware.hex
 	cp ../../firmware/firmware.hex .
-	$(YOSYS) -ql top.log -p 'verilog_defines $(DEFINES) ; read_verilog -sv $(SRC); synth_ecp5 -top top -json top.json' $(SRC)
+	$(YOSYS) -ql top.log -p 'verilog_defines $(DEFINES) ; read_verilog -sv $(SRC); synth_ecp5 -top top -json top.json'
 
 top.asc: top.json $(PIN_DEF)
 	$(NEXTPNR) -l top_nextpnr.log --$(DEVICE) --package $(PACKAGE) --json top.json --lpf $(PIN_DEF) --textcfg top.asc --randomize-seed

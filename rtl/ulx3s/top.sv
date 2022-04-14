@@ -35,7 +35,11 @@ module top(
     logic clk_locked;
 
     pll_ecp5 #(
+`ifdef MODE_848x480
+        .ENABLE_FAST_CLK(1)
+`else
         .ENABLE_FAST_CLK(0)
+`endif
     ) pll_main (
         .clk_25m(clk_25mhz),
         .locked(clk_locked),
@@ -69,7 +73,11 @@ module top(
     );    
 
     soc #(
-        .FREQ_HZ(25000000),
+`ifdef MODE_848x480
+        .FREQ_HZ(33_750_000),
+`else
+        .FREQ_HZ(25_000_000),
+`endif
         .BAUDS(115200),
         .RAM_SIZE(256*1024)
     ) soc(

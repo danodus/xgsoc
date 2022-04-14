@@ -12,8 +12,13 @@
 const int screen_width = 1024;
 const int screen_height = 768;
 
-const int vga_width = 800;
-const int vga_height = 525;
+// 640x480
+//const int vga_width = 800;
+//const int vga_height = 525;
+
+// 848x480
+const int vga_width = 1088;
+const int vga_height = 517;
 
 double sc_time_stamp()
 {
