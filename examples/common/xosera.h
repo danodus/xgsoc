@@ -38,9 +38,23 @@ void xsetw(unsigned int reg, unsigned int val)
     MEM_WRITE(XOSERA_ODD_BASE | (reg << 4), val & 0xFF);
 }
 
+unsigned int xgetw(unsigned int reg)
+{
+    unsigned int val = 0;
+    MEM_READ(XOSERA_EVEN_BASE | (reg << 4));
+    val |= MEM_READ(XOSERA_EVEN_BASE) << 8;
+    MEM_READ(XOSERA_ODD_BASE | (reg << 4));
+    val |= MEM_READ(XOSERA_ODD_BASE) & 0xFF;
+    return val;
+}
+
 void xm_setw(unsigned int reg, unsigned int val)
 {
     xsetw(reg, val);
+}
+unsigned int xm_getw(unsigned int reg)
+{
+    return xgetw(reg);
 }
 
 void xreg_setw(unsigned int reg, unsigned int val)

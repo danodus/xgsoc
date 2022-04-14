@@ -320,5 +320,11 @@ void main(void)
 
     test_audio_sample(g_sin_data, sizeof(g_sin_data), 1000);
 
-    for (;;);
+    for (;;) {
+        uint16_t tv = xm_getw(TIMER);
+        char s[32];
+        itoa(tv, s, 16);
+        xprint(15, 11, "          ");
+        xprint(15, 11, s);
+    }
 }
