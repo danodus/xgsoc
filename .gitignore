@@ -10,6 +10,7 @@ examples/**/*.hex
 examples/**/*.bin
 examples/**/*.elf
 examples/**/*.lst
+examples/**/*.o
 rtl/**/*.log
 rtl/**/*.asc
 rtl/**/*.bin

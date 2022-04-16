@@ -32,6 +32,10 @@
 #define AUD0_LENGTH 0x05        // (R /W) // TODO: to be refactored
 #define PA_GFX_CTRL 0x10
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 void xsetw(unsigned int reg, unsigned int val)
 {
     MEM_WRITE(XOSERA_EVEN_BASE | (reg << 4), val >> 8);
@@ -62,5 +66,9 @@ void xreg_setw(unsigned int reg, unsigned int val)
     xsetw(XR_ADDR, reg);
     xsetw(XR_DATA, val);
 }
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif // XOSERA_H
