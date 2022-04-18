@@ -2,12 +2,15 @@
 
 #include <memory>
 #include <chrono>
+#include <deque>
 
 #include <verilated.h>
 #include <iostream>
 
 // Include model header, generated from Verilating "top.v"
 #include "Vtop.h"
+
+#include "sdl_ps2.h"
 
 const int screen_width = 1024;
 const int screen_height = 768;
@@ -96,19 +99,27 @@ int main(int argc, char **argv, char **env)
 
     bool manual_reset = 0;
 
+    std::deque<uint8_t> ps2_keys;
+
     while (!contextp->gotFinish() && !quit)
     {
-        //SDL_Delay(100);
-        //if (contextp->time() > 500)
-        //    break;
-
-        top->ps2_kbd_strobe_i = 0;
-
         contextp->timeInc(1);
         top->clk = 0;
         top->eval();
         contextp->timeInc(1);
         top->clk = 1;
+
+        if (top->ps2_kbd_strobe_i) {
+            top->ps2_kbd_strobe_i = 0;
+
+        } else {
+            if (ps2_keys.size() > 0) {
+                top->ps2_kbd_code_i = ps2_keys.back();
+                top->ps2_kbd_strobe_i = 1;
+                ps2_keys.pop_back();
+            }
+        }
+
         if (manual_reset || (contextp->time() > 1 && contextp->time() < 10))
         {
             top->reset_i = 1; // Assert reset
@@ -161,34 +172,18 @@ int main(int argc, char **argv, char **env)
                 }
                 else if (e.type == SDL_KEYUP)
                 {
-                    if (e.key.keysym.sym >= SDLK_1 && e.key.keysym.sym <= SDLK_4)
+                    switch (e.key.keysym.sym)
                     {
-                        int i = 3 - (e.key.keysym.sym - SDLK_1);
-                        unsigned char mask = 0x1 << i;
-                        if ((top->sw >> i) & 0x1)
+                    case SDLK_F1:
+                        manual_reset = false;
+                        std::cout << "Reset released\n";
+                        break;
+                    default:
                         {
-                            top->sw &= ~mask;
-                        }
-                        else
-                            top->sw |= mask;
-                    }
-                    else
-                    {
-                        switch (e.key.keysym.sym)
-                        {
-                        case SDLK_F1:
-                            manual_reset = false;
-                            std::cout << "Reset released\n";
-                            break;
-                        case SDLK_UP:
-                            top->btn_up = 0;
-                            break;
-                        case SDLK_DOWN:
-                            top->btn_dn = 0;
-                            break;
-                        case SDLK_TAB:
-                            top->btn_ctrl = 0;
-                            std::cout << "Ctrl released\n";
+                            uint8_t out[MAX_PS2_CODE_LEN];
+                            int n = ps2_encode(e.key.keysym.scancode, false, out);
+                            for (int i = 0; i < n; ++i)
+                                ps2_keys.emplace_front(out[i]);
                             break;
                         }
                     }
@@ -203,21 +198,14 @@ int main(int argc, char **argv, char **env)
                             manual_reset = true;
                             std::cout << "Reset pressed\n";
                             break;
-                        case SDLK_UP:
-                            top->btn_up = 1;
-                            break;
-                        case SDLK_DOWN:
-                            top->btn_dn = 1;
-                            break;
-                        case SDLK_TAB:
-                            top->btn_ctrl = 1;
-                            std::cout << "Ctrl pressed\n";
-                            break;
-                        case SDLK_a:
-                            std::cout << "PS/2 character sent\n";
-                            top->ps2_kbd_code_i = 0x55;
-                            top->ps2_kbd_strobe_i = 1;
-                            break;
+                        default:
+                            {
+                                uint8_t out[MAX_PS2_CODE_LEN];
+                                int n = ps2_encode(e.key.keysym.scancode, true, out);
+                                for (int i = 0; i < n; ++i)
+                                    ps2_keys.emplace_front(out[i]);
+                                break;
+                            }
                         }
                     }
                 }

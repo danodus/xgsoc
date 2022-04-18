@@ -152,24 +152,17 @@ module soc #(
         end begin
             ps2_kbd_enq <= 1'b0;
             if (ps2_kbd_deq) begin
-                $display("Keyboard code: %x", ps2_kbd_code_r);
                 ps2_kbd_deq <= 1'b0;
                 ps2_kbd_code_r <= ps2_kbd_code; 
             end
             if (ps2_kbd_req_deq) begin
                 if (!ps2_kbd_fifo_empty) begin
-                    $display("Keyboard dequeue");
                     ps2_kbd_deq <= 1'b1;
-                end else begin
-                    $display("Keyboard dequeue requested but empty!");
                 end
             end
             if (ps2_kbd_strobe_i) begin
                 if (!ps2_kbd_fifo_full) begin
-                    $display("Keyboard enqueue");
                     ps2_kbd_enq <= 1'b1;
-                end else begin
-                    $display("Keyboard enqueue requested but full!");
                 end
             end
         end
@@ -386,7 +379,6 @@ module soc #(
                             cpu_data_in = {31'd0, ~ps2_kbd_fifo_empty};
                         end else if (addr[11:0] == 12'd4) begin
                             // code
-                            $display("Read %x", ps2_kbd_code_r);
                             cpu_data_in = {24'd0, ps2_kbd_code_r};
                         end
                     end
