@@ -389,8 +389,12 @@ module soc #(
     end
 
     always @(posedge clk) begin
-        if (display_we)
-            display_o <= cpu_data_out[7:0];
+        if (reset_i) begin
+            display_o <= 8'd0;
+        end else begin
+            if (display_we)
+                display_o <= cpu_data_out[7:0];
+        end
     end
 
     always @(posedge clk) begin
