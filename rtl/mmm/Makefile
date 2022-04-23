@@ -1,0 +1,43 @@
+YOSYS := yosys
+ECPPACK := ecppack
+NEXTPNR := nextpnr-ecp5
+OPENFPGALOADER := openFPGALoader
+
+DEVICE := um-85k
+PACKAGE := CABGA381
+SPEED := 7
+
+PIN_DEF := mmm.lpf
+SRC_CORE := ../../external/cpu/rtl/processor.sv \
+		../../external/cpu/rtl/alu.sv \
+		../../external/cpu/rtl/decoder.sv \
+		../../external/cpu/rtl/register_file.sv \
+		../bram.sv \
+		../uart.sv \
+		../soc.sv \
+		generated_pll.v \
+		top.sv
+
+SRC := $(SRC_CORE)
+
+DEFINES :=
+
+all: top.bin
+
+clean:
+	rm -f *.hex *.asc *.json *.bin *.log
+
+top.json: $(SRC) ../../firmware/firmware.hex
+	cp ../../firmware/firmware.hex .
+	$(YOSYS) -ql top.log -p 'verilog_defines $(DEFINES) ; read_verilog -sv $(SRC); synth_ecp5 -top top -json top.json'
+
+top.asc: top.json $(PIN_DEF)
+	$(NEXTPNR) -l top_nextpnr.log --$(DEVICE) --package $(PACKAGE) --speed $(SPEED) --json top.json --lpf $(PIN_DEF) --textcfg top.asc --randomize-seed
+
+top.bin: top.asc
+	$(ECPPACK) --compress --input top.asc --bit top.bin
+
+prog: top.bin
+	$(OPENFPGALOADER) --verbose --cable ft4232 top.bin
+
+.PHONY: all prog
