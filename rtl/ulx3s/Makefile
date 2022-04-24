@@ -17,6 +17,7 @@ SRC_CORE := ../../external/cpu/rtl/processor.sv \
 		../vga.sv \
 		../vram2.sv \
 		../fifo.sv \
+		../ps2kbd.v \
 		../soc.sv \
 		usb/usb_phy.v \
 		usb/usb_rx_phy.v \
@@ -30,7 +31,6 @@ SRC_CORE := ../../external/cpu/rtl/processor.sv \
 		pll_ecp5.v \
 		hdmi_encoder.v \
 		generated_pll_usb.v \
-		ps2kbd.v \
 		top.sv
 
 SRC_GRAPHITE :=  ../../external/graphite/rtl/graphite.sv \

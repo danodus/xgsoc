@@ -3,7 +3,9 @@ module top(
     input  wire logic       BTN,
     output      logic [1:0] led,
     input  wire logic       UART1_RXD,
-    output      logic       UART1_TXD
+    output      logic       UART1_TXD,
+    input  wire logic       PMOD_PS2_K_CLK,
+    input  wire logic       PMOD_PS2_K_DATA
 );
 
     // reset
@@ -31,7 +33,12 @@ module top(
         .reset_i(reset),
         .display_o(display),
         .rx_i(UART1_RXD),
-        .tx_o(UART1_TXD)
+        .tx_o(UART1_TXD),
+`ifdef PS2
+        .ps2_kbd_code_i(ps2_kbd_code),
+        .ps2_kbd_strobe_i(ps2_kbd_strobe),
+        .ps2_kbd_err_i(ps2_kbd_err)
+`endif
     );
 
     // reset
@@ -47,5 +54,20 @@ module top(
     always_comb begin
         led = display[1:0];
     end
+
+    // ps/2
+
+    logic [7:0] ps2_kbd_code;
+    logic       ps2_kbd_strobe;
+    logic       ps2_kbd_err;
+
+    ps2kbd ps2_kbd(
+        .clk(clk),
+        .ps2_clk(PMOD_PS2_K_CLK),
+        .ps2_data(PMOD_PS2_K_DATA),
+        .ps2_code(ps2_kbd_code),
+        .strobe(ps2_kbd_strobe),
+        .err(ps2_kbd_err)
+    );    
 
 endmodule

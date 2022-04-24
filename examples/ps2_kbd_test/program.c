@@ -3,6 +3,7 @@
 
 void main(void)
 {
+    print("PS/2 Keyboard Test\r\n");
     for (;;) {
         char c = getch();
         if (c == 13) {

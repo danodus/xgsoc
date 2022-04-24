@@ -14,13 +14,15 @@ SRC_CORE := ../../external/cpu/rtl/processor.sv \
 		../../external/cpu/rtl/register_file.sv \
 		../bram.sv \
 		../uart.sv \
+		../fifo.sv \
+		../ps2kbd.v \
 		../soc.sv \
 		generated_pll.v \
 		top.sv
 
 SRC := $(SRC_CORE)
 
-DEFINES :=
+DEFINES := -DPS2
 
 all: top.bin
 
