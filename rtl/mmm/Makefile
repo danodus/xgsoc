@@ -14,15 +14,21 @@ SRC_CORE := ../../external/cpu/rtl/processor.sv \
 		../../external/cpu/rtl/register_file.sv \
 		../bram.sv \
 		../uart.sv \
+		../vga_timings.sv \
+		../vga.sv \
+		../vram2.sv \
 		../fifo.sv \
 		../ps2kbd.v \
+		../hdmi_encoder.v \
 		../soc.sv \
 		generated_pll.v \
 		top.sv
 
-SRC := $(SRC_CORE)
+SRC_XOSERA := $(wildcard ../../external/Xosera/rtl/*.sv)
 
-DEFINES := -DPS2
+SRC := $(SRC_CORE) $(SRC_XOSERA)
+
+DEFINES := -DPS2 -DVGA -DXOSERA -DNO_CS_BUS_DELAY
 
 all: top.bin
 

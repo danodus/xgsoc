@@ -312,6 +312,8 @@ static void test_audio_sample(int8_t * samp, int bytesize, int speed)
 
 void main(void)
 {
+    print("Xosera Test\r\n");
+
     xreg_setw(PA_GFX_CTRL, 0x0000);
 
     xclear();
