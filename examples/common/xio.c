@@ -5,6 +5,7 @@
 
 #define SCREEN_WIDTH 848
 #define NB_COLS (SCREEN_WIDTH / 8)
+#define NB_LINES 30
 
 int g_cursor_x = 0;
 int g_cursor_y = 0;
@@ -21,7 +22,7 @@ void xclear()
 {
     xm_setw(WR_INCR, 1);    
     xm_setw(WR_ADDR, 0);
-    for (int i = 0; i < NB_COLS*30; ++i)
+    for (int i = 0; i < NB_COLS*NB_LINES; ++i)
         xm_setw(DATA, 0x0100 | ' ');
     g_cursor_x = 0;
     g_cursor_y = 0;
@@ -29,8 +30,20 @@ void xclear()
 
 void xscroll()
 {
-    g_cursor_x = 0;
-    g_cursor_y = 0;
+    for (int y = 1; y < NB_LINES; ++y) {
+        for (int x = 0; x < NB_COLS; ++x) {
+            xm_setw(RD_ADDR, y*NB_COLS+x);
+            xm_setw(WR_ADDR, (y-1)*NB_COLS+x);
+            unsigned int d = xm_getw(DATA);
+            xm_setw(DATA, d);
+        }
+    }
+
+    // Clear last line
+    xm_setw(WR_INCR, 1);
+    xm_setw(WR_ADDR, (NB_LINES - 1) * NB_COLS);
+    for (int x = 0; x < NB_COLS; ++x)
+        xm_setw(DATA, 0x0100 | ' ');
 }
 
 void xprint_chr_xy(int x, int y, char c)
@@ -61,9 +74,10 @@ void xprint_chr(char c)
             g_cursor_y++;
         }
 
-        if (g_cursor_y >= 29) {
+        if (g_cursor_y > NB_LINES - 1) {
             xscroll();
             g_cursor_x = 0;
+            g_cursor_y = NB_LINES - 1;
         }
 
         if (c != '\r' && c != '\n') {
@@ -112,4 +126,34 @@ size_t xreadline(char *s, size_t buffer_len)
 
     *s = '\0';
     return len;
+}
+
+static char g_getchar_buf[128] = {'\0'};
+int getchar()
+{
+    // if buffer empty
+    if (g_getchar_buf[0] == '\0') {
+        // read line
+        int len = xreadline(g_getchar_buf, 128 - 1);
+        // append '\n'
+        g_getchar_buf[len] = '\n';
+        g_getchar_buf[len + 1] = '\0';
+    }
+
+    // get character in buffer
+    char c = g_getchar_buf[0];
+
+    // shift buffer left
+    for (int i = 0; ; ++i) {
+        g_getchar_buf[i] = g_getchar_buf[i + 1];
+        if (g_getchar_buf[i] == '\0')
+            break;
+    }
+
+    return (int)c;
+}
+
+int putchar(int character)
+{
+    xprint_chr((char)character);
 }

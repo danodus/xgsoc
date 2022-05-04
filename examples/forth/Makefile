@@ -13,8 +13,6 @@ PROGRAM_SOURCE = ../common/start.s            \
 	../common/kbd.c                           \
 	../common/syscalls.c					  \
 	../common/xio.c						      \
-	tokenizer.c                               \
-	ubasic.c                                  \
 	program.c
 
 SERIAL ?= /dev/tty.usbserial-D00039
