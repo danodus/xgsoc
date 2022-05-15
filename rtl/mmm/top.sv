@@ -9,7 +9,6 @@ module top(
 
     // Digital Video (differential outputs)
     output      logic [3:0] dio_p,
-    output      logic [3:0] dio_n,
 
     output      logic       AUDIO_L,
     output      logic       AUDIO_R,
@@ -52,11 +51,11 @@ module top(
         .vsync(vga_vsync),
 
         .gpdi_dp(dio_p),
-        .gpdi_dn(dio_n)
+        .gpdi_dn()
     );    
 
     soc #(
-        .FREQ_HZ(25_000_000),
+        .FREQ_HZ(33_750_000),
         .BAUDS(115200),
         .RAM_SIZE(256*1024)
     ) soc(

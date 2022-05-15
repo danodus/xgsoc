@@ -28,7 +28,7 @@ SRC_XOSERA := $(wildcard ../../external/Xosera/rtl/*.sv)
 
 SRC := $(SRC_CORE) $(SRC_XOSERA)
 
-DEFINES := -DPS2 -DVGA -DXOSERA -DNO_CS_BUS_DELAY
+DEFINES := -DPS2 -DVGA -DXOSERA -DNO_CS_BUS_DELAY -DMODE_848x480
 
 all: top.bin
 

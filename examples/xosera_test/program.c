@@ -6,6 +6,23 @@
 #define WIDTH 848
 #define NB_COLS (WIDTH / 8)
 
+#define BLACK           0x0
+#define BLUE            0x1
+#define GREEN           0x2
+#define CYAN            0x3
+#define RED             0x4
+#define MAGENTA         0x5
+#define BROWN           0x6
+#define WHITE           0x7
+#define GRAY            0x8
+#define LIGHT_BLUE      0x9
+#define LIGHT_GREEN     0xA
+#define LIGHT_CYAN      0xB
+#define LIGHT_RED       0xC
+#define LIGHT_MAGENTA   0xD
+#define YELLOW          0xE
+#define BRIGHT_WHITE    0xF
+
 void xclear()
 {
     xm_setw(WR_INCR, 1);    
@@ -14,12 +31,13 @@ void xclear()
         xm_setw(DATA, 0x0100 | '*');
 }
 
-void xprint(unsigned int x, unsigned int y, const char *s)
+void xprint(unsigned int x, unsigned int y, const char *s, unsigned char color)
 {
     xm_setw(WR_INCR, 1);    
     xm_setw(WR_ADDR, y * NB_COLS + x);
+    unsigned int w = (unsigned int)color << 8;
     for (; *s; ++s) {
-        xm_setw(DATA, 0x0F00 | *s);
+        xm_setw(DATA, w | *s);
     }
 }
 
@@ -318,7 +336,25 @@ void main(void)
 
     xclear();
 
-    xprint(15, 10, "  Xosera and danoidus' RISC-V running on ULX3S!  ");
+    xprint(5, 1, " RISC-V/Xosera ", WHITE);
+
+    xprint(5, 6,  " BLACK   ", BLACK);
+    xprint(5, 7,  " BLUE    ", BLUE);
+    xprint(5, 8,  " GREEN   ", GREEN);
+    xprint(5, 9,  " CYAN    ", CYAN);
+    xprint(5, 10, " RED     ", RED);
+    xprint(5, 11, " MAGENTA ", MAGENTA);
+    xprint(5, 12, " BROWN   ", BROWN);
+    xprint(5, 13, " WHITE   ", WHITE);
+
+    xprint(20, 6, " GRAY          ", GRAY);
+    xprint(20, 7, " LIGHT BLUE    ", LIGHT_BLUE);
+    xprint(20, 8, " LIGHT GREEN   ", LIGHT_GREEN);
+    xprint(20, 9, " LIGHT CYAN    ", LIGHT_CYAN);
+    xprint(20, 10," LIGHT RED     ", LIGHT_RED);
+    xprint(20, 11," LIGHT MAGENTA ", LIGHT_MAGENTA);
+    xprint(20, 12," YELLOW        ", YELLOW);
+    xprint(20, 13," BRIGHT WHITE  ", BRIGHT_WHITE);
 
     test_audio_sample(g_sin_data, sizeof(g_sin_data), 1000);
 
@@ -326,7 +362,7 @@ void main(void)
         uint16_t tv = xm_getw(TIMER);
         char s[32];
         itoa(tv, s, 16);
-        xprint(15, 11, "          ");
-        xprint(15, 11, s);
+        xprint(0, 29, "          ", WHITE);
+        xprint(0, 29, s, WHITE);
     }
 }
