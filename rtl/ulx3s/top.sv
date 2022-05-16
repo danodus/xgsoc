@@ -18,7 +18,19 @@ module top(
     input  wire logic       gn0,    // C2
     input  wire logic       gn1,    // C1
     input  wire logic       gn2,    // D2
-    input  wire logic       gn3     // D1
+    input  wire logic       gn3,    // D1
+
+    // SDRAM
+    output      logic        sdram_clk,
+    output      logic        sdram_cke,
+    output      logic        sdram_csn,
+    output      logic        sdram_wen,
+    output      logic        sdram_rasn,
+    output      logic        sdram_casn,
+    output      logic [12:0] sdram_a,
+    output      logic [1:0]  sdram_ba,
+    output      logic [1:0]  sdram_dqm,
+    inout       logic [15:0] sdram_d    
     );
 
     localparam USB_REPORT_NB_BYTES = 8;
@@ -31,21 +43,15 @@ module top(
 
     logic [7:0] display;
 
-    logic clk_pix, clk_1x, clk_10x;
+    logic clk_pix, clk_pix_x5, clk_sdram;
     logic clk_locked;
 
-    pll_ecp5 #(
-`ifdef MODE_848x480
-        .ENABLE_FAST_CLK(1)
-`else
-        .ENABLE_FAST_CLK(0)
-`endif
-    ) pll_main (
-        .clk_25m(clk_25mhz),
-        .locked(clk_locked),
-        .clk_1x(clk_1x),
-        .clk_2x(clk_pix),
-        .clk_10x(clk_10x)
+    pll pll_main (
+        .clkin(clk_25mhz),
+        .clkout0(clk_pix_x5),
+        .clkout2(clk_pix),
+        .clkout3(clk_sdram),
+        .locked(clk_locked)
     );
 
     logic [3:0] vga_r;                      // vga red (4-bit)
@@ -58,7 +64,7 @@ module top(
 
     hdmi_encoder hdmi(
         .pixel_clk(clk_pix),
-        .pixel_clk_x5(clk_10x),
+        .pixel_clk_x5(clk_pix_x5),
 
         .red({2{vga_r}}),
         .green({2{vga_g}}),
@@ -73,15 +79,13 @@ module top(
     );    
 
     soc #(
-`ifdef MODE_848x480
-        .FREQ_HZ(33_750_000),
-`else
         .FREQ_HZ(25_000_000),
-`endif
         .BAUDS(115200),
-        .RAM_SIZE(256*1024)
+        .RAM_SIZE(240*1024),
+        .SDRAM_CLK_FREQ_MHZ(78)
     ) soc(
         .clk(clk_pix),
+        .clk_sdram(clk_sdram),
 `ifdef VGA        
         .clk_pix(clk_pix),
 `endif
@@ -106,8 +110,20 @@ module top(
 `ifdef PS2
         .ps2_kbd_code_i(ps2_kbd_code),
         .ps2_kbd_strobe_i(ps2_kbd_strobe),
-        .ps2_kbd_err_i(ps2_kbd_err)
+        .ps2_kbd_err_i(ps2_kbd_err),
 `endif
+
+        // SDRAM
+        .sdram_clk_o(sdram_clk),
+        .sdram_cke_o(sdram_cke),
+        .sdram_cs_n_o(sdram_csn),
+        .sdram_we_n_o(sdram_wen),
+        .sdram_ras_n_o(sdram_rasn),
+        .sdram_cas_n_o(sdram_casn),
+        .sdram_a_o(sdram_a),
+        .sdram_ba_o(sdram_ba),
+        .sdram_dqm_o(sdram_dqm),
+        .sdram_dq_io(sdram_d)
     );
 
     assign audio_l[2:0] = 3'd0;

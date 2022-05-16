@@ -10,6 +10,7 @@ CC = ${RISCV_TOOLCHAIN_PATH}${RISVC_TOOLCHAIN_PREFIX}gcc
 
 PROGRAM_SOURCE = ../common/start.s            \
 	../common/io.c                            \
+	../common/kbd.c                           \
 	../../external/graphite/common/graphite.c \
 	../../external/graphite/common/cube.c     \
 	program.c
@@ -19,7 +20,7 @@ SERIAL ?= /dev/tty.usbserial-D00039
 all: program.hex
 
 run: program.hex
-	$(PYTHON) ../../utils/sendhex.py $(SERIAL) program.hex
+	$(PYTHON) ../../utils/sendhex.py $(SERIAL) program.hex 0.0003
 
 program: program.hex
 

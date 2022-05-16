@@ -27,20 +27,22 @@ SRC_CORE := ../../external/cpu/rtl/processor.sv \
 		usb/usbh_crc16.v \
 		usb/usbh_host_hid.v \
 		usb/usbh_sie.v \
-		generated_pll_25.v \
-		generated_pll_33_75.v \
-		pll_ecp5.v \
+		generated_pll.v \
 		generated_pll_usb.v \
 		top.sv
 
 SRC_GRAPHITE :=  ../../external/graphite/rtl/graphite.sv \
-		../../external/graphite/rtl/reciprocal.sv
+		../../external/graphite/rtl/reciprocal.sv \
+		../../external/graphite/rtl/sdram_ctrl.v \
+		../../external/graphite/rtl/async_fifo.sv \
+		../../external/graphite/rtl/async_sdram_ctrl.sv \
+		../../external/graphite/rtl/framebuffer.sv
 
 SRC_XOSERA := $(wildcard ../../external/Xosera/rtl/*.sv)
 
-SRC := $(SRC_CORE) $(SRC_XOSERA)
+SRC := $(SRC_CORE) $(SRC_XOSERA) $(SRC_GRAPHITE)
 
-DEFINES := -DUSB -DPS2 -DVGA -DXOSERA -DNO_CS_BUS_DELAY
+DEFINES := -DUSB -DPS2 -DVGA -DXOSERA -DNO_CS_BUS_DELAY -DGRAPHITE
 
 all: top.bin
 

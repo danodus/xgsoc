@@ -12,6 +12,10 @@
             bit 0: busy
             bit 1: valid
     0x20003000 - 0x00003FFF: VGA
+        0x20003000  // Xosera even byte
+        0x20003100  // Xosera odd byte
+        0x20003400  // Graphite
+        0x20003800  // Control
     0x20004000 - 0x20004FFF: USB
         0x20004000: report valid
         0x20004004: 64-bit report MSW (32-bit)
@@ -26,9 +30,11 @@
 module soc #(
     parameter FREQ_HZ = 12 * 1000000,
     parameter BAUDS    = 115200,
-    parameter RAM_SIZE = 128*1024
+    parameter RAM_SIZE = 128*1024,
+    parameter SDRAM_CLK_FREQ_MHZ = 100
     ) (
     input  wire logic       clk,
+    input  wire logic       clk_sdram,
 `ifdef VGA    
     input  wire logic       clk_pix,
 `endif
@@ -59,6 +65,18 @@ module soc #(
     input  wire logic        ps2_kbd_strobe_i,
     input  wire logic        ps2_kbd_err_i,
 `endif
+
+    // SDRAM
+    output      logic        sdram_clk_o,
+    output      logic        sdram_cke_o,
+    output      logic        sdram_cs_n_o,
+    output      logic        sdram_we_n_o,
+    output      logic        sdram_ras_n_o,
+    output      logic        sdram_cas_n_o,
+    output      logic [12:0] sdram_a_o,
+    output      logic [1:0]  sdram_ba_o,
+    output      logic [1:0]  sdram_dqm_o,
+    inout       logic [15:0] sdram_dq_io,        
     );
 
     // bus
@@ -83,6 +101,11 @@ module soc #(
     logic uart_rd = 0;
 
 `ifdef VGA
+
+    logic         vga_we;
+
+    logic         vga_ena_graphite;
+
     // Graphite
     logic           vga_axis_tvalid;
     logic           vga_axis_tready;
@@ -232,14 +255,31 @@ module soc #(
     end
 
 `ifdef VGA    
-    vga vga(
+    vga #(
+        .SDRAM_CLK_FREQ_MHZ(SDRAM_CLK_FREQ_MHZ)
+    )vga(
         .clk(clk_pix),
         .reset_i(reset_i),
+        .ena_graphite_i(vga_ena_graphite),
 
 `ifdef GRAPHITE           
         .cmd_axis_tvalid_i(vga_axis_tvalid),
         .cmd_axis_tready_o(vga_axis_tready),
         .cmd_axis_tdata_i(vga_axis_tdata),
+
+        .clk_sdram(clk_sdram),
+
+        // SDRAM
+        .sdram_clk_o(sdram_clk_o),
+        .sdram_cke_o(sdram_cke_o),
+        .sdram_cs_n_o(sdram_cs_n_o),
+        .sdram_we_n_o(sdram_we_n_o),
+        .sdram_ras_n_o(sdram_ras_n_o),
+        .sdram_cas_n_o(sdram_cas_n_o),
+        .sdram_a_o(sdram_a_o),
+        .sdram_ba_o(sdram_ba_o),
+        .sdram_dqm_o(sdram_dqm_o),
+        .sdram_dq_io(sdram_dq_io),
 `endif
 
 `ifdef XOSERA
@@ -271,7 +311,8 @@ module soc #(
         cpu_data_in = mem_data_out;
         uart_tx_strobe = 1'b0;
         uart_rx_strobe = 1'b0;
-`ifdef VGA        
+`ifdef VGA
+        vga_we = 1'b0;
         vga_axis_tvalid = 1'b0;
         vga_axis_tdata = cpu_data_out;
         xosera_bus_cs_n = 1'b1;
@@ -300,15 +341,19 @@ module soc #(
                         end
                     end
 `ifdef VGA                    
-                    2'b11: begin
+                    4'h3: begin
                         // VGA
                         if (addr[11] == 1'b0) begin
-                            // xosera
-                            xosera_bus_rd_nwr = 1'b0;
-                            xosera_bus_cs_n = 1'b0;
-                        end else if (addr[11] == 1'b1) begin
-                            // graphite
-                            vga_axis_tvalid = 1'b1;
+                            if (addr[10] == 1'b0) begin
+                                // xosera
+                                xosera_bus_rd_nwr = 1'b0;
+                                xosera_bus_cs_n = 1'b0;
+                            end else if (addr[10] == 1'b1) begin
+                                // graphite
+                                vga_axis_tvalid = 1'b1;
+                            end
+                        end else begin
+                            vga_we = 1'b1;
                         end
                     end
 `endif
@@ -347,12 +392,16 @@ module soc #(
                     4'h3: begin
                         // VGA
                         if (addr[11] == 1'b0) begin
-                            // xosera
-                            xosera_bus_cs_n = 1'b0;
-                            cpu_data_in = {24'd0, xosera_bus_data_out};
-                        end else if (addr[11] == 1'b1) begin
-                            // graphite
-                            cpu_data_in = {31'd0, vga_axis_tready};
+                            if (addr[10] == 1'b0) begin
+                                // xosera
+                                xosera_bus_cs_n = 1'b0;
+                                cpu_data_in = {24'd0, xosera_bus_data_out};
+                            end else if (addr[10] == 1'b1) begin
+                                // graphite
+                                cpu_data_in = {31'd0, vga_axis_tready};
+                            end
+                        end else begin
+                            cpu_data_in = {31'd0, vga_ena_graphite};
                         end
                     end
 `endif                    
@@ -411,6 +460,15 @@ module soc #(
             uart_rd <= 1'b0;
         end
     end
+
+    always @(posedge clk) begin
+        if (reset_i) begin
+            vga_ena_graphite <= 1'b0;
+        end else begin
+            if (vga_we)
+                vga_ena_graphite <= cpu_data_out[0];
+        end
+    end 
     
 
 endmodule

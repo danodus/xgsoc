@@ -55,6 +55,7 @@ module top (
         .RAM_SIZE(256*1024)
     ) soc(
         .clk(clk),
+        .clk_sdram(clk),
         .clk_pix(clk),
         .reset_i(reset_i),
         
@@ -71,7 +72,19 @@ module top (
 
         .ps2_kbd_code_i(ps2_kbd_code_i),
         .ps2_kbd_strobe_i(ps2_kbd_strobe_i),
-        .ps2_kbd_err_i()
+        .ps2_kbd_err_i(),
+
+        // SDRAM
+        .sdram_clk_o(),
+        .sdram_cke_o(),
+        .sdram_cs_n_o(),
+        .sdram_we_n_o(),
+        .sdram_ras_n_o(),
+        .sdram_cas_n_o(),
+        .sdram_a_o(),
+        .sdram_ba_o(),
+        .sdram_dqm_o(),
+        .sdram_dq_io()
     );
     
 endmodule

@@ -10,7 +10,7 @@ def send(ser, bytes):
 
 def main(argv):
     if (len(argv) < 2):
-        print("Usage: sendhex.py <serial device> <hex file> [delay per word in ms]")
+        print("Usage: sendhex.py <serial device> <hex file> [delay per word in s]")
         exit(0)
     else:
         if (len(argv) >= 3):

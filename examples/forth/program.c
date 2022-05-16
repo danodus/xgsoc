@@ -21,6 +21,8 @@
 //#include <stdio.h>
 #include <xio.h>
 
+#include <stdlib.h>
+
 /* Base cell data types. Use short/long on most systems for 16 bit cells. */
 /* Experiment here if necessary. */
 #define CELL_BASE_TYPE short int
@@ -60,7 +62,7 @@ typedef unsigned char byte;
 
 /* This is the main memory to be used by this Forth. There will be no malloc
 * in this file. */
-byte memory[MEM_SIZE];
+byte *memory;
 
 /* Pointers to Forth variables stored inside the main memory array */
 cell *latest;
@@ -1021,6 +1023,8 @@ int main()
 {
     xinit();
 
+    memory = malloc(MEM_SIZE);
+
     errorFlag = 0;
 
     if (DCELL_SIZE != 2*CELL_SIZE)
@@ -1123,5 +1127,8 @@ int main()
 
     initscript_pos = (char*)initScript;
     quit();
+
+    free(memory);
+
     return 0;
 }
