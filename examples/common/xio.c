@@ -3,7 +3,7 @@
 #include <xosera.h>
 #include <kbd.h>
 
-#define SCREEN_WIDTH 848
+#define SCREEN_WIDTH 640
 #define NB_COLS (SCREEN_WIDTH / 8)
 #define NB_LINES 30
 

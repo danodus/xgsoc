@@ -55,7 +55,7 @@ module top(
     );    
 
     soc #(
-        .FREQ_HZ(33_750_000),
+        .FREQ_HZ(25_000_000),
         .BAUDS(115200),
         .RAM_SIZE(256*1024)
     ) soc(
