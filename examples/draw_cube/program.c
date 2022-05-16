@@ -2,6 +2,28 @@
 #include <unistd.h>
 #include <graphite.h>
 #include <cube.h>
+#include <xosera.h>
+
+#define WIDTH 640
+#define NB_COLS (WIDTH / 8)
+
+#define BLACK           0x0
+#define BLUE            0x1
+#define GREEN           0x2
+#define CYAN            0x3
+#define RED             0x4
+#define MAGENTA         0x5
+#define BROWN           0x6
+#define WHITE           0x7
+#define GRAY            0x8
+#define LIGHT_BLUE      0x9
+#define LIGHT_GREEN     0xA
+#define LIGHT_CYAN      0xB
+#define LIGHT_RED       0xC
+#define LIGHT_MAGENTA   0xD
+#define YELLOW          0xE
+#define BRIGHT_WHITE    0xF
+
 
 #define GRAPHITE             0x20003400
 #define VGA_CONTROL          0x20003800
@@ -309,10 +331,51 @@ void write_texture() {
 
 void draw_line(vec3d v0, vec3d v1, vec3d c0, vec3d c1, fx32 thickness);
 
+void xclear()
+{
+    xm_setw(WR_INCR, 1);    
+    xm_setw(WR_ADDR, 0);
+    for (int i = 0; i < NB_COLS*30; ++i)
+        xm_setw(DATA, 0x0F00 | ' ');
+}
+
+void xprint(unsigned int x, unsigned int y, const char *s, unsigned char color)
+{
+    xm_setw(WR_INCR, 1);    
+    xm_setw(WR_ADDR, y * NB_COLS + x);
+    unsigned int w = (unsigned int)color << 8;
+    for (; *s; ++s) {
+        xm_setw(DATA, w | *s);
+    }
+}
+
 void main(void)
 {
     // enable Graphite
     MEM_WRITE(VGA_CONTROL, 0x1);
+
+    xreg_setw(PA_GFX_CTRL, 0x0000);
+    xclear();
+    xprint(0, 0, "Draw Cube", BRIGHT_WHITE);
+
+
+    xprint(5, 6,  " BLACK   ", BLACK);
+    xprint(5, 7,  " BLUE    ", BLUE);
+    xprint(5, 8,  " GREEN   ", GREEN);
+    xprint(5, 9,  " CYAN    ", CYAN);
+    xprint(5, 10, " RED     ", RED);
+    xprint(5, 11, " MAGENTA ", MAGENTA);
+    xprint(5, 12, " BROWN   ", BROWN);
+    xprint(5, 13, " WHITE   ", WHITE);
+
+    xprint(20, 6, " GRAY          ", GRAY);
+    xprint(20, 7, " LIGHT BLUE    ", LIGHT_BLUE);
+    xprint(20, 8, " LIGHT GREEN   ", LIGHT_GREEN);
+    xprint(20, 9, " LIGHT CYAN    ", LIGHT_CYAN);
+    xprint(20, 10," LIGHT RED     ", LIGHT_RED);
+    xprint(20, 11," LIGHT MAGENTA ", LIGHT_MAGENTA);
+    xprint(20, 12," YELLOW        ", YELLOW);
+    xprint(20, 13," BRIGHT WHITE  ", BRIGHT_WHITE);
 
     float theta = 0.5f;
 
@@ -328,14 +391,8 @@ void main(void)
 
     write_texture();
 
-    int i = 0;
-
     for (;;) {
-
-        if (i % 100 == 0)
-            clear();
-
-        i++;
+        uint16_t t1 = xm_getw(TIMER);
 
         // world
         mat4x4 mat_rot_z = matrix_make_rotation_z(theta);
@@ -353,6 +410,28 @@ void main(void)
         theta += 0.1f;
         if (theta > 6.28f)
             theta = 0.0f;
+
+
+        uint16_t t2 = xm_getw(TIMER);
+
+        uint16_t dt;
+
+        if (t2 >= t1)
+        {
+            dt = t2 - t1;
+        }
+        else
+        {
+            dt = 65535 - t1 + t2;
+        }
+
+        float freq = 1.0f / ((float)dt / 10000.0f);
+        
+        char s[32];
+        itoa((int)freq, s, 10);
+        xprint(0, 29, "    FPS", WHITE);
+        xprint(0, 29, s, WHITE);        
+
     }
 
     // disable Graphite

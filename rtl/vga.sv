@@ -66,12 +66,18 @@ module vga #(
 
     always_comb begin
         if (ena_graphite_i) begin
-            vga_hsync_o = graphite_vga_hsync;
-            vga_vsync_o = graphite_vga_vsync;
-            vga_r_o     = graphite_vga_r;
-            vga_g_o     = graphite_vga_g;
-            vga_b_o     = graphite_vga_b;
-            vga_de_o    = graphite_vga_de;
+            vga_hsync_o = xosera_vga_hsync;
+            vga_vsync_o = xosera_vga_vsync;
+            vga_de_o    = xosera_vga_de;
+            if (xosera_vga_r != 4'd0 || xosera_vga_g != 4'd0 || xosera_vga_b != 4'd0) begin
+                vga_r_o     = xosera_vga_r;
+                vga_g_o     = xosera_vga_g;
+                vga_b_o     = xosera_vga_b;
+            end else begin
+                vga_r_o     = graphite_vga_r;
+                vga_g_o     = graphite_vga_g;
+                vga_b_o     = graphite_vga_b;
+            end
         end else begin
             vga_hsync_o = xosera_vga_hsync;
             vga_vsync_o = xosera_vga_vsync;
@@ -88,26 +94,7 @@ module vga #(
 
 `ifdef GRAPHITE
 
-    // display timings
-    localparam CORDW = 16;
-    logic signed [CORDW-1:0] sx, sy;
-    logic hsync, vsync, de, frame, line;
-
     logic [3:0] xosera_r, xosera_g, xosera_b;
-    
-    vga_timings #(
-        .CORDW(CORDW)
-    ) vga_timings(
-        .clk_pix(clk),
-        .rst(reset_i),
-        .sx(sx),
-        .sy(sy),
-        .hsync(hsync),
-        .vsync(vsync),
-        .de(de),
-        .frame(frame),
-        .line(line)
-    );
 
     assign sdram_clk_o = clk_sdram;
     
@@ -115,50 +102,29 @@ module vga #(
     
     logic [11:0] line_counter, col_counter;
 
-    logic inside_fb;
-    assign inside_fb = col_counter < 12'(FB_WIDTH) && line_counter <= 12'(FB_HEIGHT);
-
     always_ff @(posedge clk) begin
-        graphite_vga_hsync <= hsync;
-        graphite_vga_vsync <= vsync;
-        graphite_vga_de    <= de;
-
-        if (frame) begin
-            col_counter <= 12'd0;
-            line_counter <= 12'd0;
-        end else begin
-            if (line) begin
-                col_counter  <= 12'd0;
-                line_counter <= line_counter + 1;
-            end
-        end
-
-        if (de) begin
-            col_counter <= col_counter + 1;
-            if (inside_fb) begin
-                if (stream_err_underflow) begin
-                    graphite_vga_r <= 4'hF;
-                    graphite_vga_g <= 4'h0;
-                    graphite_vga_b <= 4'h0;
-                end else begin
-                    graphite_vga_r <= stream_data[11:8];
-                    graphite_vga_g <= stream_data[7:4];
-                    graphite_vga_b <= stream_data[3:0];
-                end
+        if (xosera_vga_de) begin
+            if (stream_err_underflow) begin
+                graphite_vga_r <= 4'hF;
+                graphite_vga_g <= 4'h0;
+                graphite_vga_b <= 4'h0;
             end else begin
-                graphite_vga_r <= 4'h2;
-                graphite_vga_g <= 4'h2;
-                graphite_vga_b <= 4'h2;
+                graphite_vga_r <= stream_data[11:8];
+                graphite_vga_g <= stream_data[7:4];
+                graphite_vga_b <= stream_data[3:0];
             end
-        end else begin
-            graphite_vga_r <= 4'h0;
-            graphite_vga_g <= 4'h0;
-            graphite_vga_b <= 4'h0;
         end
+    end
 
+    logic prev_xosera_vga_vsync, frame;
+    always_ff @(posedge clk) begin
         if (reset_i) begin
-            line_counter  <= 12'd0;
-            col_counter   <= 12'd0;
+            frame <= 1'b0;
+        end else begin
+            prev_xosera_vga_vsync <= xosera_vga_vsync;
+            frame <= 1'b0;
+            if (prev_xosera_vga_vsync && !xosera_vga_vsync)
+                frame <= 1'b1;
         end
     end
 
@@ -206,7 +172,7 @@ module vga #(
         // Framebuffer output data stream
         .stream_start_frame_i(frame),
         .stream_base_address_i(24'h0),
-        .stream_ena_i(de && inside_fb),
+        .stream_ena_i(xosera_vga_de),
         .stream_data_o(stream_data),
         .stream_preloading_o(stream_preloading),
         .stream_err_underflow_o(stream_err_underflow),
