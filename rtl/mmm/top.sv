@@ -12,6 +12,18 @@ module top(
 
     output      logic       AUDIO_L,
     output      logic       AUDIO_R,
+
+    // SDRAM
+    output      logic        sdram_clk,
+    output      logic        sdram_cke,
+    output      logic        sdram_csn,
+    output      logic        sdram_wen,
+    output      logic        sdram_rasn,
+    output      logic        sdram_casn,
+    output      logic [12:0] sdram_a,
+    output      logic [1:0]  sdram_ba,
+    output      logic [1:0]  sdram_dqm,
+    inout       logic [15:0] sdram_d  
 );
 
     // reset
@@ -21,14 +33,15 @@ module top(
 
     logic [7:0] display;
 
-    logic clk, clk_x5;
+    logic clk, clk_x5, clk_sdram;
     logic clk_locked;
 
     pll pll (
         .clkin(clk_100mhz_p),
         .locked(clk_locked),
         .clkout0(clk_x5),
-        .clkout2(clk)
+        .clkout2(clk),
+        .clkout3(clk_sdram)
     );
 
     logic [3:0] vga_r;                      // vga red (4-bit)
@@ -57,9 +70,11 @@ module top(
     soc #(
         .FREQ_HZ(25_000_000),
         .BAUDS(115200),
-        .RAM_SIZE(256*1024)
+        .RAM_SIZE(240*1024),
+        .SDRAM_CLK_FREQ_MHZ(78)
     ) soc(
         .clk(clk),
+        .clk_sdram(clk_sdram),
 `ifdef VGA        
         .clk_pix(clk),
 `endif
@@ -80,8 +95,20 @@ module top(
 `ifdef PS2
         .ps2_kbd_code_i(ps2_kbd_code),
         .ps2_kbd_strobe_i(ps2_kbd_strobe),
-        .ps2_kbd_err_i(ps2_kbd_err)
+        .ps2_kbd_err_i(ps2_kbd_err),
 `endif
+
+        // SDRAM
+        .sdram_clk_o(sdram_clk),
+        .sdram_cke_o(sdram_cke),
+        .sdram_cs_n_o(sdram_csn),
+        .sdram_we_n_o(sdram_wen),
+        .sdram_ras_n_o(sdram_rasn),
+        .sdram_cas_n_o(sdram_casn),
+        .sdram_a_o(sdram_a),
+        .sdram_ba_o(sdram_ba),
+        .sdram_dqm_o(sdram_dqm),
+        .sdram_dq_io(sdram_d)
     );
 
     // reset

@@ -24,11 +24,18 @@ SRC_CORE := ../../external/cpu/rtl/processor.sv \
 		generated_pll.v \
 		top.sv
 
+SRC_GRAPHITE :=  ../../external/graphite/rtl/graphite.sv \
+		../../external/graphite/rtl/reciprocal.sv \
+		../../external/graphite/rtl/sdram_ctrl.v \
+		../../external/graphite/rtl/async_fifo.sv \
+		../../external/graphite/rtl/async_sdram_ctrl.sv \
+		../../external/graphite/rtl/framebuffer.sv		
+
 SRC_XOSERA := $(wildcard ../../external/Xosera/rtl/*.sv)
 
-SRC := $(SRC_CORE) $(SRC_XOSERA)
+SRC := $(SRC_CORE) $(SRC_XOSERA) $(SRC_GRAPHITE)
 
-DEFINES := -DPS2 -DVGA -DXOSERA -DNO_CS_BUS_DELAY
+DEFINES := -DPS2 -DVGA -DXOSERA -DNO_CS_BUS_DELAY -DGRAPHITE
 
 all: top.bin
 

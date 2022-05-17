@@ -7,7 +7,7 @@ FPGA based system on chip
 - RISC-V CPU (RV32I)
 - UART (115200-N-8-1)
 - Xosera (audio and video)
-- Graphite (3d acceleration)
+- Graphite (3D acceleration)
 - PS/2 Keyboard
 - USB Gamepad (ULX3S only)
 
@@ -50,10 +50,32 @@ make prog
 
 ## MMM
 
-Note: PS/2 PMOD on EXPMOD2
+Notes:
+- iCEBreaker breakaway PMOD (3 buttons) on EXPMOD1
+- Digilent PS/2 PMOD on EXPMOD2
 
 ```bash
 cd rtl/mmm
+make prog
+```
+
+### iCEBreaker
+
+Note: Only UART
+
+```bash
+cd rtl/icebreaker
+make prog
+```
+
+### Tiny FPGA B2
+
+Notes:
+ - Only UART
+ - 8 kB of RAM
+
+```bash
+cd rtl/tinyfpga_b2
 make prog
 ```
 
@@ -66,11 +88,13 @@ make run SERIAL=<serial device>
 
 The following examples are available:
 
-| Name         | Description            | Compatibility |
-| ------------ | ---------------------- | ------------- |
-| hello        | Hello message on UART  | all           |
-| sinus        | Sinus waveform on UART | all           |
-| ps2_kbd_test | Test PS/2 keyboard     | ULX3S, MMM    |
-| gamepad_test | Test USB gamepad       | ULX3S         |
-| forth        | Forth language         | ULX3S, MMM    |
-| basic        | Basic language (WIP)   | ULX3S, MMM    |
+| Name         | Description               | Compatibility  |
+| ------------ | ------------------------- | -------------- |
+| hello        | Hello message on UART     | ULX3S, MMM, IB |
+| sinus        | Sinus waveform on UART    | ULX3S, MMM, IB |
+| ps2_kbd_test | Test PS/2 keyboard        | ULX3S, MMM     |
+| gamepad_test | Test USB gamepad          | ULX3S          |
+| forth        | Forth language            | ULX3S, MMM     |
+| basic        | Basic language (WIP)      | ULX3S, MMM     |
+| xosera_test  | Video and sound test      | ULX3S, MMM     |
+| draw_cube    | Draw 3D accelerated cube  | ULX3S, MMM     |
