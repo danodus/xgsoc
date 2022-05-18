@@ -19,24 +19,38 @@ FPGA based system on chip
 
 # Getting Started
 
-## Clone 
+## Clone and Update
+
+### Clone
 
 ```bash
 git clone --recurse-submodules https://github.com/dcliche/soc.git
+cd soc
+```
+
+### Update
+
+```bash
+git pull
+git submodule update --recursive
 ```
 
 ## Build Firmware
 
 ```bash
-cd soc/firmware
+cd firmware
 make
 ```
 
 ## Simulation
 
+Note: Only PS/2 keyboard and Xosera (video) devices are currently simulated.
+
 ```
-cd rtl/sim
-make run
+cd examples/<example name>
+make
+cd ../../rtl/sim
+make run PROGRAM=../../examples/<example name>/program.hex
 ```
 
 ## ULX3S
@@ -79,7 +93,9 @@ cd rtl/tinyfpga_b2
 make prog
 ```
 
-## Running Examples
+## Examples
+
+To upload the program to the FPGA platform:
 
 ```bash
 cd examples/<example name>
@@ -88,13 +104,14 @@ make run SERIAL=<serial device>
 
 The following examples are available:
 
-| Name         | Description               | Compatibility  |
-| ------------ | ------------------------- | -------------- |
-| hello        | Hello message on UART     | ULX3S, MMM, IB |
-| sinus        | Sinus waveform on UART    | ULX3S, MMM, IB |
-| ps2_kbd_test | Test PS/2 keyboard        | ULX3S, MMM     |
-| gamepad_test | Test USB gamepad          | ULX3S          |
-| forth        | Forth language            | ULX3S, MMM     |
-| basic        | Basic language (WIP)      | ULX3S, MMM     |
-| xosera_test  | Video and sound test      | ULX3S, MMM     |
-| draw_cube    | Draw 3D accelerated cube  | ULX3S, MMM     |
+| Name         | Description                                 | Compatibility    |
+| ------------ | ------------------------------------------- | ---------------- |
+| hello        | Hello message on UART                       | ULX3S, MMM, IB   |
+| sinus        | Sinus waveform on UART                      | ULX3S, MMM, IB   |
+| ps2_kbd_test | Test PS/2 keyboard                          | ULX3S, MMM       |
+| gamepad_test | Test USB gamepad                            | ULX3S            |
+| forth        | Forth language                              | SIM, ULX3S, MMM  |
+| basic        | Basic language (WIP)                        | SIM, ULX3S, MMM  |
+| xosera_test  | Video and sound test                        | SIM, ULX3S, MMM  |
+| draw_cube    | Draw 3D accelerated cube                    | ULX3S, MMM       |
+| draw_img     | Draw image in frame buffer (see README.md)  | ULX3S, MMM       |
