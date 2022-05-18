@@ -1,4 +1,4 @@
-PROGRAM = ../../examples/draw_cube/program.hex
+PROGRAM = ../../examples/forth/program.hex
 
 VERILATOR = verilator
 

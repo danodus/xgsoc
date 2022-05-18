@@ -53,6 +53,8 @@ cd ../../rtl/sim
 make run PROGRAM=../../examples/<example name>/program.hex
 ```
 
+Suggested example for simulation: forth
+
 ## ULX3S
 
 Note: PS/2 PMOD on pins 0-3
