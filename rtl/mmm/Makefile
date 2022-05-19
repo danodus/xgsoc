@@ -44,7 +44,7 @@ clean:
 
 top.json: $(SRC) ../../firmware/firmware.hex
 	cp ../../firmware/firmware.hex .
-	$(YOSYS) -ql top.log -p 'verilog_defines $(DEFINES) ; read_verilog -sv $(SRC); synth_ecp5 -top top -json top.json'
+	$(YOSYS) -ql top.log -p 'verilog_defines $(DEFINES) ; read_verilog -sv $(SRC); synth_ecp5 -top top -abc9 -json top.json'
 
 top.asc: top.json $(PIN_DEF)
 	$(NEXTPNR) -l top_nextpnr.log --$(DEVICE) --package $(PACKAGE) --speed $(SPEED) --json top.json --lpf $(PIN_DEF) --textcfg top.asc --randomize-seed
