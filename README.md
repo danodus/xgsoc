@@ -1,6 +1,6 @@
-# SOC 
+# XGSoC 
 
-FPGA based system on chip
+FPGA based system on chip with audio, video and 3D acceleration.
 
 # Features
 
@@ -24,8 +24,8 @@ FPGA based system on chip
 ### Clone
 
 ```bash
-git clone --recurse-submodules https://github.com/dcliche/soc.git
-cd soc
+git clone --recurse-submodules https://github.com/dcliche/xgsoc.git
+cd xgsoc
 ```
 
 ### Update
