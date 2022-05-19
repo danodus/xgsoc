@@ -8,7 +8,7 @@ OBJCOPY = ${RISCV_TOOLCHAIN_PATH}${RISVC_TOOLCHAIN_PREFIX}objcopy
 CC = ${RISCV_TOOLCHAIN_PATH}${RISVC_TOOLCHAIN_PREFIX}gcc
 
 PROGRAM_SOURCE = start.s program.c
-SOC_TB_SOURCE = ../../external/cpu/rtl/alu.sv ../../external/cpu/rtl/register_file.sv ../../external/cpu/rtl/decoder.sv ../../external/cpu/rtl/processor.sv ../memory.sv ../uart.sv ../soc.sv soc_tb.sv
+SOC_TB_SOURCE = ../../external/xglib/rtl/alu.sv ../../external/xglib/rtl/register_file.sv ../../external/xglib/rtl/decoder.sv ../../external/xglib/rtl/processor.sv ../memory.sv ../uart.sv ../soc.sv soc_tb.sv
 
 all: firmware.hex soc_tb.out
 

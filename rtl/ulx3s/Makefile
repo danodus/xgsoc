@@ -7,10 +7,14 @@ DEVICE := 85k
 PACKAGE := CABGA381
 
 PIN_DEF := ulx3s.lpf
-SRC_CORE := ../../external/cpu/rtl/processor.sv \
-		../../external/cpu/rtl/alu.sv \
-		../../external/cpu/rtl/decoder.sv \
-		../../external/cpu/rtl/register_file.sv \
+SRC_CORE := ../../external/xglib/rtl/processor.sv \
+		../../external/xglib/rtl/alu.sv \
+		../../external/xglib/rtl/decoder.sv \
+		../../external/xglib/rtl/register_file.sv \
+		../../external/xglib/rtl/sdram_ctrl.v \
+		../../external/xglib/rtl/async_fifo.sv \
+		../../external/xglib/rtl/async_sdram_ctrl.sv \
+		../../external/xglib/rtl/framebuffer.sv \
 		../bram.sv \
 		../uart.sv \
 		../vga_timings.sv \
@@ -32,11 +36,7 @@ SRC_CORE := ../../external/cpu/rtl/processor.sv \
 		top.sv
 
 SRC_GRAPHITE :=  ../../external/graphite/rtl/graphite.sv \
-		../../external/graphite/rtl/reciprocal.sv \
-		../../external/graphite/rtl/sdram_ctrl.v \
-		../../external/graphite/rtl/async_fifo.sv \
-		../../external/graphite/rtl/async_sdram_ctrl.sv \
-		../../external/graphite/rtl/framebuffer.sv
+		../../external/graphite/rtl/reciprocal.sv
 
 SRC_XOSERA := $(wildcard ../../external/Xosera/rtl/*.sv)
 
