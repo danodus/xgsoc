@@ -7,6 +7,8 @@ module top(
     input  wire logic       PMOD_PS2_K_CLK,
     input  wire logic       PMOD_PS2_K_DATA,
 
+    input  wire logic [3:0] HEX,
+
     // Digital Video (differential outputs)
     output      logic [3:0] dio_p,
 
@@ -113,7 +115,7 @@ module top(
 
     // reset
     assign auto_reset = auto_reset_counter < 5'b11111;
-    assign reset = auto_reset || BTN;
+    assign reset = auto_reset || (BTN && HEX == 4'd1);
 
 	always @(posedge clk) begin
         if (clk_locked)
