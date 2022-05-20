@@ -1,8 +1,8 @@
 MEMORY
 {
-   ram      (rwx) : ORIGIN = 0x00000000, LENGTH = 3192
+   rom      (rx) : ORIGIN = 0x00000000, LENGTH = 4096
 }
-__stacktop = ORIGIN(ram) + LENGTH(ram);
+__stacktop = ORIGIN(rom) + LENGTH(rom);
 
 SECTIONS {
 	.memory : {
@@ -12,5 +12,5 @@ SECTIONS {
 		*(*);
 		. = ALIGN(4);
 		end = .;
-	} >ram
+	} >rom
 }
