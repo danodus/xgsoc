@@ -1,32 +1,3 @@
-
-/*
-
-Ref.: https://projectf.io
-
-640x480 Timings     HOR    VER
--------------------------------
-Active Pixels       640     480
-Front Porch         16      10
-Sync Width          96      2
-Back Porch          48      33
-Blanking Total      160     45
-Total Pixels        800     525
-Sync Polarity       neg     neg
-
-Pixel Clock @60Hz: 25.2 MHz
-
-*/
-
-/*
-    0x00000000 - 0x00000FFF: memory
-    0x00001000 - 0x00001FFF: display
-    0x00002000 - 0x00002FFF: UART (BAUDS-N-8-1)
-        0x0x00002000: Data Register (8 bits)
-        0x0x00002004: Status Register (Read-only)
-            bit 0: busy
-            bit 1: valid
-*/
-
 module top (
     input  wire logic       clk,
     input  wire logic       reset_i,
@@ -49,11 +20,11 @@ module top (
     input  wire logic        ps2_kbd_err_i
     );
 
-    soc #(
+    xgsoc #(
         .FREQ_HZ(1 * 1000000),
         .BAUDS(115200),
-        .RAM_SIZE(256*1024)
-    ) soc(
+        .RAM_SIZE(240*1024)
+    ) xgsoc(
         .clk(clk),
         .clk_sdram(clk),
         .clk_pix(clk),

@@ -15,6 +15,7 @@ FPGA based system on chip with audio, video and 3D acceleration.
 
 - OSS CAD Suite (https://github.com/YosysHQ/oss-cad-suite-build)
 - RISC-V GNU compiler toolchain for RV32I (https://github.com/riscv-collab/riscv-gnu-toolchain)
+- Python3 with the following PIP3 packages installed: `pyserial`, `pillow`
 - SDL2 (for simulation only)
 
 # Getting Started
@@ -28,6 +29,11 @@ git clone --recurse-submodules https://github.com/dcliche/xgsoc.git
 cd xgsoc
 ```
 
+If the repository has been cloned without the `--recurse-submodules` option, do the following:
+```
+git submodule update --init
+```
+
 ### Update
 
 ```bash
@@ -36,6 +42,8 @@ git submodule update --recursive
 ```
 
 ## Build Firmware
+
+Copy the example `site.template` file to `site.mk` and edit the paths.
 
 ```bash
 cd firmware

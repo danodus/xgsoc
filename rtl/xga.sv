@@ -1,4 +1,8 @@
-module vga #(
+// xga.sv
+// Copyright (c) 2022 Daniel Cliche
+// SPDX-License-Identifier: MIT
+
+module xga #(
     parameter SDRAM_CLK_FREQ_MHZ = 100
 ) (
     input wire  logic        clk,
@@ -6,7 +10,6 @@ module vga #(
 
     input wire  logic        ena_graphite_i,
 
-`ifdef GRAPHITE
     // AXI stream command interface (slave)
     input  wire logic                        cmd_axis_tvalid_i,
     output      logic                        cmd_axis_tready_o,
@@ -26,9 +29,6 @@ module vga #(
     output      logic [1:0]  sdram_dqm_o,
     inout       logic [15:0] sdram_dq_io,
 
-`endif 
-
-`ifdef XOSERA
     input  wire logic         xosera_bus_cs_n_i,           // register select strobe (active low)
     input  wire logic         xosera_bus_rd_nwr_i,         // 0 = write, 1 = read
     input  wire logic [3:0]   xosera_bus_reg_num_i,        // register number
@@ -37,7 +37,6 @@ module vga #(
     output logic      [7:0]   xosera_bus_data_o,           // 8-bit data bus output
     output      logic         xosera_audio_l_o,
     output      logic         xosera_audio_r_o,
-`endif
 
     output      logic        vga_hsync_o,
     output      logic        vga_vsync_o,
@@ -91,8 +90,6 @@ module vga #(
     // --------------------------------------------------------------------------------------
     // Graphite
     //
-
-`ifdef GRAPHITE
 
     logic [3:0] xosera_r, xosera_g, xosera_b;
 
@@ -198,13 +195,9 @@ module vga #(
         .swap_o()
     );
 
-`endif // GRAPHITE
-
     // --------------------------------------------------------------------------------------
     // Xosera
     //
-
-`ifdef XOSERA
 
     xosera_main xosera(
         .bus_cs_n_i(xosera_bus_cs_n_i),           // register select strobe (active low)
@@ -227,7 +220,5 @@ module vga #(
         .reset_i(reset_i),                        // reset signal
         .clk(clk)                                 // pixel clock        
     );
-
-`endif // XOSERA
 
 endmodule

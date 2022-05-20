@@ -15,10 +15,10 @@ module top(
 
     assign LED[4:0] = display[4:0];
 
-    soc #(
+    xgsoc #(
         .FREQ_HZ(12000000),
         .BAUDS(115200)
-    ) soc(
+    ) xgsoc(
         .clk(CLK),
         .reset_i(reset),
         .display_o(display),

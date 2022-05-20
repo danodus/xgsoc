@@ -13,4 +13,10 @@ SECTIONS {
 		. = ALIGN(4);
 		end = .;
 	} >ram
+
+	.heap : {
+		. = ALIGN(4);
+		_heap_start = .;
+		_end = .;
+	} >ram
 }

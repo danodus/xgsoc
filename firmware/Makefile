@@ -1,8 +1,10 @@
+SITE_MK ?= ../site.mk
+
+-include $(SITE_MK)
+
 IVERILOG = iverilog
 PYTHON = python3
 
-RISCV_TOOLCHAIN_PATH = /opt/riscv32i/bin/
-RISVC_TOOLCHAIN_PREFIX = riscv32-unknown-elf-
 AS = ${RISCV_TOOLCHAIN_PATH}${RISVC_TOOLCHAIN_PREFIX}as
 OBJCOPY = ${RISCV_TOOLCHAIN_PATH}${RISVC_TOOLCHAIN_PREFIX}objcopy
 OBJDUMP = ${RISCV_TOOLCHAIN_PATH}${RISVC_TOOLCHAIN_PREFIX}objdump
@@ -11,6 +13,10 @@ CC = ${RISCV_TOOLCHAIN_PATH}${RISVC_TOOLCHAIN_PREFIX}gcc
 FIRMWARE_SOURCE = start.s firmware.c
 
 all: firmware.hex
+
+$(SITE_MK):
+	$(info Copy the example site.template file to site.mk and edit the paths.)
+	$(error site.mk not found.)
 
 firmware: firmware.hex
 

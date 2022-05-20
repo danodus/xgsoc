@@ -1,7 +1,11 @@
-YOSYS := yosys
-ECPPACK := ecppack
-NEXTPNR := nextpnr-ecp5
-OPENFPGALOADER := openFPGALoader
+SITE_MK ?= ../../site.mk
+
+-include $(SITE_MK)
+
+YOSYS := $(OSS_CAD_SUITE_PATH)yosys
+ECPPACK := $(OSS_CAD_SUITE_PATH)ecppack
+NEXTPNR := $(OSS_CAD_SUITE_PATH)nextpnr-ecp5
+OPENFPGALOADER := $(OSS_CAD_SUITE_PATH)openFPGALoader
 
 DEVICE := um-85k
 PACKAGE := CABGA381
@@ -18,13 +22,11 @@ SRC_CORE := ../../external/xglib/rtl/processor.sv \
 		../../external/xglib/rtl/framebuffer.sv \
 		../bram.sv \
 		../uart.sv \
-		../vga_timings.sv \
-		../vga.sv \
-		../vram2.sv \
+		../xga.sv \
 		../fifo.sv \
 		../ps2kbd.v \
 		../hdmi_encoder.v \
-		../soc.sv \
+		../xgsoc.sv \
 		generated_pll.v \
 		top.sv
 
@@ -35,9 +37,13 @@ SRC_XOSERA := $(wildcard ../../external/Xosera/rtl/*.sv)
 
 SRC := $(SRC_CORE) $(SRC_XOSERA) $(SRC_GRAPHITE)
 
-DEFINES := -DPS2 -DVGA -DXOSERA -DNO_CS_BUS_DELAY -DGRAPHITE
+DEFINES := -DPS2 -DVGA -DXGA -DNO_CS_BUS_DELAY
 
 all: top.bin
+
+$(SITE_MK):
+	$(info Copy the example site.template file to site.mk and edit the paths.)
+	$(error site.mk not found.)
 
 clean:
 	rm -f *.hex *.asc *.json *.bin *.log
@@ -53,6 +59,6 @@ top.bin: top.asc
 	$(ECPPACK) --compress --input top.asc --bit top.bin
 
 prog: top.bin
-	$(OPENFPGALOADER) --verbose --cable ft4232 top.bin
+	$(OPENFPGALOADER) --cable ft4232 top.bin
 
 .PHONY: all prog

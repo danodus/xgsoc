@@ -26,7 +26,7 @@
 
 
 #define GRAPHITE             0x20003400
-#define VGA_CONTROL          0x20003800
+#define XGA_CONTROL          0x20003800
 
 #define OP_SET_X0 0
 #define OP_SET_Y0 1
@@ -352,7 +352,7 @@ void xprint(unsigned int x, unsigned int y, const char *s, unsigned char color)
 void main(void)
 {
     // enable Graphite
-    MEM_WRITE(VGA_CONTROL, 0x1);
+    MEM_WRITE(XGA_CONTROL, 0x1);
 
     xreg_setw(PA_GFX_CTRL, 0x0000);
     xclear();
@@ -435,5 +435,5 @@ void main(void)
     }
 
     // disable Graphite
-    MEM_WRITE(VGA_CONTROL, 0x0);
+    MEM_WRITE(XGA_CONTROL, 0x0);
 }

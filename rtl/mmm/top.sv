@@ -69,22 +69,22 @@ module top(
         .gpdi_dn()
     );    
 
-    soc #(
+    xgsoc #(
         .FREQ_HZ(25_000_000),
         .BAUDS(115200),
         .RAM_SIZE(240*1024),
         .SDRAM_CLK_FREQ_MHZ(78)
-    ) soc(
+    ) xgsoc(
         .clk(clk),
         .clk_sdram(clk_sdram),
-`ifdef VGA        
+`ifdef XGA        
         .clk_pix(clk),
 `endif
         .reset_i(reset),
         .display_o(display),
         .rx_i(UART1_RXD),
         .tx_o(UART1_TXD),
-`ifdef VGA
+`ifdef XGA
         .vga_hsync_o(vga_hsync),
         .vga_vsync_o(vga_vsync),
         .vga_r_o(vga_r),

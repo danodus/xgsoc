@@ -1,7 +1,11 @@
-YOSYS := yosys
-ICEPACK := icepack
-NEXTPNR := nextpnr-ice40
-ICEPROG := iceprog
+SITE_MK ?= ../../site.mk
+
+-include $(SITE_MK)
+
+YOSYS := $(OSS_CAD_SUITE_PATH)yosys
+ICEPACK := $(OSS_CAD_SUITE_PATH)icepack
+NEXTPNR := $(OSS_CAD_SUITE_PATH)nextpnr-ice40
+ICEPROG := $(OSS_CAD_SUITE_PATH)iceprog
 
 DEVICE := up5k
 PACKAGE := sg48
@@ -14,12 +18,16 @@ SRC := ../../external/xglib/rtl/processor.sv \
 		../bram.sv \
 		../spram.sv \
 		../uart.sv \
-		../soc.sv \
+		../xgsoc.sv \
 		top.sv
 
 DEFINES := -DSPRAM
 
 all: top.bin
+
+$(SITE_MK):
+	$(info Copy the example site.template file to site.mk and edit the paths.)
+	$(error site.mk not found.)
 
 clean:
 	rm -f *.hex *.asc *.json *.bin *.log

@@ -1,4 +1,4 @@
-// soc.sv
+// xgsoc.sv
 // Copyright (c) 2022 Daniel Cliche
 // SPDX-License-Identifier: MIT
 
@@ -11,7 +11,7 @@
         0x20002004: Status Register (Read-only)
             bit 0: busy
             bit 1: valid
-    0x20003000 - 0x00003FFF: VGA
+    0x20003000 - 0x00003FFF: XGA
         0x20003000  // Xosera even byte
         0x20003100  // Xosera odd byte
         0x20003400  // Graphite
@@ -27,7 +27,7 @@
         0x20005004: Code
 */
 
-module soc #(
+module xgsoc #(
     parameter FREQ_HZ = 12 * 1000000,
     parameter BAUDS    = 115200,
     parameter RAM_SIZE = 128*1024,
@@ -35,7 +35,7 @@ module soc #(
     ) (
     input  wire logic       clk,
     input  wire logic       clk_sdram,
-`ifdef VGA    
+`ifdef XGA    
     input  wire logic       clk_pix,
 `endif
     input  wire logic       reset_i,
@@ -44,7 +44,7 @@ module soc #(
     input  wire logic       rx_i,
     output      logic       tx_o,
 
-`ifdef VGA
+`ifdef XGA
     output      logic       vga_hsync_o,
     output      logic       vga_vsync_o,
     output      logic [3:0] vga_r_o,
@@ -100,16 +100,16 @@ module soc #(
     logic uart_wr = 0;
     logic uart_rd = 0;
 
-`ifdef VGA
+`ifdef XGA
 
-    logic         vga_we;
+    logic         xga_we;
 
-    logic         vga_ena_graphite;
+    logic         xga_ena_graphite;
 
     // Graphite
-    logic           vga_axis_tvalid;
-    logic           vga_axis_tready;
-    logic [31:0]    vga_axis_tdata;
+    logic           xga_axis_tvalid;
+    logic           xga_axis_tready;
+    logic [31:0]    xga_axis_tdata;
 
     // Xosera
     logic         xosera_bus_cs_n, xosera_bus_cs_n_r;           // register select strobe (active low)
@@ -254,18 +254,17 @@ module soc #(
         mem_data_out = (addr[31:28] == 4'h1) ? ram_data_out : rom_data_out;
     end
 
-`ifdef VGA    
-    vga #(
+`ifdef XGA    
+    xga #(
         .SDRAM_CLK_FREQ_MHZ(SDRAM_CLK_FREQ_MHZ)
-    )vga(
+    )xga(
         .clk(clk_pix),
         .reset_i(reset_i),
-        .ena_graphite_i(vga_ena_graphite),
+        .ena_graphite_i(xga_ena_graphite),
 
-`ifdef GRAPHITE           
-        .cmd_axis_tvalid_i(vga_axis_tvalid),
-        .cmd_axis_tready_o(vga_axis_tready),
-        .cmd_axis_tdata_i(vga_axis_tdata),
+        .cmd_axis_tvalid_i(xga_axis_tvalid),
+        .cmd_axis_tready_o(xga_axis_tready),
+        .cmd_axis_tdata_i(xga_axis_tdata),
 
         .clk_sdram(clk_sdram),
 
@@ -280,9 +279,7 @@ module soc #(
         .sdram_ba_o(sdram_ba_o),
         .sdram_dqm_o(sdram_dqm_o),
         .sdram_dq_io(sdram_dq_io),
-`endif
 
-`ifdef XOSERA
         .xosera_bus_cs_n_i(xosera_bus_cs_n_r),
         .xosera_bus_rd_nwr_i(xosera_bus_rd_nwr_r),
         .xosera_bus_reg_num_i(xosera_bus_reg_num_r),
@@ -291,7 +288,6 @@ module soc #(
         .xosera_bus_data_o(xosera_bus_data_out),
         .xosera_audio_l_o(audio_l_o),
         .xosera_audio_r_o(audio_r_o),
-`endif
 
         .vga_hsync_o(vga_hsync_o),
         .vga_vsync_o(vga_vsync_o),
@@ -311,10 +307,10 @@ module soc #(
         cpu_data_in = mem_data_out;
         uart_tx_strobe = 1'b0;
         uart_rx_strobe = 1'b0;
-`ifdef VGA
-        vga_we = 1'b0;
-        vga_axis_tvalid = 1'b0;
-        vga_axis_tdata = cpu_data_out;
+`ifdef XGA
+        xga_we = 1'b0;
+        xga_axis_tvalid = 1'b0;
+        xga_axis_tdata = cpu_data_out;
         xosera_bus_cs_n = 1'b1;
         xosera_bus_rd_nwr = 1'b1;
         xosera_bus_data_in = cpu_data_out[7:0];
@@ -340,9 +336,9 @@ module soc #(
                             uart_tx_strobe = 1'b1;
                         end
                     end
-`ifdef VGA                    
+`ifdef XGA
                     4'h3: begin
-                        // VGA
+                        // XGA
                         if (addr[11] == 1'b0) begin
                             if (addr[10] == 1'b0) begin
                                 // xosera
@@ -350,10 +346,10 @@ module soc #(
                                 xosera_bus_cs_n = 1'b0;
                             end else if (addr[10] == 1'b1) begin
                                 // graphite
-                                vga_axis_tvalid = 1'b1;
+                                xga_axis_tvalid = 1'b1;
                             end
                         end else begin
-                            vga_we = 1'b1;
+                            xga_we = 1'b1;
                         end
                     end
 `endif
@@ -388,9 +384,9 @@ module soc #(
                             cpu_data_in = {30'd0, uart_valid, uart_busy};
                         end
                     end
-`ifdef VGA                    
+`ifdef XGA                    
                     4'h3: begin
-                        // VGA
+                        // XGA
                         if (addr[11] == 1'b0) begin
                             if (addr[10] == 1'b0) begin
                                 // xosera
@@ -398,10 +394,10 @@ module soc #(
                                 cpu_data_in = {24'd0, xosera_bus_data_out};
                             end else if (addr[10] == 1'b1) begin
                                 // graphite
-                                cpu_data_in = {31'd0, vga_axis_tready};
+                                cpu_data_in = {31'd0, xga_axis_tready};
                             end
                         end else begin
-                            cpu_data_in = {31'd0, vga_ena_graphite};
+                            cpu_data_in = {31'd0, xga_ena_graphite};
                         end
                     end
 `endif                    
@@ -461,14 +457,15 @@ module soc #(
         end
     end
 
+`ifdef XGA
     always @(posedge clk) begin
         if (reset_i) begin
-            vga_ena_graphite <= 1'b0;
+            xga_ena_graphite <= 1'b0;
         end else begin
-            if (vga_we)
-                vga_ena_graphite <= cpu_data_out[0];
+            if (xga_we)
+                xga_ena_graphite <= cpu_data_out[0];
         end
     end 
-    
+`endif // XGA    
 
 endmodule

@@ -21,11 +21,11 @@ module top(
 
     logic [7:0] display;
 
-    soc #(
+    xgsoc #(
         .FREQ_HZ(16000000),
         .BAUDS(115200),
         .RAM_SIZE(8192)
-    ) soc(
+    ) xgsoc(
         .clk(pin3_clk_16mhz),
         .reset_i(reset),
         .display_o(display),
