@@ -5,10 +5,6 @@ module top (
     input  wire logic       rx_i,
     output      logic       tx_o,
 
-    input wire logic [3:0] sw,
-    input wire logic btn_up,
-    input wire logic btn_ctrl,
-    input wire logic btn_dn,
     output logic vga_hsync,
     output logic vga_vsync,
     output logic [3:0] vga_r,

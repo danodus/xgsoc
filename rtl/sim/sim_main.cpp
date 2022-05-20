@@ -33,7 +33,7 @@ int main(int argc, char **argv, char **env)
     SDL_Init(SDL_INIT_VIDEO);
 
     SDL_Window *window = SDL_CreateWindow(
-        "SOC",
+        "XGSoC Simulation",
         SDL_WINDOWPOS_UNDEFINED_DISPLAY(1),
         SDL_WINDOWPOS_UNDEFINED,
         screen_width,
@@ -77,7 +77,6 @@ int main(int argc, char **argv, char **env)
     // Set Vtop's input signals
     top->reset_i = 1;
     top->clk = 0;
-    top->sw = 0;
 
     SDL_Event e;
     bool quit = false;
@@ -174,7 +173,7 @@ int main(int argc, char **argv, char **env)
                 {
                     switch (e.key.keysym.sym)
                     {
-                    case SDLK_F1:
+                    case SDLK_F12:
                         manual_reset = false;
                         std::cout << "Reset released\n";
                         break;
@@ -194,7 +193,7 @@ int main(int argc, char **argv, char **env)
                     {
                         switch (e.key.keysym.sym)
                         {
-                        case SDLK_F1:
+                        case SDLK_F12:
                             manual_reset = true;
                             std::cout << "Reset pressed\n";
                             break;
@@ -242,9 +241,6 @@ int main(int argc, char **argv, char **env)
             {
                 SDL_Rect r{scale_x * x, scale_y * y, scale_x * 50, scale_y * 50};
                 SDL_SetRenderDrawColor(renderer, 30, (top->display_o >> i) & 1 ? 255 : 30, 30, 255);
-                SDL_RenderFillRect(renderer, &r);
-                r.y += scale_y * 60;
-                SDL_SetRenderDrawColor(renderer, (top->sw >> i) & 1 ? 255 : 30, 30, 30, 255);
                 SDL_RenderFillRect(renderer, &r);
                 x += 60;
             }

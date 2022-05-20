@@ -52,7 +52,9 @@ make
 
 ## Simulation
 
-Note: Only PS/2 keyboard and Xosera (video) devices are currently simulated.
+Notes:
+- Only PS/2 keyboard and Xosera (video) devices are currently simulated
+- Press F12 for reset
 
 ```
 cd examples/<example name>
