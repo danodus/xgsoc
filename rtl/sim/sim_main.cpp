@@ -128,6 +128,8 @@ int main(int argc, char **argv, char **env)
         const int toggle_clk_count_value = 3;
 
         int clk_sdram_counter = 0, clk_counter = 0;
+        bool sdram_act_delay = false;
+        int delay_burst = 0;
 
         while (!contextp->gotFinish() && !quit)
         {
@@ -163,20 +165,31 @@ int main(int argc, char **argv, char **env)
                         sdram_addr = 8192 * 512 * sdram_bank + 512 * sdram_row + sdram_col;
                         assert(sdram_addr < 8192 * 512 * 4);
                         if (!top->sdram_we_n_o) {
-                            // Write
-                            //printf("WRITE bank=%d, row=%d, col=%d (addr=%d)\n", sdram_bank, sdram_row, sdram_col, sdram_addr);
-                            sdram_mem[sdram_addr] = top->sdram_dq_io;
+                            if (sdram_act_delay) {
+                                // Write
+                                //printf("WRITE bank=%d, row=%d, col=%d (addr=%d)\n", sdram_bank, sdram_row, sdram_col, sdram_addr);
+                                sdram_mem[sdram_addr] = top->sdram_dq_io;
+                                sdram_act_delay = false;
+                            } else {
+                                sdram_act_delay = true;
+                            }
                         } else {
                             // Read
                             //printf("READ bank=%d, row=%d, col=%d (addr=%d)\n", sdram_bank, sdram_row, sdram_col, sdram_addr);
                             burst_counter = 0;
+                            delay_burst = 2;
                         }
                     }
                 }
                 assert((sdram_addr + burst_counter) < 8192 * 512 * 4);
                 top->sdram_dq_io = sdram_mem[sdram_addr + burst_counter];
-                if (burst_counter < 7)
-                    burst_counter++;
+                //printf("%d\n", sdram_addr + burst_counter);
+                if (delay_burst == 0) {
+                    if (burst_counter < 7)
+                        burst_counter++;
+                } else {
+                    delay_burst--;
+                }
 
                 last_sdram_cke = top->sdram_cke_o;
             }
