@@ -1,5 +1,6 @@
 module top (
     input  wire logic       clk,
+    input  wire logic       clk_sdram,
     input  wire logic       reset_i,
     output      logic [7:0] display_o,
     input  wire logic       rx_i,
@@ -13,7 +14,19 @@ module top (
 
     input  wire logic [7:0]  ps2_kbd_code_i,
     input  wire logic        ps2_kbd_strobe_i,
-    input  wire logic        ps2_kbd_err_i
+    input  wire logic        ps2_kbd_err_i,
+
+    // SDRAM
+    output      logic        sdram_clk_o,
+    output      logic        sdram_cke_o,
+    output      logic        sdram_cs_n_o,
+    output      logic        sdram_we_n_o,
+    output      logic        sdram_ras_n_o,
+    output      logic        sdram_cas_n_o,
+    output      logic [12:0] sdram_a_o,
+    output      logic [1:0]  sdram_ba_o,
+    output      logic [1:0]  sdram_dqm_o,
+    inout       logic [15:0] sdram_dq_io  
     );
 
     xgsoc #(
@@ -22,7 +35,7 @@ module top (
         .RAM_SIZE(240*1024)
     ) xgsoc(
         .clk(clk),
-        .clk_sdram(clk),
+        .clk_sdram(clk_sdram),
         .clk_pix(clk),
         .reset_i(reset_i),
         
@@ -42,16 +55,16 @@ module top (
         .ps2_kbd_err_i(),
 
         // SDRAM
-        .sdram_clk_o(),
-        .sdram_cke_o(),
-        .sdram_cs_n_o(),
-        .sdram_we_n_o(),
-        .sdram_ras_n_o(),
-        .sdram_cas_n_o(),
-        .sdram_a_o(),
-        .sdram_ba_o(),
-        .sdram_dqm_o(),
-        .sdram_dq_io()
+        .sdram_clk_o,
+        .sdram_cke_o,
+        .sdram_cs_n_o,
+        .sdram_we_n_o,
+        .sdram_ras_n_o,
+        .sdram_cas_n_o,
+        .sdram_a_o,
+        .sdram_ba_o,
+        .sdram_dqm_o,
+        .sdram_dq_io
     );
     
 endmodule

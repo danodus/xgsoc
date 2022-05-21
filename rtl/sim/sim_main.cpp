@@ -12,6 +12,8 @@
 
 #include "sdl_ps2.h"
 
+#define SDRAM_MEM_SIZE (32*1024*1024/2)
+
 const int screen_width = 1024;
 const int screen_height = 768;
 
@@ -50,6 +52,17 @@ int main(int argc, char **argv, char **env)
     unsigned char *pixels = new unsigned char[pixels_size];
 
     SDL_Texture *texture = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_RGBA32, SDL_TEXTUREACCESS_STREAMING, vga_width, vga_height);
+
+    uint16_t *sdram_mem = new uint16_t[SDRAM_MEM_SIZE];
+    uint8_t sdram_bank = 0; // 4 banks
+    uint32_t sdram_row = 0; // 2^13 = 8192 rows
+    uint32_t sdram_col = 0; // 2^9 = 512 columns
+    uint32_t sdram_addr = 0;
+    uint8_t burst_counter = 0;
+
+    for (size_t i = 0; i < SDRAM_MEM_SIZE; ++i) {
+        sdram_mem[i] = 0xF00F;
+    }
 
     bool restart_model;
     do {
@@ -104,56 +117,117 @@ int main(int argc, char **argv, char **env)
 
         std::deque<uint8_t> ps2_keys;
 
+        top->clk = 0;
+        top->clk_sdram = 0;
+
+        int clk_phase = 0;
+
+        bool last_sdram_cke = false;
+
+        const int toggle_sdram_clk_count_value = 1;
+        const int toggle_clk_count_value = 3;
+
+        int clk_sdram_counter = 0, clk_counter = 0;
+
         while (!contextp->gotFinish() && !quit)
         {
+            bool toggle_clk_sdram = clk_sdram_counter == toggle_sdram_clk_count_value - 1;
+            bool toggle_clk = clk_counter == toggle_clk_count_value - 1;
+
+            clk_sdram_counter = (clk_sdram_counter + 1) % toggle_sdram_clk_count_value;
+            clk_counter = (clk_counter + 1) % toggle_clk_count_value;
+
+            if (!toggle_clk_sdram && !toggle_clk)
+                continue;
+
+            if (toggle_clk_sdram)
+                top->clk_sdram = !top->clk_sdram;
+
+            if (toggle_clk)
+                top->clk = !top->clk;
+
             contextp->timeInc(1);
-            top->clk = 0;
             top->eval();
-            contextp->timeInc(1);
-            top->clk = 1;
 
-            if (top->ps2_kbd_strobe_i) {
-                top->ps2_kbd_strobe_i = 0;
-
-            } else {
-                if (ps2_keys.size() > 0) {
-                    top->ps2_kbd_code_i = ps2_keys.back();
-                    top->ps2_kbd_strobe_i = 1;
-                    ps2_keys.pop_back();
+            // if posedge clk sdram
+            if (toggle_clk_sdram && top->clk_sdram) {
+                // SDRAM
+                if (last_sdram_cke/*top->sdram_cke_o*/ && !top->sdram_cs_n_o) {
+                    if (!top->sdram_ras_n_o && top->sdram_cas_n_o && top->sdram_we_n_o) {
+                        sdram_bank = top->sdram_ba_o;
+                        sdram_row = top->sdram_a_o;
+                        //printf("ACT bank=%d, row=%d\n", sdram_bank, sdram_row);
+                    }
+                    if (top->sdram_ras_n_o && !top->sdram_cas_n_o) {
+                        sdram_col = top->sdram_a_o & 0x1FF;
+                        sdram_addr = 8192 * 512 * sdram_bank + 512 * sdram_row + sdram_col;
+                        assert(sdram_addr < 8192 * 512 * 4);
+                        if (!top->sdram_we_n_o) {
+                            // Write
+                            //printf("WRITE bank=%d, row=%d, col=%d (addr=%d)\n", sdram_bank, sdram_row, sdram_col, sdram_addr);
+                            sdram_mem[sdram_addr] = top->sdram_dq_io;
+                        } else {
+                            // Read
+                            //printf("READ bank=%d, row=%d, col=%d (addr=%d)\n", sdram_bank, sdram_row, sdram_col, sdram_addr);
+                            burst_counter = 0;
+                        }
+                    }
                 }
+                assert((sdram_addr + burst_counter) < 8192 * 512 * 4);
+                top->sdram_dq_io = sdram_mem[sdram_addr + burst_counter];
+                if (burst_counter < 7)
+                    burst_counter++;
+
+                last_sdram_cke = top->sdram_cke_o;
             }
 
-            if (contextp->time() > 1 && contextp->time() < 10)
-            {
-                top->reset_i = 1; // Assert reset
-            }
-            else
-            {
-                top->reset_i = 0; // Deassert reset
-            }
+            // if posedge clk
+            if (toggle_clk && top->clk) {
+                
+                if (top->ps2_kbd_strobe_i) {
+                    top->ps2_kbd_strobe_i = 0;
 
-            // Update video display
-            if (was_vsync && top->vga_vsync)
-            {
-                pixel_index = 0;
-                was_vsync = false;
-            }
+                } else {
+                    if (ps2_keys.size() > 0) {
+                        top->ps2_kbd_code_i = ps2_keys.back();
+                        top->ps2_kbd_strobe_i = 1;
+                        ps2_keys.pop_back();
+                    }
+                }
 
-            pixels[pixel_index] = top->vga_r << 4;
-            pixels[pixel_index + 1] = top->vga_g << 4;
-            pixels[pixel_index + 2] = top->vga_b << 4;
-            pixels[pixel_index + 3] = 255;
-            pixel_index = (pixel_index + 4) % (pixels_size);
+                if (contextp->time() > 1 && contextp->time() < 10)
+                {
+                    top->reset_i = 1; // Assert reset
+                }
+                else
+                {
+                    top->reset_i = 0; // Deassert reset
+                }
 
-            if (!top->vga_vsync && !was_vsync)
-            {
-                was_vsync = true;
-                void *p;
-                int pitch;
-                SDL_LockTexture(texture, NULL, &p, &pitch);
-                assert(pitch == vga_width * 4);
-                memcpy(p, pixels, vga_width * vga_height * 4);
-                SDL_UnlockTexture(texture);
+
+                // Update video display
+                if (was_vsync && top->vga_vsync)
+                {
+                    pixel_index = 0;
+                    was_vsync = false;
+                }
+
+                pixels[pixel_index] = top->vga_r << 4;
+                pixels[pixel_index + 1] = top->vga_g << 4;
+                pixels[pixel_index + 2] = top->vga_b << 4;
+                pixels[pixel_index + 3] = 255;
+                pixel_index = (pixel_index + 4) % (pixels_size);
+
+                if (!top->vga_vsync && !was_vsync)
+                {
+                    was_vsync = true;
+                    void *p;
+                    int pitch;
+                    SDL_LockTexture(texture, NULL, &p, &pitch);
+                    assert(pitch == vga_width * 4);
+                    memcpy(p, pixels, vga_width * vga_height * 4);
+                    SDL_UnlockTexture(texture);
+                }
             }
 
             tp_now = std::chrono::high_resolution_clock::now();
@@ -251,12 +325,13 @@ int main(int argc, char **argv, char **env)
                 SDL_RenderPresent(renderer);
             }
 
-            top->eval();
         }
 
         // Final model cleanup
         top->final();
     } while (restart_model);
+
+    delete[] sdram_mem;
 
     SDL_DestroyTexture(texture);
 
