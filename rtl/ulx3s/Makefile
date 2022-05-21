@@ -44,7 +44,7 @@ SRC_XOSERA := $(wildcard ../../external/Xosera/rtl/*.sv)
 
 SRC := $(SRC_CORE) $(SRC_XOSERA) $(SRC_GRAPHITE)
 
-DEFINES := -DUSB -DPS2 -DXGA -DNO_CS_BUS_DELAY
+DEFINES := -DUSB -DPS2 -DXGA -DNO_CS_BUS_DELAY -DNO_SPRAM -DNO_TESTPATTERN
 
 all: top.bin
 

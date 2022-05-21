@@ -31,13 +31,13 @@ SRC_CORE := ../../external/xglib/rtl/processor.sv \
 		top.sv
 
 SRC_GRAPHITE :=  ../../external/graphite/rtl/graphite.sv \
-		../../external/graphite/rtl/reciprocal.sv		
+		../../external/graphite/rtl/reciprocal.sv
 
 SRC_XOSERA := $(wildcard ../../external/Xosera/rtl/*.sv)
 
 SRC := $(SRC_CORE) $(SRC_XOSERA) $(SRC_GRAPHITE)
 
-DEFINES := -DPS2 -DVGA -DXGA -DNO_CS_BUS_DELAY
+DEFINES := -DPS2 -DVGA -DXGA -DNO_CS_BUS_DELAY -DNO_SPRAM -DNO_TESTPATTERN
 
 all: top.bin
 
