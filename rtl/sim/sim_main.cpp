@@ -85,7 +85,7 @@ int main(int argc, char **argv, char **env)
         contextp->randReset(2);
 
         // Verilator must compute traced signals
-        contextp->traceEverOn(true);
+        contextp->traceEverOn(false);
 
         // Pass arguments so Verilated code can see them, e.g. $value$plusargs
         // This needs to be called before you create any model
@@ -125,10 +125,9 @@ int main(int argc, char **argv, char **env)
         bool last_sdram_cke = false;
 
         const int toggle_sdram_clk_count_value = 1;
-        const int toggle_clk_count_value = 3;
+        const int toggle_clk_count_value = 2;
 
         int clk_sdram_counter = 0, clk_counter = 0;
-        bool sdram_act_delay = false;
         int delay_burst = 0;
 
         while (!contextp->gotFinish() && !quit)
@@ -165,14 +164,9 @@ int main(int argc, char **argv, char **env)
                         sdram_addr = 8192 * 512 * sdram_bank + 512 * sdram_row + sdram_col;
                         assert(sdram_addr < 8192 * 512 * 4);
                         if (!top->sdram_we_n_o) {
-                            if (sdram_act_delay) {
-                                // Write
-                                //printf("WRITE bank=%d, row=%d, col=%d (addr=%d)\n", sdram_bank, sdram_row, sdram_col, sdram_addr);
-                                sdram_mem[sdram_addr] = top->sdram_dq_io;
-                                sdram_act_delay = false;
-                            } else {
-                                sdram_act_delay = true;
-                            }
+                            // Write
+                            //printf("WRITE bank=%d, row=%d, col=%d (addr=%d)\n", sdram_bank, sdram_row, sdram_col, sdram_addr);
+                            sdram_mem[sdram_addr] = top->sdram_dq_io;
                         } else {
                             // Read
                             //printf("READ bank=%d, row=%d, col=%d (addr=%d)\n", sdram_bank, sdram_row, sdram_col, sdram_addr);
