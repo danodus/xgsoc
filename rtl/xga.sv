@@ -56,34 +56,34 @@ module xga #(
     logic [3:0] xosera_vga_b;
     logic       xosera_vga_de;
 
-    logic       graphite_vga_hsync;
-    logic       graphite_vga_vsync;
     logic [3:0] graphite_vga_r;
     logic [3:0] graphite_vga_g;
     logic [3:0] graphite_vga_b;
-    logic       graphite_vga_de;
 
     always_comb begin
-        if (ena_graphite_i) begin
-            vga_hsync_o = xosera_vga_hsync;
-            vga_vsync_o = xosera_vga_vsync;
-            vga_de_o    = xosera_vga_de;
-            if (xosera_vga_r != 4'd0 || xosera_vga_g != 4'd0 || xosera_vga_b != 4'd0) begin
+        vga_hsync_o = xosera_vga_hsync;
+        vga_vsync_o = xosera_vga_vsync;
+        vga_de_o    = xosera_vga_de;
+        if (xosera_vga_de) begin
+            if (ena_graphite_i) begin
+                if (xosera_vga_r != 4'd0 || xosera_vga_g != 4'd0 || xosera_vga_b != 4'd0) begin
+                    vga_r_o     = xosera_vga_r;
+                    vga_g_o     = xosera_vga_g;
+                    vga_b_o     = xosera_vga_b;
+                end else begin
+                    vga_r_o     = graphite_vga_r;
+                    vga_g_o     = graphite_vga_g;
+                    vga_b_o     = graphite_vga_b;
+                end
+            end else begin
                 vga_r_o     = xosera_vga_r;
                 vga_g_o     = xosera_vga_g;
                 vga_b_o     = xosera_vga_b;
-            end else begin
-                vga_r_o     = graphite_vga_r;
-                vga_g_o     = graphite_vga_g;
-                vga_b_o     = graphite_vga_b;
             end
         end else begin
-            vga_hsync_o = xosera_vga_hsync;
-            vga_vsync_o = xosera_vga_vsync;
-            vga_r_o     = xosera_vga_r;
-            vga_g_o     = xosera_vga_g;
-            vga_b_o     = xosera_vga_b;
-            vga_de_o    = xosera_vga_de;
+            vga_r_o = 4'd0;
+            vga_g_o = 4'd0;
+            vga_b_o = 4'd0;
         end
     end
 
