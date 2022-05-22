@@ -99,16 +99,19 @@ module xga #(
     
     logic [11:0] line_counter, col_counter;
 
-    always_ff @(posedge clk) begin
+    always_comb begin
+        graphite_vga_r = 4'h0;
+        graphite_vga_g = 4'h0;
+        graphite_vga_b = 4'h0;
         if (xosera_vga_de) begin
             if (stream_err_underflow) begin
-                graphite_vga_r <= 4'hF;
-                graphite_vga_g <= 4'h0;
-                graphite_vga_b <= 4'h0;
+                graphite_vga_r = 4'hF;
+                graphite_vga_g = 4'h0;
+                graphite_vga_b = 4'h0;
             end else begin
-                graphite_vga_r <= stream_data[11:8];
-                graphite_vga_g <= stream_data[7:4];
-                graphite_vga_b <= stream_data[3:0];
+                graphite_vga_r = stream_data[11:8];
+                graphite_vga_g = stream_data[7:4];
+                graphite_vga_b = stream_data[3:0];
             end
         end
     end
