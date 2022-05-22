@@ -6,8 +6,9 @@ FPGA based system on chip with audio, video and 3D acceleration.
 
 - RISC-V CPU (RV32I)
 - UART (115200-N-8-1)
-- Xosera (audio and video)
-- Graphite (3D acceleration)
+- XGA:
+  - Xosera (audio and video)
+  - Graphite (3D acceleration)
 - PS/2 Keyboard
 - USB Gamepad (ULX3S only)
 
@@ -53,8 +54,8 @@ make
 ## Simulation
 
 Notes:
-- Only PS/2 keyboard and Xosera (video) devices are currently simulated
-- Press F12 for reset
+- Only PS/2 keyboard and XGA (video and 3D acceleration) devices are currently simulated
+- Press F12 to restart the simulation
 
 ```
 cd examples/<example name>

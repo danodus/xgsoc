@@ -1,3 +1,4 @@
+.vscode
 site.mk
 rtl/tb/*.out
 rtl/tb/*.vcd
