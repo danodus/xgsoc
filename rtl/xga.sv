@@ -43,7 +43,9 @@ module xga #(
     output      logic [3:0]  vga_r_o,
     output      logic [3:0]  vga_g_o,
     output      logic [3:0]  vga_b_o,
-    output      logic        vga_de_o
+    output      logic        vga_de_o,
+
+    output      logic        stream_err_underflow_o
 );
 
     localparam  FB_WIDTH = 640;
@@ -104,15 +106,9 @@ module xga #(
         graphite_vga_g = 4'h0;
         graphite_vga_b = 4'h0;
         if (xosera_vga_de) begin
-            if (stream_err_underflow) begin
-                graphite_vga_r = 4'hF;
-                graphite_vga_g = 4'h0;
-                graphite_vga_b = 4'h0;
-            end else begin
-                graphite_vga_r = stream_data[11:8];
-                graphite_vga_g = stream_data[7:4];
-                graphite_vga_b = stream_data[3:0];
-            end
+            graphite_vga_r = stream_data[11:8];
+            graphite_vga_g = stream_data[7:4];
+            graphite_vga_b = stream_data[3:0];
         end
     end
 
@@ -137,7 +133,8 @@ module xga #(
 
     logic [15:0] vram_data, stream_data;
     logic stream_preloading;
-    logic stream_err_underflow;
+
+    logic [31:0] front_addr;
 
     framebuffer #(
         .SDRAM_CLK_FREQ_MHZ(SDRAM_CLK_FREQ_MHZ),
@@ -171,11 +168,11 @@ module xga #(
 
         // Framebuffer output data stream
         .stream_start_frame_i(frame),
-        .stream_base_address_i(24'h0),
+        .stream_base_address_i(front_addr[23:0]),
         .stream_ena_i(xosera_vga_de),
         .stream_data_o(stream_data),
         .stream_preloading_o(stream_preloading),
-        .stream_err_underflow_o(stream_err_underflow),
+        .stream_err_underflow_o(stream_err_underflow_o),
         .dbg_state_o()
     );
 
@@ -195,7 +192,9 @@ module xga #(
         .vram_addr_o(vram_address),
         .vram_data_in_i(vram_data),
         .vram_data_out_o(vram_data_out),
-        .swap_o()
+        .vsync_i(xosera_vga_vsync),
+        .swap_o(),
+        .front_addr_o(front_addr)
     );
 
     // --------------------------------------------------------------------------------------

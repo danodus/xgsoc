@@ -290,27 +290,27 @@ void xd_draw_triangle(fx32 x0, fx32 y0, fx32 z0, fx32 u0, fx32 v0, fx32 r0, fx32
     send_command(&c);
 
     c.opcode = OP_DRAW;
-    c.param = (false/*depth_test*/ ? 0b1000 : 0b0000) | (clamp_s ? 0b0100 : 0b0000) | (clamp_t ? 0b0010 : 0b0000) |
+    c.param = (depth_test ? 0b1000 : 0b0000) | (clamp_s ? 0b0100 : 0b0000) | (clamp_t ? 0b0010 : 0b0000) |
               ((tex != NULL) ? 0b0001 : 0b0000);
     send_command(&c);
 }
 
-void clear()
+void clear(unsigned int color)
 {
     struct Command cmd;
 
     // Clear framebuffer
     cmd.opcode = OP_CLEAR;
-    cmd.param = 0x00F333;
+    cmd.param = color;
     send_command(&cmd);
     // Clear depth buffer
-    //cmd.opcode = OP_CLEAR;
-    //cmd.param = 0x010000;
-    //send_command(&cmd);
+    cmd.opcode = OP_CLEAR;
+    cmd.param = 0x010000;
+    send_command(&cmd);
 }
 
 void write_texture() {
-    uint32_t tex_addr = 2 * 640 * 480;
+    uint32_t tex_addr = 3 * 640 * 480;
 
     struct Command c;
     c.opcode = OP_SET_TEX_ADDR;
@@ -327,6 +327,15 @@ void write_texture() {
              send_command(&c);
             p++;
         }
+}
+
+void swap()
+{
+    struct Command cmd;
+
+    cmd.opcode = OP_SWAP;
+    cmd.param = 0x1;
+    send_command(&cmd);
 }
 
 void draw_line(vec3d v0, vec3d v1, vec3d c0, vec3d c1, fx32 thickness);
@@ -387,12 +396,15 @@ void main(void)
 
     model_t *cube_model = load_cube();
 
-    clear();
-
     write_texture();
 
+    unsigned int counter = 0;
     for (;;) {
+
         uint16_t t1 = xm_getw(TIMER);
+
+        clear(0x00F000 | (counter & 0xFFF));
+        counter++;
 
         // world
         mat4x4 mat_rot_z = matrix_make_rotation_z(theta);
@@ -406,6 +418,8 @@ void main(void)
 
         texture_t dummy_texture;
         draw_model(640, 480, &vec_camera, cube_model, &mat_world, &mat_proj, &mat_view, true, false, &dummy_texture, false, false);
+
+        swap();
 
         theta += 0.1f;
         if (theta > 6.28f)

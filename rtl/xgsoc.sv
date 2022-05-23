@@ -120,6 +120,8 @@ module xgsoc #(
     logic [7:0]   xosera_bus_data_out;       // 8-bit data bus output    
     logic pulse_xosera_bus;
 
+    logic stream_err_underflow;
+
     always_ff @(posedge clk) begin
         if (reset_i) begin
             pulse_xosera_bus <= 1'b0;
@@ -294,7 +296,9 @@ module xgsoc #(
         .vga_r_o(vga_r_o),
         .vga_g_o(vga_g_o),
         .vga_b_o(vga_b_o),
-        .vga_de_o(vga_de_o)
+        .vga_de_o(vga_de_o),
+
+        .stream_err_underflow_o(stream_err_underflow)
     );
 `endif
 
@@ -433,6 +437,7 @@ module xgsoc #(
         end
     end
 
+    /*
     always @(posedge clk) begin
         if (reset_i) begin
             display_o <= 8'd0;
@@ -441,6 +446,9 @@ module xgsoc #(
                 display_o <= cpu_data_out[7:0];
         end
     end
+    */
+
+    assign display_o = {7'b0, stream_err_underflow};
 
     always @(posedge clk) begin
         if (uart_tx_strobe) begin
