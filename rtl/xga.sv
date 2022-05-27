@@ -15,20 +15,32 @@ module xga #(
     output      logic                        cmd_axis_tready_o,
     input  wire logic [31:0]                 cmd_axis_tdata_i,
 
-    input  wire logic        clk_sdram,
+    // Memory interface
+    
+    // Writer (input commands)
+    output      logic [40:0]           writer_d_o,
+    output      logic                  writer_enq_o,
+    input  wire logic                  writer_full_i,
+    input  wire logic                  writer_alm_full_i,
 
-    // SDRAM
-    output      logic        sdram_clk_o,
-    output      logic        sdram_cke_o,
-    output      logic        sdram_cs_n_o,
-    output      logic        sdram_we_n_o,
-    output      logic        sdram_ras_n_o,
-    output      logic        sdram_cas_n_o,
-    output      logic [12:0] sdram_a_o,
-    output      logic [1:0]  sdram_ba_o,
-    output      logic [1:0]  sdram_dqm_o,
-    inout       logic [15:0] sdram_dq_io,
+    output      logic [31:0]           writer_burst_d_o,
+    output      logic                  writer_burst_enq_o,
+    input  wire logic                  writer_burst_full_i,
+    input  wire logic                  writer_burst_alm_full_i,
 
+    // Reader single word (output)
+    input  wire logic [15:0]           reader_q_i,
+    output      logic                  reader_deq_o,
+    input  wire logic                  reader_empty_i,
+    input  wire logic                  reader_alm_empty_i,
+
+    // Reader burst (output)
+    input  wire logic [127:0]          reader_burst_q_i,
+    output      logic                  reader_burst_deq_o,
+    input  wire logic                  reader_burst_empty_i,
+    input  wire logic                  reader_burst_alm_empty_i,
+
+    // Xosera
     input  wire logic         xosera_bus_cs_n_i,           // register select strobe (active low)
     input  wire logic         xosera_bus_rd_nwr_i,         // 0 = write, 1 = read
     input  wire logic [3:0]   xosera_bus_reg_num_i,        // register number
@@ -94,8 +106,6 @@ module xga #(
     //
 
     logic [3:0] xosera_r, xosera_g, xosera_b;
-
-    assign sdram_clk_o = clk_sdram;
     
     // VGA output
     
@@ -137,25 +147,36 @@ module xga #(
     logic [31:0] front_addr;
 
     framebuffer #(
-        .SDRAM_CLK_FREQ_MHZ(SDRAM_CLK_FREQ_MHZ),
         .FB_WIDTH(FB_WIDTH),
         .FB_HEIGHT(FB_HEIGHT)
     ) framebuffer(
         .clk_pix(clk),
         .reset_i(reset_i),
 
-        // SDRAM interface
-        .sdram_rst(reset_i),
-        .sdram_clk(clk_sdram),
-        .sdram_ba_o(sdram_ba_o),
-        .sdram_a_o(sdram_a_o),
-        .sdram_cs_n_o(sdram_cs_n_o),
-        .sdram_ras_n_o(sdram_ras_n_o),
-        .sdram_cas_n_o(sdram_cas_n_o),
-        .sdram_we_n_o(sdram_we_n_o),
-        .sdram_dq_io(sdram_dq_io),
-        .sdram_dqm_o(sdram_dqm_o),
-        .sdram_cke_o(sdram_cke_o),
+        // Memory interface
+    
+        // Writer (input commands)
+        .writer_d_o,
+        .writer_enq_o,
+        .writer_full_i,
+        .writer_alm_full_i,
+
+        .writer_burst_d_o,
+        .writer_burst_enq_o,
+        .writer_burst_full_i,
+        .writer_burst_alm_full_i,
+
+        // Reader single word (output)
+        .reader_q_i,
+        .reader_deq_o,
+        .reader_empty_i,
+        .reader_alm_empty_i,
+
+        // Reader burst (output)
+        .reader_burst_q_i,
+        .reader_burst_deq_o,
+        .reader_burst_empty_i,
+        .reader_burst_alm_empty_i,
 
         // Framebuffer access
         .ack_o(vram_ack),
