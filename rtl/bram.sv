@@ -12,7 +12,8 @@ module bram #(
     input  wire logic [3:0]  wr_mask_i,
     input  wire logic [31:0] address_in_i,
     input  wire logic [31:0] data_in_i,
-    output      logic [31:0] data_out_o
+    output      logic [31:0] data_out_o,
+    output      logic        ack_o
     );
 
     logic [31:0] mem_array[SIZE];
@@ -28,6 +29,13 @@ module bram #(
     end
 
     always_ff @(posedge clk) begin
+        ack_o <= 1'b0;
+        if (sel_i) begin
+            ack_o <= 1'b1;
+        end
+    end
+
+    always_ff @(posedge clk) begin
         if (sel_i) begin
             if (wr_en_i) begin
                 if (wr_mask_i[0])
@@ -39,7 +47,7 @@ module bram #(
                 if (wr_mask_i[3])
                     mem_array[addr][31:24] <= data_in_i[31:24];
             end
-            data_out_o = mem_array[addr];
+            data_out_o <= mem_array[addr];
         end
     end
 

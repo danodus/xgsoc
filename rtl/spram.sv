@@ -9,8 +9,16 @@ module spram(
     input wire logic [3:0]  wr_mask_i,
     input wire logic [14:0] address_in_i,
     input wire logic [31:0] data_in_i,
-    output     logic [31:0] data_out_o
+    output     logic [31:0] data_out_o,
+    output     logic        ack_o
 );
+
+    always_ff @(posedge clk) begin
+        ack_o <= 1'b0;
+        if (sel_i) begin
+            ack_o <= 1'b1;
+        end
+    end
 
 `ifndef SYNTHESIS
     logic [31:0] memory[32768];

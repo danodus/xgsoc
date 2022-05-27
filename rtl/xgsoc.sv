@@ -3,8 +3,8 @@
 // SPDX-License-Identifier: MIT
 
 /*
-    0x00000000 - 0x00000FFF: block ram (4kB)
-    0x10000000 - 0x1001FFFF: single port ram (128kB)
+    0x00000000 - 0x00000FFF: rom (4kB)
+    0x10000000 - 0x1FFFFFFF: ram (max: 256MB)
     0x20001000 - 0x00001FFF: display
     0x20002000 - 0x00002FFF: UART (BAUDS-N-8-1)
         0x20002000: Data Register (8 bits)
@@ -80,11 +80,13 @@ module xgsoc #(
     );
 
     // bus
+    logic        sel;
     logic [31:0] addr;
     logic        mem_we, cpu_we;
     logic [31:0] mem_data_in, cpu_data_in;
     logic [31:0] rom_data_out, ram_data_out, mem_data_out, cpu_data_out;
     logic [3:0]  wr_mask;
+    logic        rom_ack, ram_ack, device_ack;
 
     // display
     logic [7:0] display;
@@ -199,14 +201,16 @@ module xgsoc #(
         .INIT_FILE("firmware.hex")
     ) rom(
         .clk(clk),
-        .sel_i(addr[31:28] == 4'h0),
+        .sel_i(sel && (addr[31:28] == 4'h0)),
         .wr_en_i(1'b0),
         .wr_mask_i(wr_mask),
         .address_in_i(32'(addr[27:0] >> 2)),
         .data_in_i(mem_data_in), 
-        .data_out_o(rom_data_out)
+        .data_out_o(rom_data_out),
+        .ack_o(rom_ack)
     );
 
+/*
 `ifdef SPRAM
     spram ram(
         .address_in_i(15'(addr[27:0] >> 2)),
@@ -225,15 +229,60 @@ module xgsoc #(
         .data_in_i(mem_data_in), 
         .data_out_o(ram_data_out)
     );
+*/
+
+`ifdef SPRAM
+    spram ram(
+        .clk(clk),
+        .sel_i(sel && (addr[31:28] == 4'h1)),
+        .address_in_i(15'(addr[27:0] >> 2)),
+        .wr_en_i(mem_we),
+        .wr_mask_i(wr_mask),
+        .data_in_i(mem_data_in), 
+        .data_out_o(ram_data_out),
+        .ack_o(ram_ack)
+    );
+`else
+
+    bram #(.SIZE(RAM_SIZE/4)
+`ifndef SYNTHESIS
+        ,.INIT_FILE("program.hex")
+`endif
+        ) ram(
+        .clk(clk),
+        .sel_i(sel && (addr[31:28] == 4'h1)),
+        .address_in_i(32'(addr[27:0] >> 2)),
+        .wr_en_i(mem_we),
+        .wr_mask_i(wr_mask),
+        .data_in_i(mem_data_in), 
+        .data_out_o(ram_data_out),
+        .ack_o(ram_ack)
+    );
+
+`endif
+
+    always_ff @(posedge clk) begin
+        device_ack <= 1'b0;
+        if (sel) begin
+            if (addr[31:28] == 4'h2) begin
+                device_ack <= 1'b1;
+            end else if (addr[31:28] != 4'h0 && addr[31:28] != 4'h1) begin
+                $display("Invalid memory access at address: %x", addr);
+                device_ack <= 1'b1;
+            end
+        end
+    end
 
     processor cpu(
         .clk(clk),
         .reset_i(reset_i),
+        .sel_o(sel),
         .addr_o(addr),
         .we_o(cpu_we),
         .data_in_i(cpu_data_in),
         .data_out_o(cpu_data_out),
-        .wr_mask_o(wr_mask)
+        .wr_mask_o(wr_mask),
+        .ack_i(rom_ack || ram_ack || device_ack)
     );
 
     uart #(
@@ -267,12 +316,12 @@ module xgsoc #(
         .cmd_axis_tdata_i(xga_axis_tdata),
 
         // Memory interface
-
+    
         // Writer (input commands)
-        .writer_d_o(writer_d),
-        .writer_enq_o(writer_enq),
-        .writer_full_i(writer_full),
-        .writer_alm_full_i(writer_alm_full),
+        .writer_d_o(writer_ch2_d),
+        .writer_enq_o(writer_ch2_enq),
+        .writer_full_i(writer_ch2_full),
+        .writer_alm_full_i(writer_ch2_alm_full),
 
         .writer_burst_d_o(writer_burst_d),
         .writer_burst_enq_o(writer_burst_enq),
@@ -280,10 +329,10 @@ module xgsoc #(
         .writer_burst_alm_full_i(writer_burst_alm_full),
 
         // Reader single word (output)
-        .reader_q_i(reader_q),
-        .reader_deq_o(reader_deq),
-        .reader_empty_i(reader_empty),
-        .reader_alm_empty_i(reader_alm_empty),
+        .reader_q_i(reader_ch2_q),
+        .reader_deq_o(reader_ch2_deq),
+        .reader_empty_i(reader_ch2_empty),
+        .reader_alm_empty_i(reader_ch2_alm_empty),
 
         // Reader burst (output)
         .reader_burst_q_i(reader_burst_q),
@@ -483,7 +532,7 @@ module xgsoc #(
                 xga_ena_graphite <= cpu_data_out[0];
         end
     end 
-`endif // XGA    
+`endif // XGA
 
     // -----------------------------------------------------------------------------------------------------------------
     // SDRAM
@@ -493,6 +542,10 @@ module xgsoc #(
     logic writer_enq;
     logic writer_full, writer_alm_full;
 
+    logic [40:0] writer_ch2_d;
+    logic writer_ch2_enq;
+    logic writer_ch2_full, writer_ch2_alm_full;
+
     logic [31:0] writer_burst_d;
     logic writer_burst_enq;
     logic writer_burst_full, writer_burst_alm_full;
@@ -501,10 +554,17 @@ module xgsoc #(
     logic reader_deq;
     logic reader_empty, reader_alm_empty;    
 
-    logic [127:0] reader_burst_q;
+    logic [15:0] reader_ch2_q;
+    logic reader_ch2_deq;
+    logic reader_ch2_empty, reader_ch2_alm_empty;    
 
+    logic [127:0] reader_burst_q;
     logic reader_burst_deq;
     logic reader_burst_empty, reader_burst_alm_empty;
+
+    assign writer_d = 42'd0;
+    assign writer_enq = 1'b0;
+    assign reader_deq = 1'b0;
 
     async_sdram_ctrl #(
         .SDRAM_CLK_FREQ_MHZ(SDRAM_CLK_FREQ_MHZ)
@@ -531,6 +591,11 @@ module xgsoc #(
         .writer_full_o(writer_full),
         .writer_alm_full_o(writer_alm_full),
 
+        .writer_ch2_d_i(writer_ch2_d),
+        .writer_ch2_enq_i(writer_ch2_enq),
+        .writer_ch2_full_o(writer_ch2_full),
+        .writer_ch2_alm_full_o(writer_ch2_alm_full),        
+
         .writer_burst_d_i(writer_burst_d),
         .writer_burst_enq_i(writer_burst_enq),
         .writer_burst_full_o(writer_burst_full),
@@ -547,6 +612,12 @@ module xgsoc #(
         .reader_alm_empty_o(reader_alm_empty),
 
         // Reader secondary channel
+        .reader_ch2_q_o(reader_ch2_q),
+        .reader_ch2_deq_i(reader_ch2_deq),
+        .reader_ch2_empty_o(reader_ch2_empty),
+        .reader_ch2_alm_empty_o(reader_ch2_alm_empty),
+
+        // Reader burst channel
         .reader_burst_q_o(reader_burst_q),
         .reader_burst_deq_i(reader_burst_deq),
         .reader_burst_empty_o(reader_burst_empty),
