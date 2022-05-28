@@ -20,6 +20,7 @@ SRC_CORE := ../../external/xglib/rtl/processor.sv \
 		../../external/xglib/rtl/async_sdram_ctrl.sv \
 		../../external/xglib/rtl/framebuffer.sv \
 		../bram.sv \
+		../sdram.sv \
 		../uart.sv \
 		../xga.sv \
 		../fifo.sv \

@@ -3,6 +3,8 @@
 #include <memory>
 #include <chrono>
 #include <deque>
+#include <fstream>
+#include <sstream>
 
 #include <verilated.h>
 #include <iostream>
@@ -60,12 +62,26 @@ int main(int argc, char **argv, char **env)
     uint32_t sdram_addr = 0;
     uint8_t burst_counter = 0;
 
-    for (size_t i = 0; i < SDRAM_MEM_SIZE; ++i) {
-        sdram_mem[i] = 0xF00F;
-    }
-
     bool restart_model;
     do {
+
+        for (size_t i = 0; i < SDRAM_MEM_SIZE; ++i) {
+            sdram_mem[i] =  (i >= SDRAM_MEM_SIZE / 2) ? 0xF00F : 0x0000;
+        }
+
+        std::ifstream file("program.hex", std::ifstream::in);
+        size_t addr = 0;
+        std::string str;
+        while (std::getline(file, str))
+        {
+            uint32_t v;
+            std::stringstream ss;
+            ss << std::hex << str;
+            ss >> v;
+            sdram_mem[addr] = v >> 16;
+            sdram_mem[addr + 1] = v & 0xFFFF;
+            addr += 2;
+        }
 
         // Construct a VerilatedContext to hold simulation time, etc.
         // Multiple modules (made later below with Vtop) may share the same
@@ -164,9 +180,22 @@ int main(int argc, char **argv, char **env)
                         sdram_addr = 8192 * 512 * sdram_bank + 512 * sdram_row + sdram_col;
                         assert(sdram_addr < 8192 * 512 * 4);
                         if (!top->sdram_we_n_o) {
+                            uint8_t mask = ~top->sdram_dqm_o & 0x03;
                             // Write
-                            //printf("WRITE bank=%d, row=%d, col=%d (addr=%d)\n", sdram_bank, sdram_row, sdram_col, sdram_addr);
-                            sdram_mem[sdram_addr] = top->sdram_dq_io;
+                            //printf("WRITE bank=%d, row=%d, col=%d (addr=%d), mask=%d\n", sdram_bank, sdram_row, sdram_col, sdram_addr, mask);
+                            switch (mask) {
+                                case 0:
+                                    break;
+                                case 1:
+                                    sdram_mem[sdram_addr] = (sdram_mem[sdram_addr] & 0xFF00) | (top->sdram_dq_io & 0x00FF);
+                                    break;
+                                case 2:
+                                    sdram_mem[sdram_addr] = (sdram_mem[sdram_addr] & 0x00FF) | (top->sdram_dq_io & 0xFF00);
+                                    break;
+                                case 3:
+                                    sdram_mem[sdram_addr] = top->sdram_dq_io;
+                                    break;
+                            }
                         } else {
                             // Read
                             //printf("READ bank=%d, row=%d, col=%d (addr=%d)\n", sdram_bank, sdram_row, sdram_col, sdram_addr);

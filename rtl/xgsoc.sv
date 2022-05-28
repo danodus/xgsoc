@@ -27,6 +27,8 @@
         0x20005004: Code
 */
 
+`define CPU_SDRAM
+
 module xgsoc #(
     parameter FREQ_HZ = 12 * 1000000,
     parameter BAUDS    = 115200,
@@ -210,27 +212,6 @@ module xgsoc #(
         .ack_o(rom_ack)
     );
 
-/*
-`ifdef SPRAM
-    spram ram(
-        .address_in_i(15'(addr[27:0] >> 2)),
-`else
-    bram #(.SIZE(RAM_SIZE/4)
-`ifndef SYNTHESIS
-        ,.INIT_FILE("program.hex")
-`endif
-        ) ram(
-        .address_in_i(32'(addr[27:0] >> 2)),
-`endif
-        .clk(clk),
-        .sel_i(addr[31:28] == 4'h1),
-        .wr_en_i(mem_we),
-        .wr_mask_i(wr_mask),
-        .data_in_i(mem_data_in), 
-        .data_out_o(ram_data_out)
-    );
-*/
-
 `ifdef SPRAM
     spram ram(
         .clk(clk),
@@ -243,6 +224,9 @@ module xgsoc #(
         .ack_o(ram_ack)
     );
 `else
+
+
+`ifndef CPU_SDRAM
 
     bram #(.SIZE(RAM_SIZE/4)
 `ifndef SYNTHESIS
@@ -258,17 +242,45 @@ module xgsoc #(
         .data_out_o(ram_data_out),
         .ack_o(ram_ack)
     );
+
+`else
+    sdram ram(
+        .clk(clk),
+        .reset_i(reset_i),
+        .sel_i(sel && (addr[31:28] == 4'h1)),
+        .address_in_i(32'(addr[27:0] >> 2)),
+        .wr_en_i(mem_we),
+        .wr_mask_i(wr_mask),
+        .data_in_i(mem_data_in), 
+        .data_out_o(ram_data_out),
+        .ack_o(ram_ack),
+
+        .writer_d_o(writer_d),
+        .writer_enq_o(writer_enq),
+        .writer_full_i(writer_full),
+        .writer_alm_full_i(writer_alm_full),
+
+        .reader_q_i(reader_q),
+        .reader_deq_o(reader_deq),
+        .reader_empty_i(reader_empty),
+        .reader_alm_empty_i(reader_alm_empty)
+    );
+`endif // CPU_SDRAM
 
 `endif
 
     always_ff @(posedge clk) begin
-        device_ack <= 1'b0;
-        if (sel) begin
-            if (addr[31:28] == 4'h2) begin
-                device_ack <= 1'b1;
-            end else if (addr[31:28] != 4'h0 && addr[31:28] != 4'h1) begin
-                $display("Invalid memory access at address: %x", addr);
-                device_ack <= 1'b1;
+        if (reset_i) begin
+            device_ack <= 1'b0;
+        end else begin
+            device_ack <= 1'b0;
+            if (sel) begin
+                if (addr[31:28] == 4'h2) begin
+                    device_ack <= 1'b1;
+                end else if (addr[31:28] != 4'h0 && addr[31:28] != 4'h1) begin
+                    $display("Invalid memory access at address: %x", addr);
+                    device_ack <= 1'b1;
+                end
             end
         end
     end
@@ -538,7 +550,7 @@ module xgsoc #(
     // SDRAM
     //
 
-    logic [40:0] writer_d;
+    logic [42:0] writer_d;
     logic writer_enq;
     logic writer_full, writer_alm_full;
 
@@ -561,10 +573,6 @@ module xgsoc #(
     logic [127:0] reader_burst_q;
     logic reader_burst_deq;
     logic reader_burst_empty, reader_burst_alm_empty;
-
-    assign writer_d = 42'd0;
-    assign writer_enq = 1'b0;
-    assign reader_deq = 1'b0;
 
     async_sdram_ctrl #(
         .SDRAM_CLK_FREQ_MHZ(SDRAM_CLK_FREQ_MHZ)
