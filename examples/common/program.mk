@@ -5,8 +5,6 @@ SITE_MK ?= ../../site.mk
 IVERILOG = iverilog
 PYTHON = python3
 
-RISCV_TOOLCHAIN_PATH = /opt/riscv32i/bin/
-RISVC_TOOLCHAIN_PREFIX = riscv32-unknown-elf-
 AS = ${RISCV_TOOLCHAIN_PATH}${RISVC_TOOLCHAIN_PREFIX}as
 OBJCOPY = ${RISCV_TOOLCHAIN_PATH}${RISVC_TOOLCHAIN_PREFIX}objcopy
 OBJDUMP = ${RISCV_TOOLCHAIN_PATH}${RISVC_TOOLCHAIN_PREFIX}objdump
@@ -41,6 +39,6 @@ program.bin: program.elf program.lst
 	${OBJCOPY} -O binary program.elf program.bin
 
 program.elf: $(PROGRAM_SOURCE)
-	${CC} -nostartfiles -O3 -T $(LDFILE) -I ../common $(EXTRA_CC_ARGS) $(PROGRAM_SOURCE) $(EXTRA_SOURCE) -o program.elf -lm
+	${CC} -march=rv32i -mabi=ilp32 -nostartfiles -O3 -T $(LDFILE) -I ../common $(EXTRA_CC_ARGS) $(PROGRAM_SOURCE) $(EXTRA_SOURCE) -o program.elf -lm
 
 .PHONY: all clean run program
