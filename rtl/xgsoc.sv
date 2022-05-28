@@ -27,7 +27,7 @@
         0x20005004: Code
 */
 
-`define CPU_SDRAM
+//`define CPU_SDRAM
 
 module xgsoc #(
     parameter FREQ_HZ = 12 * 1000000,
@@ -278,7 +278,7 @@ module xgsoc #(
                 if (addr[31:28] == 4'h2) begin
                     device_ack <= 1'b1;
                 end else if (addr[31:28] != 4'h0 && addr[31:28] != 4'h1) begin
-                    $display("Invalid memory access at address: %x", addr);
+                    //$display("Invalid memory access at address: %x", addr);
                     device_ack <= 1'b1;
                 end
             end
@@ -288,14 +288,15 @@ module xgsoc #(
     processor cpu(
         .clk(clk),
         .reset_i(reset_i),
-        .sel_o(sel),
+        .sel_o(/*sel*/),
         .addr_o(addr),
         .we_o(cpu_we),
         .data_in_i(cpu_data_in),
         .data_out_o(cpu_data_out),
         .wr_mask_o(wr_mask),
-        .ack_i(rom_ack || ram_ack || device_ack)
+        .ack_i(1'b1/*rom_ack || ram_ack || device_ack*/)
     );
+    assign sel = 1'b1;
 
     uart #(
         .FREQ_HZ(FREQ_HZ),
