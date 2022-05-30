@@ -269,17 +269,20 @@ module xgsoc #(
 
 `endif
 
+    logic cpu_halt;
     always_ff @(posedge clk) begin
         if (reset_i) begin
+            cpu_halt   <= 1'b0;
             device_ack <= 1'b0;
         end else begin
             device_ack <= 1'b0;
-            if (sel) begin
+            if (sel && !cpu_halt) begin
                 if (addr[31:28] == 4'h2) begin
                     device_ack <= 1'b1;
                 end else if (addr[31:28] != 4'h0 && addr[31:28] != 4'h1) begin
                     $display("Invalid memory access at address: %x", addr);
-                    device_ack <= 1'b1;
+                    $display("CPU halted");
+                    cpu_halt <= 1'b1;
                 end
             end
         end
@@ -287,7 +290,7 @@ module xgsoc #(
 
     processor cpu(
         .clk(clk),
-        .reset_i(reset_i),
+        .reset_i(reset_i || cpu_halt),
         .sel_o(sel),
         .addr_o(addr),
         .we_o(cpu_we),
@@ -520,7 +523,7 @@ module xgsoc #(
     end
     */
 
-    assign display_o = {7'b0, stream_err_underflow};
+    assign display_o = {6'b0, cpu_halt, stream_err_underflow};
 
     always @(posedge clk) begin
         if (uart_tx_strobe) begin
