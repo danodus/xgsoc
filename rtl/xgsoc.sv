@@ -27,7 +27,7 @@
         0x20005004: Code
 */
 
-//`define CPU_SDRAM
+`define CPU_SDRAM
 
 module xgsoc #(
     parameter FREQ_HZ = 12 * 1000000,
