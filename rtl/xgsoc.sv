@@ -278,7 +278,7 @@ module xgsoc #(
                 if (addr[31:28] == 4'h2) begin
                     device_ack <= 1'b1;
                 end else if (addr[31:28] != 4'h0 && addr[31:28] != 4'h1) begin
-                    //$display("Invalid memory access at address: %x", addr);
+                    $display("Invalid memory access at address: %x", addr);
                     device_ack <= 1'b1;
                 end
             end
@@ -288,16 +288,15 @@ module xgsoc #(
     processor cpu(
         .clk(clk),
         .reset_i(reset_i),
-        .sel_o(/*sel*/),
+        .sel_o(sel),
         .addr_o(addr),
         .we_o(cpu_we),
         .data_in_i(cpu_data_in),
         .data_out_o(cpu_data_out),
         .wr_mask_o(wr_mask),
-        .ack_i(1'b1/*rom_ack || ram_ack || device_ack*/)
+        .ack_i(rom_ack || ram_ack || device_ack)
     );
-    assign sel = 1'b1;
-
+    
     uart #(
         .FREQ_HZ(FREQ_HZ),
         .BAUDS(BAUDS)
@@ -398,47 +397,49 @@ module xgsoc #(
         if (cpu_we) begin
             // write
             if (addr[31:28] == 4'h2) begin
-                // peripheral
-                case (addr[15:12])
-                    4'h1: begin
-                        // display
-                        display_we = 1'b1;
-                    end
-                    4'h2: begin
-                        // UART
-                        if (addr[11:0] == 12'd0) begin
-                            // data
-                            uart_tx_strobe = 1'b1;
+                if (!device_ack) begin
+                    // peripheral
+                    case (addr[15:12])
+                        4'h1: begin
+                            // display
+                            display_we = 1'b1;
                         end
-                    end
-`ifdef XGA
-                    4'h3: begin
-                        // XGA
-                        if (addr[11] == 1'b0) begin
-                            if (addr[10] == 1'b0) begin
-                                // xosera
-                                xosera_bus_rd_nwr = 1'b0;
-                                xosera_bus_cs_n = 1'b0;
-                            end else if (addr[10] == 1'b1) begin
-                                // graphite
-                                xga_axis_tvalid = 1'b1;
+                        4'h2: begin
+                            // UART
+                            if (addr[11:0] == 12'd0) begin
+                                // data
+                                uart_tx_strobe = 1'b1;
                             end
-                        end else begin
-                            xga_we = 1'b1;
                         end
-                    end
-`endif
-`ifdef PS2
-                    4'h5: begin
-                        // PS/2 Keyboard
-                        if (addr[11:0] == 12'd0) begin
-                            if (!ps2_kbd_fifo_empty)
-                                ps2_kbd_req_deq = 1'b1;
+    `ifdef XGA
+                        4'h3: begin
+                            // XGA
+                            if (addr[11] == 1'b0) begin
+                                if (addr[10] == 1'b0) begin
+                                    // xosera
+                                    xosera_bus_rd_nwr = 1'b0;
+                                    xosera_bus_cs_n = 1'b0;
+                                end else if (addr[10] == 1'b1) begin
+                                    // graphite
+                                    xga_axis_tvalid = 1'b1;
+                                end
+                            end else begin
+                                xga_we = 1'b1;
+                            end
                         end
-                    end
-`endif // PS2
+    `endif
+    `ifdef PS2
+                        4'h5: begin
+                            // PS/2 Keyboard
+                            if (addr[11:0] == 12'd0) begin
+                                if (!ps2_kbd_fifo_empty)
+                                    ps2_kbd_req_deq = 1'b1;
+                            end
+                        end
+    `endif // PS2
 
-                endcase
+                    endcase
+                end
             end else begin
                 // memory
                 mem_we = 1'b1;
