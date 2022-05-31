@@ -8,6 +8,8 @@
 #define XGA_CONTROL          0x20003800
 #define FB_BASE_ADDRESS      0x11000000
 
+#define IMAGE_SIZE           (640*480)
+
 uint16_t read_pixel()
 {
     unsigned short int pixel = 0;
@@ -21,15 +23,24 @@ uint16_t read_pixel()
 }
 
 void receive_image() {
-    // Read program
-    const unsigned int size = 640*480;
+    uint32_t addr = FB_BASE_ADDRESS;
 
-    uint32_t addr = 0x11000000;
+    for (unsigned int i = 0; i < IMAGE_SIZE / 2; ++i) {
+        uint16_t msp = read_pixel();
+        uint16_t lsp = read_pixel();
+        uint32_t word = ((uint32_t)(msp) << 16) | (uint32_t)(lsp);
+        MEM_WRITE(addr, word);
+        addr += 4;
+    }
+}
 
-    for (unsigned int i = 0; i < size; ++i) {
-        uint16_t pixel = read_pixel();
-        MEM_WRITE(addr, (uint32_t)pixel);
-        addr += 2;
+void clear_fb()
+{
+    uint32_t addr = FB_BASE_ADDRESS;
+
+    for (unsigned int i = 0; i < IMAGE_SIZE / 2; ++i) {
+        MEM_WRITE(addr, 0xF000F000);
+        addr += 4;
     }
 }
 
@@ -41,16 +52,6 @@ void xclear()
         xm_setw(DATA, 0x0F00 | ' ');
 }
 
-void xprint(unsigned int x, unsigned int y, const char *s, unsigned char color)
-{
-    xm_setw(WR_INCR, 1);    
-    xm_setw(WR_ADDR, y * NB_COLS + x);
-    unsigned int w = (unsigned int)color << 8;
-    for (; *s; ++s) {
-        xm_setw(DATA, w | *s);
-    }
-}
-
 void main(void)
 {
     // enable Graphite
@@ -58,6 +59,8 @@ void main(void)
 
     xreg_setw(PA_GFX_CTRL, 0x0000);
     xclear();
+
+    clear_fb();
 
     for (;;) {
         receive_image();
