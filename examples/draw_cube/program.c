@@ -367,25 +367,6 @@ void main(void)
     xclear();
     xprint(0, 0, "Draw Cube", BRIGHT_WHITE);
 
-
-    xprint(5, 6,  " BLACK   ", BLACK);
-    xprint(5, 7,  " BLUE    ", BLUE);
-    xprint(5, 8,  " GREEN   ", GREEN);
-    xprint(5, 9,  " CYAN    ", CYAN);
-    xprint(5, 10, " RED     ", RED);
-    xprint(5, 11, " MAGENTA ", MAGENTA);
-    xprint(5, 12, " BROWN   ", BROWN);
-    xprint(5, 13, " WHITE   ", WHITE);
-
-    xprint(20, 6, " GRAY          ", GRAY);
-    xprint(20, 7, " LIGHT BLUE    ", LIGHT_BLUE);
-    xprint(20, 8, " LIGHT GREEN   ", LIGHT_GREEN);
-    xprint(20, 9, " LIGHT CYAN    ", LIGHT_CYAN);
-    xprint(20, 10," LIGHT RED     ", LIGHT_RED);
-    xprint(20, 11," LIGHT MAGENTA ", LIGHT_MAGENTA);
-    xprint(20, 12," YELLOW        ", YELLOW);
-    xprint(20, 13," BRIGHT WHITE  ", BRIGHT_WHITE);
-
     float theta = 0.5f;
 
     mat4x4 mat_proj = matrix_make_projection(640, 480, 60.0f);
@@ -398,13 +379,11 @@ void main(void)
 
     write_texture();
 
-    unsigned int counter = 0;
     for (;;) {
 
         uint16_t t1 = xm_getw(TIMER);
 
-        clear(0x00F000 | (counter & 0xFFF));
-        counter++;
+        clear(0x00F333);
 
         // world
         mat4x4 mat_rot_z = matrix_make_rotation_z(theta);
