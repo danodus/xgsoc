@@ -27,7 +27,9 @@
         0x20005004: Code
 */
 
+`ifdef SYNTHESIS
 `define CPU_SDRAM
+`endif
 
 module xgsoc #(
     parameter FREQ_HZ = 12 * 1000000,

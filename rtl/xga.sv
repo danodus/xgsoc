@@ -148,7 +148,8 @@ module xga #(
 
     framebuffer #(
         .FB_WIDTH(FB_WIDTH),
-        .FB_HEIGHT(FB_HEIGHT)
+        .FB_HEIGHT(FB_HEIGHT),
+        .FB_BASE_ADDR(24'h800000) // 16*1024*1024/2
     ) framebuffer(
         .clk_pix(clk),
         .reset_i(reset_i),

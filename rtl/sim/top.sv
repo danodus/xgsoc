@@ -32,7 +32,7 @@ module top (
     xgsoc #(
         .FREQ_HZ(1 * 1000000),
         .BAUDS(115200),
-        .RAM_SIZE(240*1024)
+        .RAM_SIZE(16*1024*1024)
     ) xgsoc(
         .clk(clk),
         .clk_sdram(clk_sdram),
