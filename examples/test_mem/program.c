@@ -1,13 +1,19 @@
 #include <io.h>
+#include <stdlib.h>
 
 int test_mem(void) {
-    unsigned int expected = 0x12345678;
-    for (unsigned int addr = 0x10001000; addr < 0x10001100; addr++) {
+    char s[16];
+    for (unsigned int addr = 0x10002000; addr < 0x11000000 - 2048; addr+=4) {
+        unsigned int expected = rand();
+        if (addr % 2048 == 0) {
+            print("Testing 2K range from address ");
+            print(itoa(addr, s, 16));
+            print(": ");
+        }
         MEM_WRITE(addr, expected);
         unsigned int read = MEM_READ(addr);
         if (read != expected) {
-            char s[16];
-            print("Mismatch detected at address=");
+            print("Mismatch detected at address ");
             print(itoa(addr, s, 16));
             print(" expected=");
             print(itoa(expected, s, 16));
@@ -15,6 +21,9 @@ int test_mem(void) {
             print(itoa(read, s, 16));
             print("\r\n");
             return 0;
+        } else {
+            if (addr % 2048 == 0)
+                print("OK\r\n");
         }
     }
     return 1;
@@ -25,10 +34,10 @@ void main(void)
     MEM_WRITE(DISPLAY, 0x00);
     if (!test_mem()) {
         // failure
-        MEM_WRITE(DISPLAY, 0x01);
+        print("*** FAILURE DETECTED ***\r\n");
     } else {
         // success
-        MEM_WRITE(DISPLAY, 0x1E);
+        print("*** SUCCESS ***\r\n");
     }
 
     for (;;);
