@@ -38,7 +38,7 @@ program.hex: program.bin
 program.bin: program.elf program.lst
 	${OBJCOPY} -O binary program.elf program.bin
 
-program.elf: $(PROGRAM_SOURCE)
+program.elf: $(PROGRAM_SOURCE) $(EXTRA_SOURCE)
 	${CC} -march=rv32i -mabi=ilp32 -nostartfiles -O3 -T $(LDFILE) -I ../common $(EXTRA_CC_ARGS) $(PROGRAM_SOURCE) $(EXTRA_SOURCE) -o program.elf -lm
 
 .PHONY: all clean run program
