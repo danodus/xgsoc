@@ -1,4 +1,4 @@
 RISCV_TOOLCHAIN_PATH = /opt/riscv32i/bin/
-RISVC_TOOLCHAIN_PREFIX = riscv32-unknown-elf-
+RISCV_TOOLCHAIN_PREFIX = riscv32-unknown-elf-
 
 OSS_CAD_SUITE_PATH = /path/to/oss-cad-suite/bin/
