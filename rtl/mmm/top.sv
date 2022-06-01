@@ -99,7 +99,7 @@ module top(
         .ps2_kbd_strobe_i(ps2_kbd_strobe),
         .ps2_kbd_err_i(ps2_kbd_err),
 `endif
-
+`ifdef SDRAM
         // SDRAM
         .sdram_clk_o(sdram_clk),
         .sdram_cke_o(sdram_cke),
@@ -111,6 +111,7 @@ module top(
         .sdram_ba_o(sdram_ba),
         .sdram_dqm_o(sdram_dqm),
         .sdram_dq_io(sdram_d)
+`endif        
     );
 
     // reset

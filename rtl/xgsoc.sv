@@ -28,7 +28,9 @@
 */
 
 `ifdef SYNTHESIS
+`ifdef SDRAM
 `define CPU_SDRAM
+`endif
 `endif
 
 module xgsoc #(
@@ -70,6 +72,7 @@ module xgsoc #(
     input  wire logic        ps2_kbd_err_i,
 `endif
 
+`ifdef SDRAM
     // SDRAM
     output      logic        sdram_clk_o,
     output      logic        sdram_cke_o,
@@ -81,6 +84,7 @@ module xgsoc #(
     output      logic [1:0]  sdram_ba_o,
     output      logic [1:0]  sdram_dqm_o,
     inout       logic [15:0] sdram_dq_io,        
+`endif
     );
 
     // bus
@@ -514,7 +518,6 @@ module xgsoc #(
         end
     end
 
-    /*
     always @(posedge clk) begin
         if (reset_i) begin
             display_o <= 8'd0;
@@ -523,9 +526,8 @@ module xgsoc #(
                 display_o <= cpu_data_out[7:0];
         end
     end
-    */
 
-    assign display_o = {6'b0, cpu_halt, stream_err_underflow};
+    //assign display_o = {6'b0, cpu_halt, stream_err_underflow};
 
     always @(posedge clk) begin
         if (uart_tx_strobe) begin
@@ -552,6 +554,8 @@ module xgsoc #(
         end
     end 
 `endif // XGA
+
+`ifdef SDRAM
 
     // -----------------------------------------------------------------------------------------------------------------
     // SDRAM
@@ -640,5 +644,6 @@ module xgsoc #(
     );
 
     assign sdram_clk_o = clk_sdram;
+`endif
 
 endmodule
