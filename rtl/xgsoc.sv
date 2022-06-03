@@ -25,6 +25,14 @@
             bit 0: strobe
             bit 1: error
         0x20005004: Code
+    0x20006000 - 0x20006FFF: SD Card (SPI)
+        0x20006000:
+            Write:
+                bit 0: mosi
+                bit 1: cs
+                bit 2: sclk
+            Read:
+                bit 0: miso
 */
 
 `ifdef SYNTHESIS
@@ -70,6 +78,13 @@ module xgsoc #(
     input  wire logic [7:0]  ps2_kbd_code_i,
     input  wire logic        ps2_kbd_strobe_i,
     input  wire logic        ps2_kbd_err_i,
+`endif
+
+`ifdef SD_CARD
+    output      logic        sd_csn_o,
+    output      logic        sd_sclk_o,
+    input  wire logic        sd_miso_i,
+    output      logic        sd_mosi_o,
 `endif
 
 `ifdef SDRAM
@@ -200,6 +215,18 @@ module xgsoc #(
                     ps2_kbd_enq <= 1'b1;
                 end
             end
+        end
+    end
+`endif
+
+`ifdef SD_CARD
+    logic sd_card_we;
+    always @(posedge clk) begin     
+        if (reset_i) begin
+            {sd_sclk_o, sd_csn_o, sd_mosi_o} <= 3'b010;
+        end else begin
+            if (sd_card_we)
+                {sd_sclk_o, sd_csn_o, sd_mosi_o} <= {cpu_data_out[2], ~cpu_data_out[1], cpu_data_out[0]};
         end
     end
 `endif
@@ -403,6 +430,9 @@ module xgsoc #(
 `ifdef PS2
         ps2_kbd_req_deq = 1'b0;
 `endif
+`ifdef SD_CARD
+        sd_card_we = 1'b0;
+`endif
         if (cpu_we) begin
             // write
             if (addr[31:28] == 4'h2) begin
@@ -446,6 +476,14 @@ module xgsoc #(
                             end
                         end
     `endif // PS2
+    `ifdef SD_CARD
+                        4'h6: begin
+                            // SD Card
+                            if (addr[11:0] == 12'd0) begin
+                                sd_card_we = 1'b1;
+                            end
+                        end
+    `endif
 
                     endcase
                 end
@@ -513,6 +551,15 @@ module xgsoc #(
                         end
                     end
 `endif // PS2
+`ifdef SD_CARD
+                    4'h6: begin
+                        // SD Card
+                        if (addr[11:0] == 12'd0) begin
+                            cpu_data_in = {31'd0, sd_miso_i};
+                        end
+                    end
+
+`endif // SD_CARD
                 endcase
             end
         end

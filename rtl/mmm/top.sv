@@ -15,6 +15,12 @@ module top(
     output      logic       AUDIO_L,
     output      logic       AUDIO_R,
 
+    // SD Card
+    output      logic        sd_m_clk,
+    input  wire logic        sd_m_cdet,
+    inout       logic        sd_m_cmd,
+    inout       logic [3:0]  sd_m_d,
+
     // SDRAM
     output      logic        sdram_clk,
     output      logic        sdram_cke,
@@ -25,7 +31,7 @@ module top(
     output      logic [12:0] sdram_a,
     output      logic [1:0]  sdram_ba,
     output      logic [1:0]  sdram_dqm,
-    inout       logic [15:0] sdram_d  
+    inout       logic [15:0] sdram_d
 );
 
     // reset
@@ -98,6 +104,12 @@ module top(
         .ps2_kbd_code_i(ps2_kbd_code),
         .ps2_kbd_strobe_i(ps2_kbd_strobe),
         .ps2_kbd_err_i(ps2_kbd_err),
+`endif
+`ifdef SD_CARD
+        .sd_csn_o(sd_m_d[3]),
+        .sd_sclk_o(sd_m_clk),
+        .sd_miso_i(sd_m_d[0]),
+        .sd_mosi_o(sd_m_cmd),
 `endif
 `ifdef SDRAM
         // SDRAM
