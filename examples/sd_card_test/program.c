@@ -9,6 +9,13 @@
 #define CS_BIT      0x2
 #define SCLK_BIT    0x4
 
+#define SD_START_TOKEN  0xFE
+
+#define SD_MAX_READ_ATTEMPTS    300000
+#define SD_MAX_WRITE_ATTEMPTS   750000
+
+#define SD_BLOCK_LEN  512
+
 #define CS_ENABLE()  { g_sd_cs = CS_BIT; MEM_WRITE(SD_CARD, g_sd_cs); }
 #define CS_DISABLE() { g_sd_cs = 0; MEM_WRITE(SD_CARD, g_sd_cs); }
 
@@ -231,6 +238,117 @@ uint8_t sd_send_op_cond()
     return res1;
 }
 
+uint8_t sd_read_single_block(uint32_t addr, uint8_t *buf, uint8_t *token)
+{
+    uint8_t res1, read;
+    unsigned int read_attempts;
+
+    // set token to none
+    *token = 0xFF;
+
+    // assert chip select
+    spi_transfer(0xFF);
+    CS_ENABLE();
+    spi_transfer(0xFF);
+
+    // send CMD17
+    sd_command(17, addr, false);
+
+    // read R1
+    res1 = sd_read_res1();
+
+    // if response received from the card
+    if (res1 != 0xFF) {
+        // wait for a response token (timeout == 100ms)
+        read_attempts = 0;
+        while (++read_attempts != SD_MAX_READ_ATTEMPTS)
+            if ((read = spi_transfer(0xFF)) != 0xFF)
+                break;
+
+            // if response token is 0xFE
+            if (read == 0xFE) {
+                // read block
+                for (uint16_t i = 0; i < SD_BLOCK_LEN; ++i)
+                    *buf++ = spi_transfer(0xFF);
+
+                // read 16-bit CRC
+                spi_transfer(0xFF);
+                spi_transfer(0xFF);
+            }
+
+            // set token to card response
+            *token = read;
+    }
+
+    // deassert chip select
+    spi_transfer(0xFF);
+    CS_DISABLE();
+    spi_transfer(0xFF);
+
+    return res1;
+}
+
+uint8_t sd_write_single_block(uint32_t addr, uint8_t *buf, uint8_t *token)
+{
+    uint8_t res1, write;
+    unsigned int write_attempts;
+
+    // set token to none
+    *token = 0xFF;
+
+    // assert chip select
+    spi_transfer(0xFF);
+    CS_ENABLE();
+    spi_transfer(0xFF);
+
+    // send CMD24
+    sd_command(24, addr, false);
+
+    // read R1
+    res1 = sd_read_res1();
+
+    if (res1 == 0x00) {
+        // send start token
+        spi_transfer(SD_START_TOKEN);
+
+        // write buffer to card
+        for (uint16_t i = 0; i < SD_BLOCK_LEN; ++i)
+            spi_transfer(buf[i]);
+    }
+
+    // if response received from the card
+    if (res1 != 0xFF) {
+        // wait for a response token (timeout == 250ms)
+        write_attempts = 0;
+        while (++write_attempts != SD_MAX_WRITE_ATTEMPTS)
+            if ((write = spi_transfer(0xFF)) != 0xFF) {
+                *token = 0xFF;
+                break;
+            }
+
+        // if data accepted
+        if ((write & 0x1F) == 0x05) {
+            // set token to data accepted
+            *token = 0x05;
+
+            // wait for write to finish (timeout == 250ms)
+            write_attempts = 0;
+            while (spi_transfer(0xFF) == 0x00)
+                if (++write_attempts == SD_MAX_WRITE_ATTEMPTS) {
+                    *token = 0x00;
+                    break;
+                }
+        }
+    }
+
+    // deassert chip select
+    spi_transfer(0xFF);
+    CS_DISABLE();
+    spi_transfer(0xFF);
+
+    return res1;    
+}
+
 void main(void)
 {
     print("SD Card Test\r\n");
@@ -271,5 +389,53 @@ void main(void)
         print("SD card initialization was successful\r\n");
     } else {
         print("SD card initialization failed\r\n");
+        return;
     }
+
+
+    for (uint32_t block = 0; block < 1000; ++block) {
+        printv("Sector: ", block);
+
+        //
+        // write sector
+        //
+
+        uint8_t sd_buf[SD_BLOCK_LEN], token;
+        for (uint16_t i = 0; i < SD_BLOCK_LEN; ++i) {
+            sd_buf[i] = 0x55;
+        }
+
+        // write 0x55 to address 0x0
+        res[0] = sd_write_single_block(block, sd_buf, &token);
+
+        if (res[0] == 0x00 && token == 0x05) {
+            print("Sector written successfully\r\n");
+        } else {
+            printv("Error writing sector: ", token);
+            return;
+        }
+
+        //
+        // read sector
+        //
+        
+        res[0] = sd_read_single_block(block, sd_buf, &token);
+
+        if (res[0] == 0x00 && token == 0xFE) {
+            print("Sector read successfully\r\n");
+        } else {
+            printv("Error reading sector: ", token);
+            return;
+        }
+
+        // Compare
+        for (uint16_t i = 0; i < SD_BLOCK_LEN; ++i) {
+            if (sd_buf[i] != 0x55) {
+                printv("Mismatch detected at index ", i);
+                return;
+            }
+        }
+    }
+
+    print("Success!\r\n");
 }
