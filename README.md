@@ -6,10 +6,12 @@ FPGA based system on chip with audio, video and 3D acceleration.
 
 - RISC-V CPU (RV32I)
 - UART (115200-N-8-1)
-- XGA:
-  - Xosera (audio and video)
-  - Graphite (3D acceleration)
-- PS/2 Keyboard
+- SDRAM (16MB, ULX3S and MMM only)
+- XGA (ULX3S and MMM only):
+  - Xosera (audio and video, 128kB VRAM)
+  - Graphite (3D acceleration, 16MB frame buffer)
+- PS/2 Keyboard (ULX3S and MMM only)
+- SD Card (ULX3S and MMM only)
 - USB Gamepad (ULX3S only)
 
 # Requirements
@@ -120,17 +122,18 @@ make run SERIAL=<serial device>
 
 The following examples are available:
 
-| Name         | Description                                 | Compatibility    |
-| ------------ | ------------------------------------------- | ---------------- |
-| hello        | Hello message (output on UART)              | ULX3S, MMM, IB   |
-| sinus        | Sinus waveform on (output on UART)          | ULX3S, MMM, IB   |
-| test_mem     | Test 16MB of SDRAM (output on UART)         | ULX3S, MMM       |
-| ps2_kbd_test | Test PS/2 keyboard (output on UART)         | ULX3S, MMM       |
-| gamepad_test | Test USB gamepad                            | ULX3S            |
-| forth        | Forth language                              | SIM, ULX3S, MMM  |
-| basic        | Basic language (WIP)                        | SIM, ULX3S, MMM  |
-| xosera_test  | Video and sound test                        | SIM, ULX3S, MMM  |
-| draw_cube    | Draw 3D accelerated cube                    | SIM, ULX3S, MMM  |
-| draw_teapot  | Draw 3D accelerated teapot                  | SIM, ULX3S, MMM  |
-| draw_img     | Draw image in frame buffer (see README.md)  | ULX3S, MMM       |
-| cpp_test     | C++ test with standard library              | SIM, ULX3S, MMM  |
+| Name         | Description                                         | Compatibility    |
+| ------------ | --------------------------------------------------- | ---------------- |
+| hello        | Hello message (output on UART)                      | ULX3S, MMM, IB   |
+| sinus        | Sinus waveform on (output on UART)                  | ULX3S, MMM, IB   |
+| test_mem     | Test 16MB of SDRAM (output on UART)                 | ULX3S, MMM       |
+| ps2_kbd_test | Test PS/2 keyboard (output on UART)                 | ULX3S, MMM       |
+| sd_card_test | Test SD card (output on UART, card content erased!) | ULX3S, MMM       |
+| gamepad_test | Test USB gamepad                                    | ULX3S            |
+| forth        | Forth language                                      | SIM, ULX3S, MMM  |
+| basic        | Basic language (WIP)                                | SIM, ULX3S, MMM  |
+| xosera_test  | Video and sound test                                | SIM, ULX3S, MMM  |
+| draw_cube    | Draw 3D accelerated cube                            | SIM, ULX3S, MMM  |
+| draw_teapot  | Draw 3D accelerated teapot                          | SIM, ULX3S, MMM  |
+| draw_img     | Draw image in frame buffer (see README.md)          | ULX3S, MMM       |
+| cpp_test     | C++ test with standard library                      | SIM, ULX3S, MMM  |
