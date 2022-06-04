@@ -17,7 +17,6 @@ module top(
 
     // SD Card
     output      logic        sd_m_clk,
-    input  wire logic        sd_m_cdet,
     inout       logic        sd_m_cmd,
     inout       logic [3:0]  sd_m_d,
 

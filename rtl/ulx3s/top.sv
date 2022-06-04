@@ -20,6 +20,11 @@ module top(
     input  wire logic       gn2,    // D2
     input  wire logic       gn3,    // D1
 
+    // SD Card
+    output      logic        sd_clk,
+    inout       logic        sd_cmd,
+    inout       logic [3:0]  sd_d,    
+
     // SDRAM
     output      logic        sdram_clk,
     output      logic        sdram_cke,
@@ -111,6 +116,12 @@ module top(
         .ps2_kbd_code_i(ps2_kbd_code),
         .ps2_kbd_strobe_i(ps2_kbd_strobe),
         .ps2_kbd_err_i(ps2_kbd_err),
+`endif
+`ifdef SD_CARD
+        .sd_csn_o(sd_d[3]),
+        .sd_sclk_o(sd_clk),
+        .sd_miso_i(sd_d[0]),
+        .sd_mosi_o(sd_cmd),
 `endif
 `ifdef SDRAM
         // SDRAM

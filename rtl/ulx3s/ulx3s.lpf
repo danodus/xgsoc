@@ -319,3 +319,24 @@ IOBUF PORT "sdram_d[12]" PULLMODE=NONE IO_TYPE=LVCMOS33 DRIVE=4;
 IOBUF PORT "sdram_d[13]" PULLMODE=NONE IO_TYPE=LVCMOS33 DRIVE=4;
 IOBUF PORT "sdram_d[14]" PULLMODE=NONE IO_TYPE=LVCMOS33 DRIVE=4;
 IOBUF PORT "sdram_d[15]" PULLMODE=NONE IO_TYPE=LVCMOS33 DRIVE=4;
+
+## SD card "sdcard", "usb" sheet
+# wifi_gpio2,4,12,13,14,15 are shared with SD card.
+# If any of wifi_gpio2,4,12,13 is used in toplevel, don't use sd_d[].
+# If SD is used in 1-bit SPI mode, wifi_gpio4,12 = sd_d[1,2] are free,
+LOCATE COMP "sd_clk" SITE "H2"; # sd_clk WiFi_GPIO14
+LOCATE COMP "sd_cmd" SITE "J1"; # sd_cmd_di (MOSI) WiFi GPIO15
+LOCATE COMP "sd_d[0]" SITE "J3"; # sd_d0_do (MISO) WiFi GPIO2
+LOCATE COMP "sd_d[1]" SITE "H1"; # sd_d1_irq WiFi GPIO4
+LOCATE COMP "sd_d[2]" SITE "K1"; # sd_d2 WiFi_GPIO12
+LOCATE COMP "sd_d[3]" SITE "K2"; # sd_d3_csn WiFi_GPIO13
+LOCATE COMP "sd_wp" SITE "P5"; # not connected
+LOCATE COMP "sd_cdn" SITE "N5"; # not connected
+IOBUF  PORT "sd_clk" PULLMODE=UP IO_TYPE=LVCMOS33 DRIVE=4;
+IOBUF  PORT "sd_cmd" PULLMODE=UP IO_TYPE=LVCMOS33 DRIVE=4;
+IOBUF  PORT "sd_d[0]" PULLMODE=UP IO_TYPE=LVCMOS33 DRIVE=4;
+IOBUF  PORT "sd_d[1]" PULLMODE=UP IO_TYPE=LVCMOS33 DRIVE=4;
+IOBUF  PORT "sd_d[2]" PULLMODE=NONE IO_TYPE=LVCMOS33 DRIVE=4; # WiFi GPIO12 pulldown bootstrapping without 3.3V efuse
+IOBUF  PORT "sd_d[3]" PULLMODE=UP IO_TYPE=LVCMOS33 DRIVE=4;
+IOBUF  PORT "sd_wp" PULLMODE=UP IO_TYPE=LVCMOS33 DRIVE=4;
+IOBUF  PORT "sd_cdn" PULLMODE=UP IO_TYPE=LVCMOS33 DRIVE=4;
