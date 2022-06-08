@@ -3,9 +3,15 @@
 // Written by Clifford Wolf.
 
 #include <sys/stat.h>
+#include <sys/time.h>
+#include <sys/timeb.h>
 #include <errno.h>
 
+#ifdef XIO
+#include "xio.h"
+#else
 #include "io.h"
+#endif
 
 extern int errno;
 
@@ -31,7 +37,6 @@ asm (
 	UNIMPL_FUNC(_kill)
 	UNIMPL_FUNC(_wait)
 	UNIMPL_FUNC(_times)
-	UNIMPL_FUNC(_gettimeofday)
 	UNIMPL_FUNC(_ftime)
 	UNIMPL_FUNC(_utime)
 	UNIMPL_FUNC(_chown)
@@ -54,14 +59,18 @@ void ebreak()
 
 void unimplemented_syscall()
 {
+#ifdef XIO
+	xprint("Unimplemented system call called!\n");
+#else
 	print("Unimplemented system call called!\n");
+#endif
     ebreak();
 	__builtin_unreachable();
 }
 
 ssize_t _read(int file, void *ptr, size_t len)
 {
-    print("read() not implemented!\n");
+    // not implemented
     // always EOF
     return 0;
 }
@@ -69,21 +78,32 @@ ssize_t _read(int file, void *ptr, size_t len)
 ssize_t _write(int file, const void *ptr, size_t len)
 {
     const void *eptr = ptr + len;
-    while (ptr != eptr)
-        print_chr(*(char*) (ptr++));
+    while (ptr != eptr) {
+#ifdef XIO
+        putchar(*(char*) (ptr++));
+#else
+		print_chr(*(char*) (ptr++));
+#endif		
+	}
     return len;
 }
 
 int _close(int file)
 {
-    print("close() not implemented!\n");
+    // not implemented
     // close is called before _exit()
     return 0;
 }
 
+int _gettimeofday(struct timeval *restrict tv, struct timezone *restrict tz)
+{
+	// not implemented
+	return 0;
+}
+
 int _fstat(int file, struct stat *st)
 {
-    print("fstat() not implemented!\n");
+	// not implemented
 	// fstat is called during libc startup
 	errno = ENOENT;
 	return -1;
