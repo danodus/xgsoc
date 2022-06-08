@@ -17,7 +17,11 @@ def main(argv):
             global delay
             delay = float(argv[2])
 
-        ser = serial.Serial(argv[0], baudrate=115200)
+        try:
+            ser = serial.Serial(argv[0], baudrate=115200)
+        except serial.serialutil.SerialException:
+            print("Unable to open the serial device {0}".format(argv[0]))
+            exit(1)
         file = open(argv[1], 'r')
         lines = file.read().splitlines()
         lines = list(filter(None, lines))   # remove empty lines
