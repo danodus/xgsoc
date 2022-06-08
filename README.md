@@ -131,6 +131,7 @@ The following examples are available:
 | sd_card_test | Test SD card (output on UART, card content erased!) | ULX3S, MMM       |
 | gamepad_test | Test USB gamepad                                    | ULX3S            |
 | forth        | Forth language                                      | SIM, ULX3S, MMM  |
+| lua          | Lua language                                        | SIM, ULX3S, MMM  |
 | xosera_test  | Video and sound test                                | SIM, ULX3S, MMM  |
 | draw_cube    | Draw 3D accelerated cube                            | SIM, ULX3S, MMM  |
 | draw_teapot  | Draw 3D accelerated teapot                          | SIM, ULX3S, MMM  |
