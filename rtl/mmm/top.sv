@@ -16,6 +16,7 @@ module top(
     output      logic       AUDIO_R,
 
     // SD Card
+    output      logic        sd_m_clk,
     inout       logic        sd_m_cmd,
     inout       logic [3:0]  sd_m_d,
 
