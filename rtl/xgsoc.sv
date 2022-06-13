@@ -33,6 +33,14 @@
                 bit 2: sclk
             Read:
                 bit 0: miso
+    0x20007000 - 0x20007FFF: Flash (SPI)
+        0x20007000:
+            Write:
+                bit 0: mosi
+                bit 1: cs
+                bit 2: sclk
+            Read:
+                bit 0: miso
 */
 
 `ifdef SYNTHESIS
@@ -85,6 +93,13 @@ module xgsoc #(
     output      logic        sd_sclk_o,
     input  wire logic        sd_miso_i,
     output      logic        sd_mosi_o,
+`endif
+
+`ifdef FLASH
+    output      logic        flash_csn_o,
+    output      logic        flash_sclk_o,
+    input  wire logic        flash_miso_i,
+    output      logic        flash_mosi_o,
 `endif
 
 `ifdef SDRAM
@@ -227,6 +242,18 @@ module xgsoc #(
         end else begin
             if (sd_card_we)
                 {sd_sclk_o, sd_csn_o, sd_mosi_o} <= {cpu_data_out[2], ~cpu_data_out[1], cpu_data_out[0]};
+        end
+    end
+`endif
+
+`ifdef FLASH
+    logic flash_we;
+    always @(posedge clk) begin     
+        if (reset_i) begin
+            {flash_sclk_o, flash_csn_o, flash_mosi_o} <= 3'b010;
+        end else begin
+            if (flash_we)
+                {flash_sclk_o, flash_csn_o, flash_mosi_o} <= {cpu_data_out[2], ~cpu_data_out[1], cpu_data_out[0]};
         end
     end
 `endif
@@ -433,6 +460,9 @@ module xgsoc #(
 `ifdef SD_CARD
         sd_card_we = 1'b0;
 `endif
+`ifdef FLASH
+        flash_we = 1'b0;
+`endif
         if (cpu_we) begin
             // write
             if (addr[31:28] == 4'h2) begin
@@ -484,7 +514,14 @@ module xgsoc #(
                             end
                         end
     `endif
-
+    `ifdef FLASH
+                        4'h7: begin
+                            // Flash
+                            if (addr[11:0] == 12'd0) begin
+                                flash_we = 1'b1;
+                            end
+                        end
+    `endif
                     endcase
                 end
             end else begin
@@ -560,6 +597,14 @@ module xgsoc #(
                     end
 
 `endif // SD_CARD
+`ifdef FLASH
+                    4'h7: begin
+                        // Flash
+                        if (addr[11:0] == 12'd0) begin
+                            cpu_data_in = {31'd0, flash_miso_i};
+                        end
+                    end
+`endif // FLASH
                 endcase
             end
         end

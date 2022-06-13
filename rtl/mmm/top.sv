@@ -16,9 +16,15 @@ module top(
     output      logic       AUDIO_R,
 
     // SD Card
-    output      logic        sd_m_clk,
     inout       logic        sd_m_cmd,
     inout       logic [3:0]  sd_m_d,
+
+    // Flash
+    output      logic        fpga_cso,              // flash_csn
+    input  wire logic        fpga_miso_internal,    // flash_miso
+    output      logic        fpga_mosi,             // flash_mosi
+    output      logic        fpga_d02,              // flash_wpn
+    output      logic        fpga_d03,              // flash_holdn
 
     // SDRAM
     output      logic        sdram_clk,
@@ -72,7 +78,13 @@ module top(
 
         .gpdi_dp(dio_p),
         .gpdi_dn()
-    );    
+    );
+
+    logic flash_sclk;
+    USRMCLK u1 (.USRMCLKI(flash_sclk), .USRMCLKTS(1'b0));
+
+    assign fpga_d02 = 1'b1;     // disable write protect
+    assign fpga_d03 = 1'b1;     // disable hold
 
     xgsoc #(
         .FREQ_HZ(25_000_000),
@@ -109,6 +121,12 @@ module top(
         .sd_sclk_o(sd_m_clk),
         .sd_miso_i(sd_m_d[0]),
         .sd_mosi_o(sd_m_cmd),
+`endif
+`ifdef FLASH
+        .flash_csn_o(fpga_cso),
+        .flash_sclk_o(flash_sclk),
+        .flash_miso_i(fpga_miso_internal),
+        .flash_mosi_o(fpga_mosi),
 `endif
 `ifdef SDRAM
         // SDRAM

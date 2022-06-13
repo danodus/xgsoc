@@ -23,7 +23,14 @@ module top(
     // SD Card
     output      logic        sd_clk,
     inout       logic        sd_cmd,
-    inout       logic [3:0]  sd_d,    
+    inout       logic [3:0]  sd_d,
+
+    // Flash
+    output      logic        flash_csn,
+    input  wire logic        flash_miso,
+    output      logic        flash_mosi,
+    output      logic        flash_wpn,
+    output      logic        flash_holdn,              // flash_holdn
 
     // SDRAM
     output      logic        sdram_clk,
@@ -83,6 +90,12 @@ module top(
         .gpdi_dn(gpdi_dn)
     );    
 
+    logic flash_sclk;
+    USRMCLK u1 (.USRMCLKI(flash_sclk), .USRMCLKTS(1'b0));
+
+    assign flash_wpn = 1'b1;     // disable write protect
+    assign flash_holdn = 1'b1;     // disable hold
+
     xgsoc #(
         .FREQ_HZ(25_000_000),
         .BAUDS(115200),
@@ -122,6 +135,12 @@ module top(
         .sd_sclk_o(sd_clk),
         .sd_miso_i(sd_d[0]),
         .sd_mosi_o(sd_cmd),
+`endif
+`ifdef FLASH
+        .flash_csn_o(flash_csn),
+        .flash_sclk_o(flash_sclk),
+        .flash_miso_i(flash_miso),
+        .flash_mosi_o(flash_mosi),
 `endif
 `ifdef SDRAM
         // SDRAM
