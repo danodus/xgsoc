@@ -1,12 +1,12 @@
 MEMORY
 {
-   rom      (rx) : ORIGIN = 0x00000000, LENGTH = 4096
+   rom      (rx) : ORIGIN = 0x00000000, LENGTH = 8192
 }
-__stacktop = ORIGIN(rom) + LENGTH(rom);
-
+/* RAM region is 0x10000000 - 0x1FFFFFFF */
+__stacktop = 0x20000000;
 SECTIONS {
 	.memory : {
-		. = 0x000000;
+		. = 0x00000000;
 		*(.init);
 		*(.text);
 		*(*);

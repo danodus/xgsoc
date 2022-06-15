@@ -10,7 +10,7 @@ OBJCOPY = ${RISCV_TOOLCHAIN_PATH}${RISCV_TOOLCHAIN_PREFIX}objcopy
 OBJDUMP = ${RISCV_TOOLCHAIN_PATH}${RISCV_TOOLCHAIN_PREFIX}objdump
 CC = ${RISCV_TOOLCHAIN_PATH}${RISCV_TOOLCHAIN_PREFIX}gcc
 
-FIRMWARE_SOURCE = start.s firmware.c
+FIRMWARE_SOURCE = start.s ../lib/io.c ../lib/sd_card.c firmware.c
 
 all: firmware.hex
 
@@ -27,12 +27,12 @@ firmware.lst: firmware.elf
 	${OBJDUMP} --disassemble firmware.elf > firmware.lst
 
 firmware.hex: firmware.bin
-	$(PYTHON) ../utils/makehex.py firmware.bin 1024 > firmware.hex
+	$(PYTHON) ../utils/makehex.py firmware.bin 4096 > firmware.hex
 
 firmware.bin: firmware.elf firmware.lst
 	${OBJCOPY} -O binary firmware.elf firmware.bin
 
-firmware.elf: $(FIRMWARE_SOURCE)
-	${CC} -nostartfiles -nostdlib -O3 -T firmware.ld start.s firmware.c -o firmware.elf
+firmware.elf: $(FIRMWARE_SOURCE) firmware.ld
+	${CC} -nostartfiles -nostdlib -Os -T firmware.ld -I ../lib $(FIRMWARE_SOURCE) -o firmware.elf
 
 .PHONY: all clean firmware

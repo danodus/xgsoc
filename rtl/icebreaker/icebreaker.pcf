@@ -30,10 +30,15 @@ set_io -nowarn P1B10      28
 
 # LEDs and Button
 set_io -nowarn BTN_N      10
+set_io -nowarn LEDR_N     11
+set_io -nowarn LEDG_N     37
 
-# LEDs and Buttons (PMOD 2)
-set_io -nowarn LED[0]       26
-set_io -nowarn LED[1]       27
-set_io -nowarn LED[2]       25
-set_io -nowarn LED[3]       23
-set_io -nowarn LED[4]       21
+# PMOD 2
+set_io -nowarn P2_1       27
+set_io -nowarn P2_2       25
+set_io -nowarn P2_3       21
+set_io -nowarn P2_4       19
+set_io -nowarn P2_7       26
+set_io -nowarn P2_8       23
+set_io -nowarn P2_9       20
+set_io -nowarn P2_10      18

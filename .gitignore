@@ -2,10 +2,10 @@
 site.mk
 rtl/tb/*.out
 rtl/tb/*.vcd
-firmware/*.hex
-firmware/*.bin
-firmware/*.elf
-firmware/*.lst
+firmware/**/*.hex
+firmware/**/*.bin
+firmware/**/*.elf
+firmware/**/*.lst
 examples/**/*.hex
 examples/**/*.bin
 examples/**/*.elf

@@ -10,7 +10,7 @@ OBJCOPY = ${RISCV_TOOLCHAIN_PATH}${RISCV_TOOLCHAIN_PREFIX}objcopy
 OBJDUMP = ${RISCV_TOOLCHAIN_PATH}${RISCV_TOOLCHAIN_PREFIX}objdump
 CC = ${RISCV_TOOLCHAIN_PATH}${RISCV_TOOLCHAIN_PREFIX}gcc
 
-PROGRAM_SOURCE = ../common/start.s ../common/syscalls.c ../common/io.c ../common/gamepad.c ../common/kbd.c program.c
+PROGRAM_SOURCE = ../common/start.s ../common/syscalls.c ../../lib/io.c ../../lib/sd_card.c ../common/gamepad.c ../common/kbd.c program.c
 SERIAL ?= /dev/tty.usbserial-ibNy7k1v1
 
 LDFILE ?= ../common/program.ld
@@ -23,6 +23,9 @@ $(SITE_MK):
 
 run: program.hex
 	$(PYTHON) ../../utils/sendhex.py $(SERIAL) program.hex $(SEND_DELAY)
+
+write: program.hex
+	$(PYTHON) ../../utils/sendhex.py $(SERIAL) program.hex 0.001 0.1
 
 program: program.hex
 
@@ -39,6 +42,6 @@ program.bin: program.elf program.lst
 	${OBJCOPY} -O binary program.elf program.bin
 
 program.elf: $(PROGRAM_SOURCE) $(EXTRA_SOURCE)
-	${CC} -march=rv32i -mabi=ilp32 -nostartfiles -O3 -T $(LDFILE) -I ../common $(EXTRA_CC_ARGS) $(PROGRAM_SOURCE) $(EXTRA_SOURCE) -o program.elf -lm
+	${CC} -march=rv32i -mabi=ilp32 -nostartfiles -O3 -T $(LDFILE) -I ../../lib -I ../common $(EXTRA_CC_ARGS) $(PROGRAM_SOURCE) $(EXTRA_SOURCE) -o program.elf -lm
 
-.PHONY: all clean run program
+.PHONY: all clean run write program

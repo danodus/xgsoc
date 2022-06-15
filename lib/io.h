@@ -8,16 +8,7 @@
 #define MEM_WRITE(_addr_, _value_) (*((volatile unsigned int *)(_addr_)) = _value_)
 #define MEM_READ(_addr_)           (*((volatile unsigned int *)(_addr_)))
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
-char *itoa(int value, char* result, int base);
 void print_chr(char c);
 void print(const char *s);
-
-#ifdef __cplusplus
-}
-#endif
 
 #endif // IO_H

@@ -21,7 +21,7 @@ SRC := ../../external/xglib/rtl/processor.sv \
 		../xgsoc.sv \
 		top.sv
 
-DEFINES := -DSPRAM
+DEFINES := -DSPRAM -DSD_CARD
 
 all: top.bin
 

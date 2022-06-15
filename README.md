@@ -6,12 +6,12 @@ FPGA based system on chip with audio, video and 3D acceleration.
 
 - RISC-V CPU (RV32I)
 - UART (115200-N-8-1)
+- SD Card
 - SDRAM (16MB, ULX3S and MMM only)
 - XGA (ULX3S and MMM only):
   - Xosera (audio and video, 128kB VRAM)
   - Graphite (3D acceleration, 16MB frame buffer)
 - PS/2 Keyboard (ULX3S and MMM only)
-- SD Card (ULX3S and MMM only)
 - Flash Memory (ULX3S and MMM only)
 - USB Gamepad (ULX3S only)
 
@@ -94,21 +94,10 @@ make prog
 
 ### iCEBreaker
 
-Note: Only UART
+Note: Pmod SD on PMOD2
 
 ```bash
 cd rtl/icebreaker
-make prog
-```
-
-### Tiny FPGA B2
-
-Notes:
- - Only UART
- - 8 kB of RAM
-
-```bash
-cd rtl/tinyfpga_b2
 make prog
 ```
 
@@ -124,18 +113,35 @@ make run SERIAL=<serial device>
 The following examples are available:
 
 | Name         | Description                                         | Compatibility    |
-| ------------ | --------------------------------------------------- | ---------------- |
-| hello        | Hello message (output on UART)                      | ULX3S, MMM, IB   |
-| sinus        | Sinus waveform on (output on UART)                  | ULX3S, MMM, IB   |
-| test_mem     | Test 16MB of SDRAM (output on UART)                 | ULX3S, MMM       |
-| ps2_kbd_test | Test PS/2 keyboard (output on UART)                 | ULX3S, MMM       |
-| sd_card_test | Test SD card (output on UART, card content erased!) | ULX3S, MMM       |
-| flash_test   | Test flash (output on UART)                         | ULX3S, MMM       |
-| gamepad_test | Test USB gamepad                                    | ULX3S            |
-| forth        | Forth language                                      | SIM, ULX3S, MMM  |
-| lua          | Lua language                                        | SIM, ULX3S, MMM  |
-| xosera_test  | Video and sound test                                | SIM, ULX3S, MMM  |
-| draw_cube    | Draw 3D accelerated cube                            | SIM, ULX3S, MMM  |
-| draw_teapot  | Draw 3D accelerated teapot                          | SIM, ULX3S, MMM  |
-| draw_img     | Draw image in frame buffer (see README.md)          | ULX3S, MMM       |
-| cpp_test     | C++ test with standard library                      | SIM, ULX3S, MMM  |
+| -------------- | --------------------------------------------------- | ---------------- |
+| write_sd_image | Write bootable SD card image (see section below)    | ULX3S, MMM, IB   |
+| hello          | Hello message (output on UART)                      | ULX3S, MMM, IB   |
+| sinus          | Sinus waveform on (output on UART)                  | ULX3S, MMM, IB   |
+| test_mem       | Test 16MB of SDRAM (output on UART)                 | ULX3S, MMM       |
+| ps2_kbd_test   | Test PS/2 keyboard (output on UART)                 | ULX3S, MMM       |
+| sd_card_test   | Test SD card (output on UART, card content erased!) | ULX3S, MMM       |
+| flash_test     | Test flash (output on UART)                         | ULX3S, MMM       |
+| gamepad_test   | Test USB gamepad                                    | ULX3S            |
+| forth          | Forth language                                      | SIM, ULX3S, MMM  |
+| lua            | Lua language                                        | SIM, ULX3S, MMM  |
+| xosera_test    | Video and sound test                                | SIM, ULX3S, MMM  |
+| draw_cube      | Draw 3D accelerated cube                            | SIM, ULX3S, MMM  |
+| draw_teapot    | Draw 3D accelerated teapot                          | SIM, ULX3S, MMM  |
+| draw_img       | Draw image in frame buffer (see README.md)          | ULX3S, MMM       |
+| cpp_test       | C++ test with standard library                      | SIM, ULX3S, MMM  |
+
+# Write Bootable Image
+
+- Insert the SD card
+- Open a serial terminal
+- Start the image writer utility:
+```bash
+cd examples/write_sd_image
+make run SERIAL=<serial device>
+```
+- Send the data to write:
+```
+cd ../examples/<example name>
+make write SERIAL=<serial device>
+```
+Press a key when completed. The SD card image will automatically be read and executed unless a key is sent via UART during the first seconds of the boot process.

@@ -52,6 +52,7 @@
 module xgsoc #(
     parameter FREQ_HZ = 12 * 1000000,
     parameter BAUDS    = 115200,
+    parameter ROM_SIZE = 8*1024,
     parameter RAM_SIZE = 128*1024,
     parameter SDRAM_CLK_FREQ_MHZ = 100
     ) (
@@ -259,7 +260,7 @@ module xgsoc #(
 `endif
 
     bram #(
-        .SIZE(1024),
+        .SIZE(ROM_SIZE/4),
         .INIT_FILE("firmware.hex")
     ) rom(
         .clk(clk),
