@@ -14,7 +14,7 @@ static const char g_keymap[] =
 "             \011~      Q!   ZSAW@  CXDE$#   VFTR%  NBHGY^   MJU&*  <KIO)("
 "  >?L:P_   \" {+    \015} |        \010  1 47   0.2568\033  +3-*9       ";
 
-char getch()
+char kbd_get_char()
 {
     static int brk = 0, modifier = 0, shift = 0;
 

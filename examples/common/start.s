@@ -1,5 +1,6 @@
     .section .text
     .global _start
+    .global sysinit
     .global main
 
 _start:
@@ -23,6 +24,7 @@ _start:
     lui sp, %hi(__stacktop);
     addi sp, sp, %lo(__stacktop);
 
+    jal ra,sysinit
     jal ra,main
 loop:
     lui a0,0

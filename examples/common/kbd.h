@@ -5,7 +5,7 @@
 extern "C" {
 #endif
 
-char getch();
+char kbd_get_char();
 
 #ifdef __cplusplus
 }

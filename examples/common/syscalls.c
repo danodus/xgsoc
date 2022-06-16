@@ -5,9 +5,11 @@
 #include <sys/stat.h>
 #include <sys/time.h>
 #include <sys/timeb.h>
-#include <errno.h>
+#include <sys/unistd.h>
+#include <sys/errno.h>
 
 #ifdef XIO
+#include "kbd.h"
 #include "xio.h"
 #else
 #include "io.h"
@@ -68,24 +70,105 @@ void unimplemented_syscall()
 	__builtin_unreachable();
 }
 
+void sysinit()
+{
+#ifdef XIO
+	xinit();
+#endif
+}
+
+static char sys_read_char()
+{
+#ifdef XIO
+	// keyboard
+	return kbd_get_char();
+#else
+	// serial port
+	while (1) {
+		if (MEM_READ(UART_STATUS) & 2) {
+            unsigned int c = MEM_READ(UART_DATA);
+			return (char)c;
+		}
+	}	
+#endif
+}
+
+static void sys_write_char(char c)
+{
+#ifdef XIO
+	// Xosera
+	xprint_chr(c);
+#else
+	// serial port
+	if (c == '\n') {
+		while(MEM_READ(UART_STATUS) & 1);
+		MEM_WRITE(UART_DATA, (unsigned int)'\r');
+	}
+	while(MEM_READ(UART_STATUS) & 1);
+    MEM_WRITE(UART_DATA, (unsigned int)c);
+#endif
+}
+
+static size_t sys_read_line(char *s, size_t buffer_len)
+{
+    size_t len = 0;
+    while(1) {
+        char c = sys_read_char();
+        if (c == '\b') {
+            if (len > 0) {
+                s--;
+                len--;
+                sys_write_char('\b');
+                sys_write_char(' ');
+                sys_write_char('\b');
+            }
+        } else if (c == '\r') {
+				sys_write_char('\n');
+			if (len < buffer_len) {
+				*s = '\n';
+				s++;
+				len++;
+			}
+			break;
+		} else {
+			if (len < buffer_len) {
+				sys_write_char(c);
+				*s = c;
+				s++;
+				len++;
+			}
+        }
+    }
+
+	return len;
+}
+
 ssize_t _read(int file, void *ptr, size_t len)
 {
-    // not implemented
-    // always EOF
-    return 0;
+	if (file == STDIN_FILENO) {
+		char buf[256];
+		size_t c = sys_read_line(buf, 256);
+		if (c > len)
+			c = len;
+		char *p = (char *)ptr;
+		for (size_t i = 0; i < c; ++i)
+			p[i] = buf[i];
+		return c;
+	}
+	errno = EBADF;
+    return -1;
 }
 
 ssize_t _write(int file, const void *ptr, size_t len)
 {
-    const void *eptr = ptr + len;
-    while (ptr != eptr) {
-#ifdef XIO
-        putchar(*(char*) (ptr++));
-#else
-		print_chr(*(char*) (ptr++));
-#endif		
+	if (file == STDOUT_FILENO || file == STDERR_FILENO) {
+	    const void *eptr = ptr + len;
+		while (ptr != eptr)
+			sys_write_char(*(char*) (ptr++));
+    	return len;
 	}
-    return len;
+	errno = EBADF;
+	return -1;
 }
 
 int _close(int file)

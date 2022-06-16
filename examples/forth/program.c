@@ -18,8 +18,7 @@
 /* Only a single include here; I'll define everything on the fly to keep
 * dependencies as low as possible. In this file, the only C standard functions
 * used are getchar, putchar and the EOF value. */
-//#include <stdio.h>
-#include <xio.h>
+#include <stdio.h>
 
 #include <stdlib.h>
 
@@ -29,7 +28,7 @@
 #define DOUBLE_CELL_BASE_TYPE long
 
 /* Basic memory configuration */
-#define MEM_SIZE 65536 /* main memory size in bytes */
+#define MEM_SIZE 32768 /* main memory size in bytes */
 #define STACK_SIZE 192 /* cells reserved for the stack */
 #define RSTACK_SIZE 64 /* cells reserved for the return stack */
 #define INPUT_LINE_SIZE 32 /* bytes reserved for the WORD buffer */
@@ -1021,8 +1020,6 @@ void addBuiltin(cell code, const char* name, const byte flags, builtin f)
 /* Program setup and jump to outer interpreter */
 int main()
 {
-    xinit();
-
     memory = malloc(MEM_SIZE);
 
     errorFlag = 0;

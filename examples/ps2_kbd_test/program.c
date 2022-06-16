@@ -5,7 +5,7 @@ void main(void)
 {
     print("PS/2 Keyboard Test\r\n");
     for (;;) {
-        char c = getch();
+        char c = kbd_get_char();
         if (c == 13) {
             print("\r\n");
         } else {

@@ -3,14 +3,9 @@
 
 #include <stddef.h>
 
-#define EOF -1
-
 void xinit();
-void xprint(const char *s);
-size_t xreadline(char *s, size_t buffer_len);
+void xprint_chr(char c);
 
-// stdio.h
-int getchar();
-int putchar(int character);
+void xprint(const char *s);
 
 #endif
