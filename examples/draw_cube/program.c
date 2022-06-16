@@ -1,4 +1,5 @@
 #include <io.h>
+#include <stdlib.h>
 #include <unistd.h>
 #include <graphite.h>
 #include <cube.h>

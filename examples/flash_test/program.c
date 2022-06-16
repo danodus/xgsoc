@@ -1,4 +1,5 @@
 #include <io.h>
+#include <stdlib.h>
 #include <stdint.h>
 #include <stdbool.h>
 

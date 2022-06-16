@@ -1,4 +1,5 @@
 #include <io.h>
+#include <stdlib.h>
 
 unsigned int fact(unsigned int i) {
     print(".");

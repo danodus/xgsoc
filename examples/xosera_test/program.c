@@ -1,4 +1,5 @@
 #include <io.h>
+#include <stdlib.h>
 #include <stdint.h>
 
 #include <xosera.h>
@@ -336,7 +337,7 @@ void main(void)
 
     xclear();
 
-    xprint(5, 1, " RISC-V/Xosera ", WHITE);
+    xprint(5, 1, " Xosera ", WHITE);
 
     xprint(5, 6,  " BLACK   ", BLACK);
     xprint(5, 7,  " BLUE    ", BLUE);
