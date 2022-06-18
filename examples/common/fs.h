@@ -9,9 +9,9 @@
 
 #include <sd_card.h>
 
-#define FS_MAX_FILENAME_LEN 7
-#define FS_MAX_NB_FILES     8
-#define FS_MAX_NB_BLOCKS    (32*1024 / SD_BLOCK_LEN)       // maximum number of blocks supported by the FS
+#define FS_MAX_FILENAME_LEN 31
+#define FS_MAX_NB_FILES     128
+#define FS_MAX_NB_BLOCKS    (2*1024*1024 / SD_BLOCK_LEN)       // maximum number of blocks supported by the FS
 
 typedef struct {
     char name[FS_MAX_FILENAME_LEN + 1];     // entry not set if name begins with '\0'
@@ -30,13 +30,13 @@ typedef struct {
     sd_context_t *sd_ctx;
 } fs_context_t;
 
-bool fs_format(sd_context_t *sd_ctx);
+bool fs_format(sd_context_t *sd_ctx, bool quick);
 
 bool fs_init(sd_context_t *sd_ctx, fs_context_t *fs_ctx);
 uint16_t fs_get_nb_files(fs_context_t *ctx);
 bool fs_get_file_info(fs_context_t *ctx, uint16_t file_index, fs_file_info_t *file_info);
-bool fs_read(fs_context_t *ctx, const char *filename, uint8_t *buf, size_t nb_bytes);
-bool fs_write(fs_context_t *ctx, const char *filename, const uint8_t *buf, size_t nb_bytes);
+bool fs_read(fs_context_t *ctx, const char *filename, uint8_t *buf, size_t current_pos, size_t nb_bytes, size_t *nb_read_bytes);
+bool fs_write(fs_context_t *ctx, const char *filename, const uint8_t *buf, size_t current_pos, size_t nb_bytes);
 bool fs_delete(fs_context_t *ctx, const char *filename);
 
 #endif // FS_H

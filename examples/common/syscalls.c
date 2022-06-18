@@ -10,6 +10,7 @@
 #include <sys/errno.h>
 #include <sys/signal.h>
 #include <stddef.h>
+#include <string.h>
 
 #include <stdbool.h>
 
@@ -19,9 +20,15 @@
 #include "io.h"
 #endif
 
+#include "fs.h"
+
 extern int errno;
 static void sys_print(const char *s);
 
+static sd_context_t g_sd_ctx;
+static fs_context_t g_fs_ctx;
+static char g_filename[FS_MAX_FILENAME_LEN + 1];
+static size_t g_current_pos;
 static bool g_is_raw = false;
 
 void ebreak()
@@ -126,7 +133,21 @@ static size_t sys_read_line(char *s, size_t buffer_len)
 
 int _open(const char *pathname, int flags, mode_t mode)
 {
-	return -1;
+	if (!sd_init(&g_sd_ctx)) {
+		errno = EIO;
+		return -1;
+	}
+
+	if (!fs_init(&g_sd_ctx, &g_fs_ctx)) {
+		errno = EIO;
+		return -1;
+	}
+
+	// TODO: unsafe
+	strcpy(g_filename, pathname);
+	g_current_pos = 0;
+
+	return 3;
 }
 
 ssize_t _read(int file, void *ptr, size_t len)
@@ -148,6 +169,14 @@ ssize_t _read(int file, void *ptr, size_t len)
 		for (size_t i = 0; i < c; ++i)
 			p[i] = buf[i];
 		return c;
+	} else if (file == 3) {
+		size_t nb_read_bytes;
+		if (!fs_read(&g_fs_ctx, g_filename, (uint8_t *)ptr, g_current_pos, len, &nb_read_bytes)) {
+			errno = EIO;
+			return -1;
+		}
+		g_current_pos += len;
+		return nb_read_bytes;
 	}
 	errno = EBADF;
     return -1;
@@ -160,6 +189,13 @@ ssize_t _write(int file, const void *ptr, size_t len)
 		while (ptr != eptr)
 			sys_write_char(*(char*) (ptr++));
     	return len;
+	} else if (file == 3) {
+		if (!fs_write(&g_fs_ctx, g_filename, (uint8_t *)ptr, g_current_pos, len)) {
+			errno = EIO;
+			return -1;
+		}
+		g_current_pos += len;
+		return len;
 	}
 	errno = EBADF;
 	return -1;

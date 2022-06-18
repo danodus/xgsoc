@@ -10,7 +10,7 @@ OBJCOPY = ${RISCV_TOOLCHAIN_PATH}${RISCV_TOOLCHAIN_PREFIX}objcopy
 OBJDUMP = ${RISCV_TOOLCHAIN_PATH}${RISCV_TOOLCHAIN_PREFIX}objdump
 CC = ${RISCV_TOOLCHAIN_PATH}${RISCV_TOOLCHAIN_PREFIX}gcc
 
-PROGRAM_SOURCE = ../common/start.s ../common/syscalls.c ../../lib/io.c ../../lib/sd_card.c program.c
+PROGRAM_SOURCE = ../common/start.s ../common/fs.c ../common/syscalls.c ../../lib/io.c ../../lib/sd_card.c program.c
 SERIAL ?= /dev/tty.usbserial-ibNy7k1v1
 
 LDFILE ?= ../common/program.ld

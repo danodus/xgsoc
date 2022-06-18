@@ -107,22 +107,38 @@ static uint16_t find_unused_block_table_index(fs_fat_t *fat, uint16_t start_bloc
     return block_table_index;
 }
 
-bool fs_format(sd_context_t *sd_ctx)
+static void remove_file_entry(fs_fat_t *fat, fs_file_info_t *file_info) {
+    // erase block entries
+    uint16_t block_table_index = file_info->first_block_table_index;
+    while (block_table_index) {
+        uint16_t next_block_table_index = fat->blocks[block_table_index];
+        fat->blocks[block_table_index] = 0;
+        block_table_index = next_block_table_index;
+    }
+    file_info->first_block_table_index = 0;
+
+    // clear file info entry
+    file_info->name[0] = '\0';    
+}
+
+bool fs_format(sd_context_t *sd_ctx, bool quick)
 {
-    //
-    // clear the FS partition
-    //
+    if (!quick) {
+        //
+        // clear the FS partition
+        //
 
-    uint8_t buf[SD_BLOCK_LEN];
-    memset(buf, 0xFF, sizeof(buf));
+        uint8_t buf[SD_BLOCK_LEN];
+        memset(buf, 0xFF, sizeof(buf));
 
-    uint32_t nb_partition_blocks = FAT_NB_BLOCKS + FS_MAX_NB_BLOCKS;
-    
-    for (uint32_t i = 0; i < nb_partition_blocks; ++i) {
-        PRINT_DBG(".");
-        if (!sd_write_single_block(sd_ctx, FS_PARTITION_BLOCK_ADDR + i, buf)) {
-            PRINT_DBG("Unable to write single block\r\n");
-            return false;
+        uint32_t nb_partition_blocks = FAT_NB_BLOCKS + FS_MAX_NB_BLOCKS;
+        
+        for (uint32_t i = 0; i < nb_partition_blocks; ++i) {
+            PRINT_DBG(".");
+            if (!sd_write_single_block(sd_ctx, FS_PARTITION_BLOCK_ADDR + i, buf)) {
+                PRINT_DBG("Unable to write single block\r\n");
+                return false;
+            }
         }
     }
 
@@ -184,17 +200,7 @@ bool fs_delete(fs_context_t *ctx, const char *filename)
         return false;
     }
     
-    // erase block entries
-    uint16_t block_table_index = file_info->first_block_table_index;
-    while (block_table_index) {
-        uint16_t next_block_table_index = ctx->fat.blocks[block_table_index];
-        ctx->fat.blocks[block_table_index] = 0;
-        block_table_index = next_block_table_index;
-    }
-    file_info->first_block_table_index = 0;
-
-    // clear file info entry
-    file_info->name[0] = '\0';
+    remove_file_entry(&ctx->fat, file_info);
 
     // write FAT
     if (!write_fat(ctx->sd_ctx, &ctx->fat)) {
@@ -205,8 +211,17 @@ bool fs_delete(fs_context_t *ctx, const char *filename)
     return true;
 }
 
-bool fs_read(fs_context_t *ctx, const char *filename, uint8_t *buf, size_t nb_bytes)
+bool fs_read(fs_context_t *ctx, const char *filename, uint8_t *buf, size_t current_pos, size_t nb_bytes, size_t *nb_read_bytes)
 {
+    PRINT_DBG("fs_read\r\n");
+    PRINTV_DBG("current_pos: ", current_pos);
+    PRINTV_DBG("nb_bytes: ", nb_bytes);
+
+    if (current_pos % SD_BLOCK_LEN) {
+        PRINT_DBG("Not yet supported\r\n");
+        return false;
+    }
+
     fs_file_info_t *file_info = find_file(&ctx->fat, filename);
 
     if (!file_info) {
@@ -214,9 +229,22 @@ bool fs_read(fs_context_t *ctx, const char *filename, uint8_t *buf, size_t nb_by
         return false;
     }
 
+    if (nb_read_bytes)
+        *nb_read_bytes = 0;
+
+    if (current_pos >= file_info->size) {
+        // EOF reached
+        PRINT_DBG("EOF reached\r\n");
+        return true;
+    }
+
+    // adjust the number of bytes to read based on the file size
+    if (current_pos + nb_bytes > file_info->size)
+        nb_bytes = file_info->size - current_pos;
+
     uint32_t first_block_addr = FS_PARTITION_BLOCK_ADDR + FAT_NB_BLOCKS;
     
-    size_t remaining_bytes = nb_bytes;
+    size_t remaining_bytes = current_pos + nb_bytes;
     uint8_t b[SD_BLOCK_LEN];
     uint16_t block_table_index = file_info->first_block_table_index;
 
@@ -227,23 +255,35 @@ bool fs_read(fs_context_t *ctx, const char *filename, uint8_t *buf, size_t nb_by
             PRINT_DBG("Unable to read block\r\n");
             return false;
         }
-        for (size_t i = 0; i < s; ++i)
-            buf[i] = b[i];
+        if (remaining_bytes <= nb_bytes) {
+            for (size_t i = 0; i < s; ++i)
+                buf[i] = b[i];
+            buf += s;
+            if (nb_read_bytes)
+                *nb_read_bytes += s;
+        }
         remaining_bytes -= s;
         block_table_index = ctx->fat.blocks[block_table_index];
-        buf += s;
     }
 
-    if (remaining_bytes > 0) {
-        PRINT_DBG("One or more blocks are missing in the FAT for the given number of bytes\r\n");
-        return false;
+    if (nb_read_bytes) {
+        PRINTV_DBG("Number read bytes: ", *nb_read_bytes);
     }
 
     return true;
 }
 
-bool fs_write(fs_context_t *ctx, const char *filename, const uint8_t *buf, size_t nb_bytes)
+bool fs_write(fs_context_t *ctx, const char *filename, const uint8_t *buf, size_t current_pos, size_t nb_bytes)
 {
+    PRINT_DBG("fs_write\r\n");
+    PRINTV_DBG("current_pos: ", current_pos);
+    PRINTV_DBG("nb_bytes: ", nb_bytes);
+
+    if (current_pos > 0) {
+        PRINT_DBG("Not yet supported\r\n");
+        return false;
+    }
+
     fs_file_info_t *file_info = find_file(&ctx->fat, filename);
 
     if (!file_info) {
@@ -258,8 +298,8 @@ bool fs_write(fs_context_t *ctx, const char *filename, const uint8_t *buf, size_
         }
         file_info = &ctx->fat.file_infos[file_index];
     } else {
-        PRINT_DBG("File already exists\r\n");
-        return false;
+        // re-use the file entry
+        remove_file_entry(&ctx->fat, file_info);
     }
 
     // TODO: unsafe
@@ -269,14 +309,12 @@ bool fs_write(fs_context_t *ctx, const char *filename, const uint8_t *buf, size_
 
     uint32_t first_block_addr = FS_PARTITION_BLOCK_ADDR + FAT_NB_BLOCKS;
     
-    size_t remaining_bytes = nb_bytes;
+    size_t remaining_bytes = current_pos + nb_bytes;
     uint8_t b[SD_BLOCK_LEN];
 
     uint16_t last_block_table_index = 0;
 
     while (remaining_bytes > 0) {
-        PRINT_DBG("Write block\r\n");
-
         size_t s = remaining_bytes > SD_BLOCK_LEN ? SD_BLOCK_LEN : remaining_bytes;
 
         // find first empty block table index
@@ -287,8 +325,6 @@ bool fs_write(fs_context_t *ctx, const char *filename, const uint8_t *buf, size_
         }
 
         // Set the last block table entry
-        PRINTV_DBG("last_block_table_index: ", last_block_table_index);
-        PRINTV_DBG("block_table_index: ", block_table_index);
         if (last_block_table_index) {
             ctx->fat.blocks[last_block_table_index] = block_table_index;
         } else {
