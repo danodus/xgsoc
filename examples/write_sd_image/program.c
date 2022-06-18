@@ -72,8 +72,8 @@ void main(void)
     while (remaining_words > 0) {
         size_t s = remaining_words > (SD_BLOCK_LEN / 4) ? (SD_BLOCK_LEN / 4) : remaining_words;
 
-        for (size_t i = 0; i < s; ++i) {
-            bufw[i] = read_word();
+        for (size_t i = 0; i < (SD_BLOCK_LEN / 4); ++i) {
+            bufw[i] = i < s ? read_word() : 0xFFFFFFFF;
         }
 
         printv("Remaining words: ", remaining_words);

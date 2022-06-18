@@ -256,7 +256,7 @@ bool sd_read_single_block(sd_context_t *ctx, uint32_t addr, uint8_t *buf)
     return res1 == 0x00 && token == 0xFE;
 }
 
-bool sd_write_single_block(sd_context_t *ctx, uint32_t addr, uint8_t *buf)
+bool sd_write_single_block(sd_context_t *ctx, uint32_t addr, const uint8_t *buf)
 {
     uint8_t token;
     uint8_t res1, write;

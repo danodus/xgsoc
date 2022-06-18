@@ -9,6 +9,7 @@
 #include <sys/unistd.h>
 #include <sys/errno.h>
 #include <sys/signal.h>
+#include <stddef.h>
 
 #include <stdbool.h>
 
@@ -121,6 +122,11 @@ static size_t sys_read_line(char *s, size_t buffer_len)
     }
 
 	return len;
+}
+
+int _open(const char *pathname, int flags, mode_t mode)
+{
+	return -1;
 }
 
 ssize_t _read(int file, void *ptr, size_t len)
@@ -297,12 +303,6 @@ off_t _lseek(int fd, off_t offset, int whence)
 int _lstat(const char *restrict pathname, struct stat *restrict statbuf)
 {
 	unimplemented_syscall("lstat");
-	__builtin_unreachable();
-}
-
-int _open(const char *pathname, int flags, mode_t mode)
-{
-	unimplemented_syscall("open");
 	__builtin_unreachable();
 }
 
