@@ -39,7 +39,7 @@ void main(void)
             sd_buf[i] = 0x55;
         }
 
-        if (sd_write_single_block(&sd_ctx, block, sd_buf, SD_BLOCK_LEN)) {
+        if (sd_write_single_block(&sd_ctx, block, sd_buf)) {
             print("Sector written successfully\r\n");
         } else {
             print("Error writing sector\r\n");
@@ -50,7 +50,7 @@ void main(void)
         // read sector
         //
         
-        if (sd_read_single_block(&sd_ctx, block, sd_buf, SD_BLOCK_LEN)) {
+        if (sd_read_single_block(&sd_ctx, block, sd_buf)) {
             print("Sector read successfully\r\n");
         } else {
             print("Error reading sector\r\n");
