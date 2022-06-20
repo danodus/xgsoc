@@ -16,11 +16,26 @@
 
 #ifdef XIO
 #include "xio.h"
-#else
-#include "io.h"
 #endif
 
+#include "io.h"
+
 #include "fs.h"
+
+#ifndef STDIN_FILENO
+#define STDIN_FILENO	0
+#endif
+
+#ifndef STDOUT_FILENO
+#define STDOUT_FILENO	1
+#endif
+
+#ifndef STDERR_FILENO
+#define STDERR_FILENO	2
+#endif
+
+#define TTYS0_FILENO	3
+#define SDFILE0_FILENO	4
 
 extern int errno;
 static void sys_print(const char *s);
@@ -55,63 +70,80 @@ void sysinit()
 #endif
 }
 
-static char sys_read_char()
+static char sys_read_char(bool force_serial)
 {
-	while(1) {
-		char c;
-#ifndef XIO
+	bool is_serial = true;
+#ifdef XIO
+	// keyboard
+	if (!force_serial)
+		is_serial = false;
+#endif
+	char c;
+	if (is_serial) {
 		// serial port
 		c = get_chr();
-#else
-		// keyboard
+	} else {
+#ifdef XIO
 		c = xget_chr();
 #endif
-		if (c == 0xFF) {
-			g_is_raw = !g_is_raw;
-		} else {
-			return c;
-		}
+	}
+	if (c == 0xFF) {
+		g_is_raw = !g_is_raw;
+	} else {
+		return c;
 	}
 }
 
-static void sys_write_char(char c)
+static void sys_write_char(bool force_serial, char c)
 {
+	bool is_serial = true;
 #ifdef XIO
-	// Xosera
-	if (c == '\n')
-		xprint_chr('\r');
-	xprint_chr(c);
-#else
-	// serial port
-	if (c == '\n')
-		print_chr('\r');
-	print_chr(c)
+	if (!force_serial)
+		is_serial = false;
 #endif
+	if (is_serial) {
+		// serial port
+		if (c == '\n')
+			print_chr('\r');
+		print_chr(c);
+	} else {
+#ifdef XIO
+		// Xosera
+		if (c == '\n')
+			xprint_chr('\r');
+		xprint_chr(c);
+#endif
+	}
 }
 
 static void sys_print(const char *s)
 {
 	while (*s) {
-		sys_write_char(*s);
+		sys_write_char(false, *s);
 		s++;
 	}
 }
 
-static size_t sys_read_line(char *s, size_t buffer_len)
+static size_t sys_read_line(bool force_serial, char *s, size_t buffer_len, bool *eof)
 {
+	*eof = false;
     size_t len = 0;
     while(1) {
-        char c = sys_read_char();
-        if (c == '\b') {
+        char c = sys_read_char(force_serial);
+		if (c == 4) {
+			// EOT
+			*eof = true;
+			break;
+		} else if (c == '\b') {
             if (len > 0) {
                 s--;
                 len--;
-				sys_write_char('\b');
-				sys_write_char(' ');
-				sys_write_char('\b');
+                sys_write_char(force_serial, '\b');
+                sys_write_char(force_serial, ' ');
+                sys_write_char(force_serial, '\b');
             }
         } else if (c == '\r') {
-			sys_write_char('\n');
+				sys_write_char(force_serial, '\n');
 			if (len < buffer_len) {
 				*s = '\n';
 				s++;
@@ -120,7 +152,7 @@ static size_t sys_read_line(char *s, size_t buffer_len)
 			break;
 		} else {
 			if (len < buffer_len) {
-				sys_write_char(c);
+				sys_write_char(force_serial, c);
 				*s = c;
 				s++;
 				len++;
@@ -133,43 +165,58 @@ static size_t sys_read_line(char *s, size_t buffer_len)
 
 int _open(const char *pathname, int flags, mode_t mode)
 {
-	if (!sd_init(&g_sd_ctx)) {
-		errno = EIO;
-		return -1;
+	if (strcmp(pathname, "/dev/ttyS0") == 0) {
+		// open serial IO
+		return TTYS0_FILENO;
+	} else {
+		// open file
+		if (!sd_init(&g_sd_ctx)) {
+			errno = EIO;
+			return -1;
+		}
+
+		if (!fs_init(&g_sd_ctx, &g_fs_ctx)) {
+			errno = EIO;
+			return -1;
+		}
+
+		// TODO: unsafe
+		strcpy(g_filename, pathname);
+		g_current_pos = 0;
+
+		return SDFILE0_FILENO;
 	}
-
-	if (!fs_init(&g_sd_ctx, &g_fs_ctx)) {
-		errno = EIO;
-		return -1;
-	}
-
-	// TODO: unsafe
-	strcpy(g_filename, pathname);
-	g_current_pos = 0;
-
-	return 3;
 }
 
 ssize_t _read(int file, void *ptr, size_t len)
 {
-	if (file == STDIN_FILENO) {
+	if (file == STDIN_FILENO || file == TTYS0_FILENO) {
 		if (len == 0)
 			return 0;
 
 		if (g_is_raw) {
-			((char *)ptr)[0] = sys_read_char();
+			((char *)ptr)[0] = sys_read_char(file == TTYS0_FILENO);
 			return 1;
 		}
 
 		char buf[256];
-		size_t c = sys_read_line(buf, 256);
+		static bool eof = false;
+		if (eof) {
+			eof = false;
+			if (file == TTYS0_FILENO)
+				return 0;
+		}
+		size_t c = sys_read_line(file == TTYS0_FILENO, buf, 256, &eof);
 		if (c > len)
 			c = len;
 		char *p = (char *)ptr;
 		for (size_t i = 0; i < c; ++i)
 			p[i] = buf[i];
 		return c;
-	} else if (file == 3) {
+	} else if (file == SDFILE0_FILENO) {
+		if (len == 0)
+			return 0;		
+
 		size_t nb_read_bytes;
 		if (!fs_read(&g_fs_ctx, g_filename, (uint8_t *)ptr, g_current_pos, len, &nb_read_bytes)) {
 			errno = EIO;
@@ -184,12 +231,14 @@ ssize_t _read(int file, void *ptr, size_t len)
 
 ssize_t _write(int file, const void *ptr, size_t len)
 {
-	if (file == STDOUT_FILENO || file == STDERR_FILENO) {
+	if (file == STDOUT_FILENO || file == STDERR_FILENO || file == TTYS0_FILENO) {
 	    const void *eptr = ptr + len;
 		while (ptr != eptr)
-			sys_write_char(*(char*) (ptr++));
+			sys_write_char(file == TTYS0_FILENO, *(char*) (ptr++));
     	return len;
-	} else if (file == 3) {
+	} else if (file == TTYS0_FILENO) {
+
+	} else if (file == SDFILE0_FILENO) {
 		if (!fs_write(&g_fs_ctx, g_filename, (uint8_t *)ptr, g_current_pos, len)) {
 			errno = EIO;
 			return -1;
