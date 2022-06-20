@@ -84,15 +84,7 @@ void xprint_chr(char c)
         if (c == '\n') {
             g_cursor_x = 0;
             g_cursor_y++;
-        }
-
-        if (g_cursor_y > NB_LINES - 1) {
-            xscroll();
-            g_cursor_x = 0;
-            g_cursor_y = NB_LINES - 1;
-        }
-
-        if (c != '\r' && c != '\n') {
+        } else if (c != '\r') {
             xprint_chr_xy(g_cursor_x, g_cursor_y, c);
 
             g_cursor_x++;
@@ -101,6 +93,12 @@ void xprint_chr(char c)
                 g_cursor_y++;
             }
         }
+
+        if (g_cursor_y > NB_LINES - 1) {
+            xscroll();
+            g_cursor_x = 0;
+            g_cursor_y = NB_LINES - 1;
+        }        
     }
     xprint_cursor(1);
 }
