@@ -194,20 +194,23 @@ bool fs_get_file_info(fs_context_t *ctx, uint16_t file_index, fs_file_info_t *fi
 
 bool fs_delete(fs_context_t *ctx, const char *filename)
 {
-    fs_file_info_t *file_info = find_file(&ctx->fat, filename);
+    fs_fat_t tmp_fat = ctx->fat;
+
+    fs_file_info_t *file_info = find_file(&tmp_fat, filename);
     if (!file_info) {
         PRINT_DBG("File not found\r\n");
         return false;
     }
     
-    remove_file_entry(&ctx->fat, file_info);
+    remove_file_entry(&tmp_fat, file_info);
 
     // write FAT
-    if (!write_fat(ctx->sd_ctx, &ctx->fat)) {
+    if (!write_fat(ctx->sd_ctx, &tmp_fat)) {
         // unable to write FAT
         return false;
     }
 
+    ctx->fat = tmp_fat;
     return true;
 }
 
@@ -284,22 +287,24 @@ bool fs_write(fs_context_t *ctx, const char *filename, const uint8_t *buf, size_
         return false;
     }
 
-    fs_file_info_t *file_info = find_file(&ctx->fat, filename);
+    fs_fat_t tmp_fat = ctx->fat;
+
+    fs_file_info_t *file_info = find_file(&tmp_fat, filename);
 
     if (!file_info) {
         // find empty file entry
         uint16_t file_index = 0;
         bool found = false;
         for (file_index = 0; file_index < FS_MAX_NB_FILES; ++file_index) {
-            if (!ctx->fat.file_infos[file_index].name[0]) {
+            if (!tmp_fat.file_infos[file_index].name[0]) {
                 found = true;
                 break;
             }
         }
-        file_info = &ctx->fat.file_infos[file_index];
+        file_info = &tmp_fat.file_infos[file_index];
     } else {
         // re-use the file entry
-        remove_file_entry(&ctx->fat, file_info);
+        remove_file_entry(&tmp_fat, file_info);
     }
 
     // TODO: unsafe
@@ -318,7 +323,7 @@ bool fs_write(fs_context_t *ctx, const char *filename, const uint8_t *buf, size_
         size_t s = remaining_bytes > SD_BLOCK_LEN ? SD_BLOCK_LEN : remaining_bytes;
 
         // find first empty block table index
-        uint16_t block_table_index = find_unused_block_table_index(&ctx->fat, last_block_table_index + 1);
+        uint16_t block_table_index = find_unused_block_table_index(&tmp_fat, last_block_table_index + 1);
         if (!block_table_index) {
             PRINT_DBG("No unused block found\r\n");
             return false;
@@ -326,7 +331,7 @@ bool fs_write(fs_context_t *ctx, const char *filename, const uint8_t *buf, size_
 
         // Set the last block table entry
         if (last_block_table_index) {
-            ctx->fat.blocks[last_block_table_index] = block_table_index;
+            tmp_fat.blocks[last_block_table_index] = block_table_index;
         } else {
             file_info->first_block_table_index = block_table_index;
         }
@@ -347,10 +352,11 @@ bool fs_write(fs_context_t *ctx, const char *filename, const uint8_t *buf, size_
         file_info->size += s;
     }
 
-    if (!write_fat(ctx->sd_ctx, &ctx->fat)) {
+    if (!write_fat(ctx->sd_ctx, &tmp_fat)) {
         PRINT_DBG("Unable to write FAT\r\n");
         return false;
     }
 
+    ctx->fat = tmp_fat;
     return true;
 }
