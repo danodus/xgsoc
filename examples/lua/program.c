@@ -44,6 +44,7 @@ void main(void) {
 
     for(;;) {
         printf(">");
+        fflush(stdout);
         if (fgets(buff, 256, stdin)) {
             error = luaL_loadbuffer(L, buff, strlen(buff), "line") || lua_pcall(L, 0, 0, 0);
             if (error) {
