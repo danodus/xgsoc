@@ -22,7 +22,7 @@ $(SITE_MK):
 	$(error site.mk not found.)
 
 run: program.hex
-	$(PYTHON) ../../utils/sendhex.py $(SERIAL) program.hex $(SEND_DELAY)
+	$(PYTHON) ../../utils/sendhex.py $(SERIAL) program.hex
 
 write: program.hex
 	$(PYTHON) ../../utils/sendhex.py $(SERIAL) program.hex 0.001 0.1

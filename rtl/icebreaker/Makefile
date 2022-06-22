@@ -17,6 +17,7 @@ SRC := ../../external/xglib/rtl/processor.sv \
 		../../external/xglib/rtl/register_file.sv \
 		../bram.sv \
 		../spram.sv \
+		../fifo.sv \
 		../uart.sv \
 		../xgsoc.sv \
 		top.sv

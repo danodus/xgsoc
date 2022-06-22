@@ -2,7 +2,7 @@ import sys
 import serial
 import time
 
-delay_word = 0.001
+delay_word = 0
 delay_block = 0
 
 def send(ser, bytes, delay):

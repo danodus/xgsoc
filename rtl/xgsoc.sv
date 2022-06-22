@@ -131,15 +131,86 @@ module xgsoc #(
     logic [7:0] display;
     logic display_we;
 
+    //
     // UART
-    logic uart_tx_strobe;
-    logic uart_rx_strobe;
+    //
 
-    logic [7:0] uart_tx_data = 0;
+    logic uart_tx_strobe;
+    logic [7:0] uart_tx_data;
     logic [7:0] uart_rx_data;
     logic uart_busy, uart_valid;
-    logic uart_wr = 0;
-    logic uart_rd = 0;
+    logic uart_wr;
+
+    logic uart_enq;
+    logic uart_deq;
+    logic uart_fifo_empty;
+
+    fifo #(
+        .ADDR_LEN(10),
+        .DATA_WIDTH(8)
+    ) uart_fifo(
+        .clk(clk),
+        .reset_i(reset_i),
+        .reader_q_o(uart_code),
+        .reader_deq_i(uart_deq),
+        .reader_empty_o(uart_fifo_empty),
+        .reader_alm_empty_o(),
+
+        .writer_d_i(uart_rx_data),
+        .writer_enq_i(uart_enq),
+        .writer_full_o(),
+        .writer_alm_full_o()
+    );
+    
+    uart #(
+        .FREQ_HZ(FREQ_HZ),
+        .BAUDS(BAUDS)
+    ) uart(
+        .clk(clk),
+        .reset_i(reset_i),
+        .tx_o(tx_o),
+        .rx_i(rx_i),
+        .wr_i(uart_wr),
+        .rd_i(1'b1),
+        .tx_data_i(uart_tx_data),
+        .rx_data_o(uart_rx_data),
+        .busy_o(uart_busy),
+        .valid_o(uart_valid)
+    );
+
+    logic       uart_req_deq;
+    logic [7:0] uart_code, uart_code_r;
+    always_ff @(posedge clk) begin
+        if (reset_i) begin
+            uart_enq     <= 1'b0;
+            uart_deq     <= 1'b0;
+            uart_tx_data <= 8'd0;
+            uart_wr      <= 1'b0;
+        end begin
+            uart_enq <= 1'b0;
+            if (uart_deq) begin
+                uart_deq <= 1'b0;
+                uart_code_r <= uart_code; 
+            end
+            if (uart_req_deq) begin
+                if (!uart_fifo_empty) begin
+                    uart_deq <= 1'b1;
+                end
+            end
+            if (uart_valid) begin
+                uart_enq <= 1'b1;
+            end
+        end
+
+        if (uart_tx_strobe) begin
+            uart_tx_data <= cpu_data_out[7:0];
+            uart_wr <= 1'b1;
+        end else begin
+            uart_wr <= 1'b0;
+        end
+
+
+    end
 
 `ifdef XGA
 
@@ -360,22 +431,6 @@ module xgsoc #(
         .wr_mask_o(wr_mask),
         .ack_i(rom_ack || ram_ack || device_ack)
     );
-    
-    uart #(
-        .FREQ_HZ(FREQ_HZ),
-        .BAUDS(BAUDS)
-    ) uart(
-        .clk(clk),
-        .reset_i(reset_i),
-        .tx_o(tx_o),
-        .rx_i(rx_i),
-        .wr_i(uart_wr),
-        .rd_i(uart_rd),
-        .tx_data_i(uart_tx_data),
-        .rx_data_o(uart_rx_data),
-        .busy_o(uart_busy),
-        .valid_o(uart_valid)
-    );
 
     always_comb begin
         mem_data_out = (addr[31:28] == 4'h1) ? ram_data_out : rom_data_out;
@@ -444,7 +499,7 @@ module xgsoc #(
         display = 8'd0;
         cpu_data_in = mem_data_out;
         uart_tx_strobe = 1'b0;
-        uart_rx_strobe = 1'b0;
+        uart_req_deq = 1'b0;
 `ifdef XGA
         xga_we = 1'b0;
         xga_axis_tvalid = 1'b0;
@@ -479,6 +534,9 @@ module xgsoc #(
                             if (addr[11:0] == 12'd0) begin
                                 // data
                                 uart_tx_strobe = 1'b1;
+                            end else if (addr[11:0] == 12'd4) begin
+                                if (!uart_fifo_empty)
+                                    uart_req_deq = 1'b1;
                             end
                         end
     `ifdef XGA
@@ -538,11 +596,10 @@ module xgsoc #(
                         // UART
                         if (addr[11:0] == 12'd0) begin
                             // data
-                            uart_rx_strobe = 1'b1;
-                            cpu_data_in = {24'd0, uart_rx_data};
+                            cpu_data_in = {24'd0, uart_code_r};
                         end else if (addr[11:0] == 12'd4) begin
                             // status
-                            cpu_data_in = {30'd0, uart_valid, uart_busy};
+                            cpu_data_in = {30'd0, ~uart_fifo_empty, uart_busy};
                         end
                     end
 `ifdef XGA                    
@@ -621,21 +678,6 @@ module xgsoc #(
     end
 
     //assign display_o = {6'b0, cpu_halt, stream_err_underflow};
-
-    always @(posedge clk) begin
-        if (uart_tx_strobe) begin
-            uart_tx_data <= cpu_data_out[7:0];
-            uart_wr <= 1'b1;
-        end else begin
-            uart_wr <= 1'b0;
-        end
-
-        if (uart_rx_strobe) begin
-            uart_rd <= 1'b1;
-        end else begin
-            uart_rd <= 1'b0;
-        end
-    end
 
 `ifdef XGA
     always @(posedge clk) begin

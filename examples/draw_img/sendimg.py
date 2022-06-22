@@ -4,12 +4,8 @@ from PIL import Image
 import serial
 import time
 
-delay = 0.0003
-
 def send(ser, bytes):
     ser.write(bytes)
-    time.sleep(delay)
-
 
 if len(sys.argv) != 3:
     print('Usage: python sendimg.py <serial device> <image filename>')

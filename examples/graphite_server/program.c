@@ -32,6 +32,8 @@ uint32_t receive_command()
     for (int i = 0; i < 4; ++i) {
         command <<= 8;
         while(!(MEM_READ(UART_STATUS) & 2));
+        // dequeue
+        MEM_WRITE(UART_STATUS, 0x1);        
         unsigned int c = MEM_READ(UART_DATA);
         command |= c;
     }

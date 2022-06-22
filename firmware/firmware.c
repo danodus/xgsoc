@@ -1,6 +1,8 @@
 #include <io.h>
 #include <sd_card.h>
 
+#define ECHO_TEST 0
+
 #define RAM_START 0x10000000
 
 static const uint32_t reg_init[15] = {
@@ -22,6 +24,8 @@ unsigned int read_word()
     for (int i = 0; i < 4; ++i) {
         word <<= 8;
         while(!(MEM_READ(UART_STATUS) & 2));
+        // dequeue
+        MEM_WRITE(UART_STATUS, 0x1);        
         unsigned int c = MEM_READ(UART_DATA);
         word |= c;
     }
@@ -32,12 +36,27 @@ void main(void)
 {
     print("XGSoC\r\nCopyright (c) 2022 Daniel Cliche\r\n\r\n");
 
+#if ECHO_TEST
+    print("Echo test\r\n");
+    for (;;) {
+        if (MEM_READ(UART_STATUS) & 2) {
+            // dequeue
+            MEM_WRITE(UART_STATUS, 0x1);
+            unsigned int c = MEM_READ(UART_DATA);
+            print_chr(c);
+        }
+    }
+
+#else // ECHO_TEST
+
     bool boot_sd_card = false;
     bool bypass_sd_card = false;
 
     print("Press a key to bypass the SD card image boot process...\r\n");
     for (int i = 0; i < 300000; ++i) {
         if (MEM_READ(UART_STATUS) & 2) {
+            // dequeue
+            MEM_WRITE(UART_STATUS, 0x1);            
             MEM_READ(UART_DATA);
             bypass_sd_card = true;
             break;
@@ -112,4 +131,5 @@ void main(void)
     }
 
     start_prog();
+#endif // ECHO_TEST
 }

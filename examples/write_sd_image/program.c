@@ -19,6 +19,8 @@ unsigned int read_word()
     for (int i = 0; i < 4; ++i) {
         word <<= 8;
         while(!(MEM_READ(UART_STATUS) & 2));
+        // dequeue
+        MEM_WRITE(UART_STATUS, 0x1);        
         unsigned int c = MEM_READ(UART_DATA);
         word |= c;
     }
@@ -37,6 +39,8 @@ void main(void)
     while (!sd_init(&sd_ctx)) {
         print("Insert a SD card and press a key...\r\n");
         while (!(MEM_READ(UART_STATUS) & 2));
+        // dequeue
+        MEM_WRITE(UART_STATUS, 0x1);        
         MEM_READ(UART_DATA);
     }
 
@@ -95,5 +99,7 @@ void main(void)
     print("The image has been written succesfully.\r\n");
     print("Press a key to continue...\r\n");
     while (!(MEM_READ(UART_STATUS) & 2));
+    // dequeue
+    MEM_WRITE(UART_STATUS, 0x1);    
     MEM_READ(UART_DATA);
 }

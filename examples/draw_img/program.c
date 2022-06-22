@@ -16,6 +16,8 @@ uint16_t read_pixel()
     for (int i = 0; i < 2; ++i) {
         pixel <<= 8;
         while(!(MEM_READ(UART_STATUS) & 2));
+        // dequeue
+        MEM_WRITE(UART_STATUS, 0x1);        
         unsigned int c = MEM_READ(UART_DATA);
         pixel |= c;
     }
