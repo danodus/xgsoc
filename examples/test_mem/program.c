@@ -3,7 +3,7 @@
 
 int test_mem(void) {
     char s[16];
-    for (unsigned int addr = 0x10002000; addr < 0x11000000 - 2048; addr+=4) {
+    for (unsigned int addr = 0x10008000; addr < 0x11000000 - 2048; addr+=4) {
         unsigned int expected = rand();
         if (addr % 2048 == 0) {
             print("Testing 2K range from address ");
