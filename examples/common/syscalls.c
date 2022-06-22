@@ -4,9 +4,11 @@
 
 #include <sys/stat.h>
 #include <sys/time.h>
+#include <sys/times.h>
 #include <sys/timeb.h>
 #include <sys/unistd.h>
 #include <sys/errno.h>
+#include <sys/signal.h>
 
 #ifdef XIO
 #include "kbd.h"
@@ -16,56 +18,21 @@
 #endif
 
 extern int errno;
-
-#define UNIMPL_FUNC(_f) ".globl " #_f "\n.type " #_f ", @function\n" #_f ":\n"
-
-asm (
-	".text\n"
-	".align 2\n"
-	UNIMPL_FUNC(_open)
-	UNIMPL_FUNC(_openat)
-	UNIMPL_FUNC(_lseek)
-	UNIMPL_FUNC(_stat)
-	UNIMPL_FUNC(_lstat)
-	UNIMPL_FUNC(_fstatat)
-	UNIMPL_FUNC(_isatty)
-	UNIMPL_FUNC(_access)
-	UNIMPL_FUNC(_faccessat)
-	UNIMPL_FUNC(_link)
-	UNIMPL_FUNC(_unlink)
-	UNIMPL_FUNC(_execve)
-	UNIMPL_FUNC(_getpid)
-	UNIMPL_FUNC(_fork)
-	UNIMPL_FUNC(_kill)
-	UNIMPL_FUNC(_wait)
-	UNIMPL_FUNC(_times)
-	UNIMPL_FUNC(_ftime)
-	UNIMPL_FUNC(_utime)
-	UNIMPL_FUNC(_chown)
-	UNIMPL_FUNC(_chmod)
-	UNIMPL_FUNC(_chdir)
-	UNIMPL_FUNC(_getcwd)
-	UNIMPL_FUNC(_sysconf)
-	"j unimplemented_syscall\n"
-);
+static void sys_print(const char *s);
 
 void ebreak()
 {
-    asm volatile(
-        "lui x15,0x00000\n"
-        "addi x15,x15,0\n"
-        "jalr x0,x15,0\n"
-    );
+	sys_print("System halted!\n");
+    for(;;);
     __builtin_unreachable();
 }
 
-void unimplemented_syscall()
+void unimplemented_syscall(const char *fn)
 {
-#ifdef XIO
-	xprint("Unimplemented system call called!\n");
-#else
-	print("Unimplemented system call called!\n");
-#endif
+	sys_print("Unimplemented system call called!\n");
+	sys_print("Function: ");
+	sys_print(fn);
+	sys_print("\n");
     ebreak();
 	__builtin_unreachable();
 }
@@ -107,6 +74,14 @@ static void sys_write_char(char c)
 	while(MEM_READ(UART_STATUS) & 1);
     MEM_WRITE(UART_DATA, (unsigned int)c);
 #endif
+}
+
+static void sys_print(const char *s)
+{
+	while (*s) {
+		sys_write_char(*s);
+		s++;
+	}
 }
 
 static size_t sys_read_line(char *s, size_t buffer_len)
@@ -213,6 +188,149 @@ void *_sbrk(ptrdiff_t incr)
 
 void _exit(int exit_status)
 {
-    ebreak();
-    __builtin_unreachable();
+	unimplemented_syscall("exit");
+	__builtin_unreachable();
+}
+
+int _chdir(const char *path)
+{
+	unimplemented_syscall("chdir");
+	__builtin_unreachable();
+}
+
+int _chmod(const char *pathname, mode_t mode)
+{
+	unimplemented_syscall("chmod");
+	__builtin_unreachable();
+}
+
+int _chown(const char *pathname, uid_t owner, gid_t group)
+{
+	unimplemented_syscall("chown");
+	__builtin_unreachable();
+}
+
+int _access(const char *pathname, int mode)
+{
+	unimplemented_syscall("access");
+	__builtin_unreachable();
+}
+
+int _kill(pid_t pid, int sig)
+{
+	unimplemented_syscall("kill");
+	__builtin_unreachable();
+}
+
+int _execve(const char *pathname, char *const argv[], char *const envp[]) {
+	unimplemented_syscall("execve");
+	__builtin_unreachable();
+}
+
+int _faccessat(int dirfd, const char *pathname, int mode, int flags)
+{
+	unimplemented_syscall("faccessat");
+	__builtin_unreachable();
+}
+
+pid_t _fork(void)
+{
+	unimplemented_syscall("fork");
+	__builtin_unreachable();
+}
+
+int _fstatat(int dirfd, const char *restrict pathname, struct stat *restrict statbuf, int flags)
+{
+	unimplemented_syscall("fstatat");
+	__builtin_unreachable();
+}
+
+int _ftime(struct timeb *tp)
+{
+	unimplemented_syscall("ftime");
+	__builtin_unreachable();
+}
+
+char *_getcwd(char *buf, size_t size)
+{
+	unimplemented_syscall("getcwd");
+	__builtin_unreachable();
+}
+
+pid_t _getpid(void)
+{
+	unimplemented_syscall("getpid");
+	__builtin_unreachable();
+}
+
+int _isatty(int fd)
+{
+	unimplemented_syscall("isatty");
+	__builtin_unreachable();
+}
+
+int _link(const char *oldpath, const char *newpath)
+{
+	unimplemented_syscall("link");
+	__builtin_unreachable();
+}
+
+off_t _lseek(int fd, off_t offset, int whence)
+{
+	unimplemented_syscall("lseek");
+	__builtin_unreachable();
+}
+
+int _lstat(const char *restrict pathname, struct stat *restrict statbuf)
+{
+	unimplemented_syscall("lstat");
+	__builtin_unreachable();
+}
+
+int _open(const char *pathname, int flags, mode_t mode)
+{
+	unimplemented_syscall("open");
+	__builtin_unreachable();
+}
+
+int _openat(int dirfd, const char *pathname, int flags, mode_t mode)
+{
+	unimplemented_syscall("openat");
+	__builtin_unreachable();
+}
+
+int _stat(const char *restrict pathname, struct stat *restrict statbuf)
+{
+	unimplemented_syscall("stat");
+	__builtin_unreachable();
+}
+
+int _unlink(const char *pathname)
+{
+	unimplemented_syscall("unlink");
+	__builtin_unreachable();
+}
+
+pid_t _wait(int *wstatus)
+{
+	unimplemented_syscall("wait");
+	__builtin_unreachable();
+}
+
+clock_t _times(struct tms *buf)
+{
+	unimplemented_syscall("times");
+	__builtin_unreachable();
+}
+
+int _utimes(const char *filename, const struct timeval times[2])
+{
+	unimplemented_syscall("utimes");
+	__builtin_unreachable();
+}
+
+long _sysconf(int name)
+{
+	unimplemented_syscall("sysconf");
+	__builtin_unreachable();
 }
