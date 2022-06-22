@@ -25,7 +25,7 @@ run: program.hex
 	$(PYTHON) ../../utils/sendhex.py $(SERIAL) program.hex
 
 write: program.hex
-	$(PYTHON) ../../utils/sendhex.py $(SERIAL) program.hex 0.001 0.1
+	$(PYTHON) ../../utils/sendhex.py $(SERIAL) program.hex 0 0.1
 
 program: program.hex
 
