@@ -49,9 +49,13 @@ void dump_fat(fs_context_t *ctx)
     print("**** FAT DUMP ****\r\n");
     print_dir(ctx);
     for (size_t i = 0; i < FS_MAX_NB_BLOCKS; ++i) {
-        char b[16];
-        itoa(ctx->fat.blocks[i], b, 10);
-        print(b);
+        if (ctx->fat.blocks[i] == 0xFFFF) {
+            print ("-");
+        } else {
+            char b[16];
+            itoa(ctx->fat.blocks[i], b, 10);
+            print(b);
+        }
         print(" ");
     }
     print("\r\n");
@@ -207,22 +211,43 @@ bool stdio_tests()
         return false;
     }
 
-    uint32_t *large_buf = (uint32_t *)malloc(1024*sizeof(uint32_t));
+    uint32_t *large_buf = (uint32_t *)malloc(5000*sizeof(uint32_t));
 
     if (!large_buf) {
         print("Unable to allocate large buffer\r\n");
         return false;
     }
     
-    for (uint32_t i = 0; i < 1024; ++i)
+    for (uint32_t i = 0; i < 5000; ++i)
         large_buf[i] = i;
 
-    size_t nb_elements = fwrite(large_buf, sizeof(uint32_t), 1024, fp);
+    size_t nb_elements = fwrite(large_buf, sizeof(uint32_t), 5000, fp);
     fclose(fp);
 
     printv("Nb written elements: ", nb_elements);
 
-    if (nb_elements != 1024) {
+    if (nb_elements != 5000) {
+        print("Unable to write all the elements\r\n");
+        perror("The following error occurred");
+        free(large_buf);
+        return false;
+    }
+
+    FILE *fp2 = fopen("test5", "w");
+    if (!fp2) {
+        print("Unable to open file for writing\r\n");
+        return false;
+    }
+    
+    for (uint32_t i = 0; i < 5000; ++i)
+        large_buf[i] = i + 5000;
+
+    nb_elements = fwrite(large_buf, sizeof(uint32_t), 5000, fp2);
+    fclose(fp2);
+
+    printv("Nb written elements: ", nb_elements);
+
+    if (nb_elements != 5000) {
         print("Unable to write all the elements\r\n");
         perror("The following error occurred");
         free(large_buf);
@@ -236,20 +261,20 @@ bool stdio_tests()
         return false;
     }
 
-    memset(large_buf, 0, 1024*sizeof(uint32_t));
+    memset(large_buf, 0, 5000*sizeof(uint32_t));
 
-    nb_elements = fread(large_buf, sizeof(uint32_t), 1024, fp);
+    nb_elements = fread(large_buf, sizeof(uint32_t), 5000, fp);
     fclose(fp);
     printv("Nb read elements: ", nb_elements);
 
-    if (nb_elements != 1024) {
+    if (nb_elements != 5000) {
         print("Unable to read all the elements\r\n");
         perror("The following error occurred");
         free(large_buf);
         return false;
     }
 
-    for (uint32_t i = 0; i < 1024; ++i)
+    for (uint32_t i = 0; i < 5000; ++i)
         if (large_buf[i] != i) {
             free(large_buf);
             printv("Mismatch detected at index: ", i);
@@ -270,23 +295,30 @@ void main(void)
     sd_context_t sd_ctx;
     if (!sd_init(&sd_ctx)) {
         print("Unable to initialize SD card\r\n");
-        return;
+        for(;;);
     }
     print("Formatting...\r\n");
     if (!fs_format(&sd_ctx, true)) {
         print("Unable to format SD card\r\n");
-        return;
+        for(;;);
     }
 
     if (!low_level_tests(&sd_ctx)) {
         printf("Low level tests failed\r\n");
-        return;
+        for(;;);
     }
 
     if (!stdio_tests()) {
         printf("Standard IO tests failed\r\n");
-        return;
+        fs_context_t fs_ctx;
+        if (fs_init(&sd_ctx, &fs_ctx))
+            dump_fat(&fs_ctx);
+        for(;;);
     }
 
     print("Success!\r\n");
+    fs_context_t fs_ctx;
+    if (fs_init(&sd_ctx, &fs_ctx))
+        dump_fat(&fs_ctx);
+    for(;;);
 }
