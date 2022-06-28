@@ -187,46 +187,6 @@ static __attribute__((noinline)) void xansi_clear(uint16_t start, uint16_t end)
     } while (++start <= end);
 }
 
-// scroll unrolled for 32-bytes per loop, so no inline please
-static __attribute__((noinline)) void xansi_do_scroll()
-{
-    xansiterm_data * td = get_xansi_data();
-
-    // scroll 8 longs per loop (16 words)
-    {
-        uint16_t i;
-        for (i = td->vram_size - td->cols; i >= 16; i -= 16)
-        {
-            xm_getl(DATA);
-            xm_setl(DATA, xm_getl(DATA));
-            xm_setl(DATA, xm_getl(DATA));
-            xm_setl(DATA, xm_getl(DATA));
-            xm_setl(DATA, xm_getl(DATA));
-            xm_setl(DATA, xm_getl(DATA));
-            xm_setl(DATA, xm_getl(DATA));
-            xm_setl(DATA, xm_getl(DATA));
-            xm_setl(DATA, xm_getl(DATA));
-        }
-        // scroll any remaining longs
-        for (; i >= 2; i -= 2)
-        {
-            xm_setl(DATA, xm_getl(DATA));
-        }
-        // scroll any remaining word
-        if (i)
-        {
-            xm_setw(DATA, xm_getw(DATA));
-        }
-    }
-
-    // clear new line
-    xm_setbh(DATA, td->color);
-    for (uint16_t i = 0; i < td->cols; i++)
-    {
-        xm_setbl(DATA, ' ');
-    }
-}
-
 // draw input cursor (trying to make it visible)
 static inline void xansi_draw_cursor(xansiterm_data * td)
 {
@@ -455,21 +415,32 @@ static void xansi_scroll_up()
 {
     xansiterm_data * td = get_xansi_data();
 
+    // auto-increment works for write, but not yet for read
     xm_setw(WR_INCR, 1);
-    xm_setw(RD_INCR, 1);
     xm_setw(WR_ADDR, td->vram_base);
-    xm_setw(RD_ADDR, td->vram_base + td->cols);
-    xansi_do_scroll();
+
+    uint16_t rd_addr = td->vram_base + td->cols;
+
+    for (int y = 1; y < td->rows; ++y) {
+        for (int x = 0; x < td->cols; ++x) {
+            xm_setw(RD_ADDR, rd_addr++);
+            unsigned int d = xm_getw(DATA);
+            xm_setw(DATA, d);
+        }
+    }
+
+    // clear new line
+    xm_setbh(DATA, td->color);
+    for (uint16_t i = 0; i < td->cols; i++)
+    {
+        xm_setbl(DATA, ' ');
+    }
 }
 
 // setup Xosera registers for scrolling down and call scroll function
 static void xansi_scroll_down(xansiterm_data * td)
 {
-    xm_setw(WR_INCR, -1);
-    xm_setw(RD_INCR, -1);
-    xm_setw(WR_ADDR, (uint16_t)(td->vram_end - 1));
-    xm_setw(RD_ADDR, (uint16_t)(td->vram_end - 1 - td->cols));
-    xansi_do_scroll();
+    // TODO
 }
 
 // process control character
@@ -1501,7 +1472,7 @@ void xansiterm_UPDATECURSOR(void)
 
     // blink at ~409.6ms (on half the time, but only if cursor not disabled and no char ready)
     uint16_t tv = xm_getw(TIMER);
-    bool               cursor_on    = (td->flags & TFLAG_NOBLINK_CURSOR) || tv & 0x08;
+    bool               cursor_on    = (td->flags & TFLAG_NOBLINK_CURSOR) || tv & 0x0800;
     xansi_check_lcf(td);        // wrap cursor if needed
     if (cursor_on)
     {
@@ -1533,6 +1504,7 @@ bool xansiterm_INIT()
     td->tile_ctrl[3] = MAKE_TILE_CTRL(0x0000, 0, 0, 16);        // same as 0 (for user defined)
     td->def_color    = DEFAULT_COLOR;                           // default dark-green on black
     td->send_index   = -1;
+    td->flags        = TFLAG_NOBLINK_CURSOR;
 
     xansi_reset(true);
     return true;

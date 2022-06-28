@@ -98,8 +98,9 @@
 
 #define xsetw(reg, val)                                           \
     {                                                             \
-        MEM_WRITE(XOSERA_EVEN_BASE | ((reg) << 4), (val) >> 8);   \
-        MEM_WRITE(XOSERA_ODD_BASE | ((reg) << 4), (val) & 0xFF);  \
+        uint16_t v = val;                                         \
+        MEM_WRITE(XOSERA_EVEN_BASE | ((reg) << 4), (v) >> 8);     \
+        MEM_WRITE(XOSERA_ODD_BASE | ((reg) << 4), (v) & 0xFF);    \
     }
 
 #define xgetw(reg)                                  \
@@ -113,35 +114,20 @@
     })
 
 #define xm_setbh(reg, val)                                        \
-    MEM_WRITE(XOSERA_EVEN_BASE | (XM_STR(reg) << 4), (val) >> 8);
+    MEM_WRITE(XOSERA_EVEN_BASE | (XM_STR(reg) << 4), (val));
 
 #define xm_setbl(reg, val)                                        \
-    MEM_WRITE(XOSERA_ODD_BASE | (XM_STR(reg) << 4), (val) & 0xFF);
+    MEM_WRITE(XOSERA_ODD_BASE | (XM_STR(reg) << 4), (val));
 
-#define xm_setw(reg, val)                                         \
-    {                                                             \
-        xm_setbh(reg, val);                                       \
-        xm_setbl(reg, val);                                       \
-    }
-
-#define xm_setl(reg, val)                                         \
-    {                                                             \
-        xm_setw(reg, (val) >> 16);                                \
-        xm_setw(reg + 1, (val) & 0xFFFF);                         \
+#define xm_setw(reg, val)                                               \
+    {                                                                   \
+        uint16_t v = val;                                               \
+        MEM_WRITE(XOSERA_EVEN_BASE | (XM_STR(reg) << 4), (v) >> 8);     \
+        MEM_WRITE(XOSERA_ODD_BASE | (XM_STR(reg) << 4), (v) & 0xFF);    \
     }
 
 #define xm_getw(reg)                                \
     ({xgetw(XM_STR(reg));})
-
-#define xm_getl(reg)                                \
-    ({                                              \
-        uint32_t val = 0;                           \
-        uint32_t msw = xm_getw(reg);                \
-        uint32_t lsw = xm_getw(reg + 1);            \
-        val |= msw << 16;                           \
-        val |= lsw & 0xFFFF;                        \
-        val;                                        \
-    })
 
 #define xreg_setw(reg, val)                         \
     {                                               \
