@@ -411,10 +411,8 @@ static void xansi_cls()
 }
 
 // setup Xosera registers for scrolling up and call scroll function
-static void xansi_scroll_up()
+static void xansi_scroll_up(xansiterm_data * td)
 {
-    xansiterm_data * td = get_xansi_data();
-
     // auto-increment works for write, but not yet for read
     xm_setw(WR_INCR, 1);
     xm_setw(WR_ADDR, td->vram_base);
@@ -440,7 +438,26 @@ static void xansi_scroll_up()
 // setup Xosera registers for scrolling down and call scroll function
 static void xansi_scroll_down(xansiterm_data * td)
 {
-    // TODO
+    // auto-increment works for write, but not yet for read
+    xm_setw(WR_INCR, -1);
+    xm_setw(WR_ADDR, td->vram_end - 1);
+
+    uint16_t rd_addr = td->vram_end - 1 - td->cols;
+
+    for (int y = 1; y < td->rows; ++y) {
+        for (int x = 0; x < td->cols; ++x) {
+            xm_setw(RD_ADDR, rd_addr--);
+            unsigned int d = xm_getw(DATA);
+            xm_setw(DATA, d);
+        }
+    }
+
+    // clear new line
+    xm_setbh(DATA, td->color);
+    for (uint16_t i = 0; i < td->cols; i++)
+    {
+        xm_setbl(DATA, ' ');
+    }
 }
 
 // process control character
@@ -534,7 +551,7 @@ static void xansi_processctrl(xansiterm_data * td, char cdata)
     {
         td->cur_addr -= td->cols;
         td->y -= 1;
-        xansi_scroll_up();
+        xansi_scroll_up(td);
     }
 }
 
