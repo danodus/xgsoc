@@ -382,14 +382,14 @@ static void xansi_visualbell(bool invert)
 {
     xansiterm_data * td = get_xansi_data();
 
-    xm_setw(RD_INCR, 1);
     xm_setw(WR_INCR, 1);
     for (int l = 0; l < (invert ? 1 : 2); l++)
     {
-        xm_setw(RD_ADDR, td->vram_base);
+        uint16_t read_addr = td->vram_base;
         xm_setw(WR_ADDR, td->vram_base);
         for (uint16_t i = 0; i < td->vram_end; i++)
         {
+            xm_setw(RD_ADDR, read_addr++);
             uint16_t data = xm_getw(DATA);
             xm_setw(DATA,
                     (((uint16_t)(data & 0xf000) >> 4) | (uint16_t)((data & 0x0f00) << 4) | (uint16_t)(data & 0xff)));
