@@ -7,7 +7,6 @@ void main(void)
     for(;;) {
         xansiterm_UPDATECURSOR();
         char c = kbd_get_char();
-        for (int i = 32; i < 128; ++i)
-            xansiterm_PRINTCHAR(i);
+        xansiterm_PRINTCHAR(c);
     };
 }
