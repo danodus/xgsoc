@@ -6,7 +6,8 @@ void main(void)
     xansiterm_INIT();
     for(;;) {
         xansiterm_UPDATECURSOR();
-        char c = kbd_get_char();
-        xansiterm_PRINTCHAR(c);
+        uint16_t c = kbd_get_char();
+        if (!KBD_IS_EXTENDED(c))
+            xansiterm_PRINTCHAR(c);
     };
 }

@@ -1,17 +1,27 @@
 #include <io.h>
 #include <kbd.h>
+#include <stdlib.h>
 
 void main(void)
 {
     print("PS/2 Keyboard Test\r\n");
     for (;;) {
-        char c = kbd_get_char();
-        if (c == 13) {
-            print("\r\n");
+        uint16_t c = kbd_get_char();
+        char s[16];
+        itoa(c, s, 16);
+        print(s);
+
+        if (KBD_IS_EXTENDED(c)) {
+            print(" (Extended)");
         } else {
-            char cc[2] = "\0\0";
-            cc[0] = c;
-            print(cc);
+            if (c >= ' ') {
+                char cc[2] = "\0\0";
+                cc[0] = c;
+                print(" (");
+                print(cc);
+                print(")");
+            }
         }
+        print("\r\n");
     } 
 }

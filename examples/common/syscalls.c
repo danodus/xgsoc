@@ -48,7 +48,11 @@ static char sys_read_char()
 {
 #ifdef XIO
 	// keyboard
-	return kbd_get_char();
+	while(1) {
+		uint16_t c = kbd_get_char();
+		if (!KBD_IS_EXTENDED(c))
+			return (char)c;
+	}
 #else
 	// serial port
 	while (1) {
