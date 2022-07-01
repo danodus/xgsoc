@@ -11,7 +11,6 @@
 #include <sys/signal.h>
 
 #ifdef XIO
-#include "kbd.h"
 #include "xio.h"
 #else
 #include "io.h"
@@ -48,21 +47,10 @@ static char sys_read_char()
 {
 #ifdef XIO
 	// keyboard
-	while(1) {
-		uint16_t c = kbd_get_char();
-		if (!KBD_IS_EXTENDED(c))
-			return (char)c;
-	}
+	return xget_chr();
 #else
-	// serial port
-	while (1) {
-		if (MEM_READ(UART_STATUS) & 2) {
-			// dequeue
-            MEM_WRITE(UART_STATUS, 0x1);
-            unsigned int c = MEM_READ(UART_DATA);
-			return (char)c;
-		}
-	}	
+    // serial port
+	return get_chr();	
 #endif
 }
 
@@ -70,15 +58,14 @@ static void sys_write_char(char c)
 {
 #ifdef XIO
 	// Xosera
+	if (c == '\n')
+		xprint_chr('\r');
 	xprint_chr(c);
 #else
 	// serial port
-	if (c == '\n') {
-		while(MEM_READ(UART_STATUS) & 1);
-		MEM_WRITE(UART_DATA, (unsigned int)'\r');
-	}
-	while(MEM_READ(UART_STATUS) & 1);
-    MEM_WRITE(UART_DATA, (unsigned int)c);
+	if (c == '\n')
+		print_chr('\r');
+	print_chr(c)
 #endif
 }
 

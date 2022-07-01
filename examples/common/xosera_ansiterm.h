@@ -38,5 +38,6 @@ void         xansiterm_PRINTCHAR(char c);                // EFP output char rout
 void         xansiterm_CLRSCR(void);                     // EFP clear screen
 void         xansiterm_SETCURSOR(bool enable);           // EFP enable/disable cursor
 void         xansiterm_UPDATECURSOR(void);
+char         xansiterm_RECVQUERY(void);
 
 #endif // XOSERA_ANSITERM.H

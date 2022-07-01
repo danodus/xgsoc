@@ -11,4 +11,6 @@
 void print_chr(char c);
 void print(const char *s);
 
+char get_chr();
+
 #endif // IO_H
