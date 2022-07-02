@@ -79,18 +79,20 @@ static char sys_read_char(bool force_serial)
 		is_serial = false;
 #endif
 	char c;
-	if (is_serial) {
-		// serial port
-		c = get_chr();
-	} else {
+	while(1) {
+		if (is_serial) {
+			// serial port
+			c = get_chr();
+		} else {
 #ifdef XIO
-		c = xget_chr();
+			c = xget_chr();
 #endif
-	}
-	if (c == 0xFF) {
-		g_is_raw = !g_is_raw;
-	} else {
-		return c;
+		}
+		if (c == 0xFF) {
+			g_is_raw = !g_is_raw;
+		} else {
+			return c;
+		}
 	}
 }
 
