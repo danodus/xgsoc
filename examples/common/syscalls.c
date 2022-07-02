@@ -10,6 +10,8 @@
 #include <sys/errno.h>
 #include <sys/signal.h>
 
+#include <stdbool.h>
+
 #ifdef XIO
 #include "xio.h"
 #else
@@ -18,6 +20,8 @@
 
 extern int errno;
 static void sys_print(const char *s);
+
+static bool g_is_raw = false;
 
 void ebreak()
 {
@@ -45,13 +49,21 @@ void sysinit()
 
 static char sys_read_char()
 {
-#ifdef XIO
-	// keyboard
-	return xget_chr();
+	while(1) {
+		char c;
+#ifndef XIO
+		// serial port
+		c = get_chr();
 #else
-    // serial port
-	return get_chr();	
+		// keyboard
+		c = xget_chr();
 #endif
+		if (c == 0xFF) {
+			g_is_raw = !g_is_raw;
+		} else {
+			return c;
+		}
+	}
 }
 
 static void sys_write_char(char c)
@@ -86,12 +98,12 @@ static size_t sys_read_line(char *s, size_t buffer_len)
             if (len > 0) {
                 s--;
                 len--;
-                sys_write_char('\b');
-                sys_write_char(' ');
-                sys_write_char('\b');
+				sys_write_char('\b');
+				sys_write_char(' ');
+				sys_write_char('\b');
             }
         } else if (c == '\r') {
-				sys_write_char('\n');
+			sys_write_char('\n');
 			if (len < buffer_len) {
 				*s = '\n';
 				s++;
@@ -114,6 +126,14 @@ static size_t sys_read_line(char *s, size_t buffer_len)
 ssize_t _read(int file, void *ptr, size_t len)
 {
 	if (file == STDIN_FILENO) {
+		if (len == 0)
+			return 0;
+
+		if (g_is_raw) {
+			((char *)ptr)[0] = sys_read_char();
+			return 1;
+		}
+
 		char buf[256];
 		size_t c = sys_read_line(buf, 256);
 		if (c > len)

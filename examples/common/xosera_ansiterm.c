@@ -1482,6 +1482,8 @@ void xansiterm_UPDATECURSOR(void)
     xansiterm_data * td = get_xansi_data();
 
     // if cursor is hidden, don't do lcf scroll
+    // TODO: Disabled for now
+    /*
     if (td->flags & TFLAG_HIDE_CURSOR)
     {
         return;
@@ -1499,6 +1501,9 @@ void xansiterm_UPDATECURSOR(void)
     {
         xansi_erase_cursor(td);
     }
+    */
+
+    xansi_draw_cursor(td);
 }
 
 void xansiterm_ERASECURSOR(void)

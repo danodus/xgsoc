@@ -32,6 +32,8 @@
 #define KBD_F11         0x8178
 #define KBD_F12         0x8107
 
+#define KBD_SCROLL_LOCK 0x817E
+
 #ifdef __cplusplus
 extern "C" {
 #endif
