@@ -152,7 +152,7 @@ module xga #(
         .FB_BASE_ADDR(24'h800000) // 16*1024*1024/2
     ) framebuffer(
         .clk_pix(clk),
-        .reset_i(reset_i),
+        .reset_i(reset_i || !ena_graphite_i),
 
         // Memory interface
     
