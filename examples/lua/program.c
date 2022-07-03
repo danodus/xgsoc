@@ -21,6 +21,13 @@ int peek(lua_State *L) {
     return 1;
 }
 
+int handle_lua_error(lua_State *L) {
+    const char * msg = lua_tostring(L, -1);
+    luaL_traceback(L, L, msg, 2);
+    lua_remove(L, -2); // remove error/"msg" from stack
+    return 1; // traceback is returned
+}
+
 void main(void) {
     printf("%s\n", LUA_RELEASE);
 
@@ -46,11 +53,13 @@ void main(void) {
         printf(">");
         fflush(stdout);
         if (fgets(buff, 256, stdin)) {
-            error = luaL_loadbuffer(L, buff, strlen(buff), "line") || lua_pcall(L, 0, 0, 0);
+            lua_pushcfunction(L, handle_lua_error);
+            error = luaL_loadbuffer(L, buff, strlen(buff), "line") || lua_pcall(L, 0, 0, -2);
             if (error) {
                 printf("%s\n", lua_tostring(L, -1));
                 lua_pop(L, 1);
             }
+            lua_pop(L, 1); // pop handle_lua_error
         }
     }
 
