@@ -14,6 +14,8 @@
 
 #include <stdbool.h>
 
+#include "sys.h"
+
 #ifdef XIO
 #include "xio.h"
 #endif
@@ -44,7 +46,7 @@ static sd_context_t g_sd_ctx;
 static fs_context_t g_fs_ctx;
 static char g_filename[FS_MAX_FILENAME_LEN + 1];
 static size_t g_current_pos;
-static bool g_is_raw = false;
+static unsigned int g_tty_mode = 0x0;
 
 void ebreak()
 {
@@ -70,6 +72,16 @@ void sysinit()
 #endif
 }
 
+void sys_set_tty_mode(unsigned int mode)
+{
+	g_tty_mode = mode;
+}
+
+unsigned int sys_get_tty_mode()
+{
+	return g_tty_mode;
+}
+
 static char sys_read_char(bool force_serial)
 {
 	bool is_serial = true;
@@ -79,21 +91,15 @@ static char sys_read_char(bool force_serial)
 		is_serial = false;
 #endif
 	char c;
-	while(1) {
-		if (is_serial) {
-			// serial port
-			c = get_chr();
-		} else {
+	if (is_serial) {
+		// serial port
+		c = get_chr();
+	} else {
 #ifdef XIO
-			c = xget_chr();
+		c = xget_chr();
 #endif
-		}
-		if (c == 0xFF) {
-			g_is_raw = !g_is_raw;
-		} else {
-			return c;
-		}
 	}
+	return c;
 }
 
 static void sys_write_char(bool force_serial, char c)
@@ -196,7 +202,7 @@ ssize_t _read(int file, void *ptr, size_t len)
 		if (len == 0)
 			return 0;
 
-		if (g_is_raw) {
+		if (g_tty_mode & SYS_TTY_MODE_RAW) {
 			((char *)ptr)[0] = sys_read_char(file == TTYS0_FILENO);
 			return 1;
 		}
