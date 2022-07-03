@@ -7,6 +7,8 @@
 #include "lua.h"
 #include "lualib.h"
 
+#include "editor.h"
+
 int poke(lua_State *L) {
     unsigned int addr = luaL_checkinteger(L, 1);
     unsigned int value = luaL_checkinteger(L, 2);
@@ -18,6 +20,12 @@ int peek(lua_State *L) {
     unsigned int addr = luaL_checkinteger(L, 1);
     unsigned int value = MEM_READ(addr);
     lua_pushinteger(L, value);
+    return 1;
+}
+
+int edit(lua_State *L) {
+    const char *filename = luaL_checkstring(L, 1);
+    start_editor(filename);
     return 1;
 }
 
@@ -46,6 +54,9 @@ void main(void) {
 
     lua_pushcfunction(L, peek);
     lua_setglobal(L, "peek");
+
+    lua_pushcfunction(L, edit);
+    lua_setglobal(L, "edit");
 
     printf("Ready\n");
 

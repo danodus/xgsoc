@@ -37,8 +37,7 @@
 #define LOGF(fmt, ...) (void)0
 #define LOGC(ch)       (void)0
 
-#define DEFAULT_XOSERA_CONFIG 1           // default Xosera config (#1 848x480)
-#define DEFAULT_COLOR         0x02        // rosco_m68k "retro" dark green on black
+#define DEFAULT_COLOR         0x07        // white on black
 #define MAX_CSI_PARMS         16          // max CSI parameters per sequence
 #define MAX_QUERY_LEN         16          // max query response length (including NUL terminator)
 
@@ -1482,8 +1481,6 @@ void xansiterm_UPDATECURSOR(void)
     xansiterm_data * td = get_xansi_data();
 
     // if cursor is hidden, don't do lcf scroll
-    // TODO: Disabled for now
-    /*
     if (td->flags & TFLAG_HIDE_CURSOR)
     {
         return;
@@ -1501,9 +1498,6 @@ void xansiterm_UPDATECURSOR(void)
     {
         xansi_erase_cursor(td);
     }
-    */
-
-    xansi_draw_cursor(td);
 }
 
 void xansiterm_ERASECURSOR(void)
@@ -1524,7 +1518,7 @@ bool xansiterm_INIT()
     td->tile_ctrl[1] = MAKE_TILE_CTRL(0x0800, 0, 0, 8);         // 2nd font in tile RAM 8x8
     td->tile_ctrl[2] = MAKE_TILE_CTRL(0x0C00, 0, 0, 8);         // 3rd font in tile RAM 8x8
     td->tile_ctrl[3] = MAKE_TILE_CTRL(0x0000, 0, 0, 16);        // same as 0 (for user defined)
-    td->def_color    = DEFAULT_COLOR;                           // default dark-green on black
+    td->def_color    = DEFAULT_COLOR;                           // default white on black
     td->send_index   = -1;
     td->flags        = TFLAG_NOBLINK_CURSOR;
 
