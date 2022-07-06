@@ -244,8 +244,6 @@ ssize_t _write(int file, const void *ptr, size_t len)
 		while (ptr != eptr)
 			sys_write_char(file == TTYS0_FILENO, *(char*) (ptr++));
     	return len;
-	} else if (file == TTYS0_FILENO) {
-
 	} else if (file == SDFILE0_FILENO) {
 		if (!fs_write(&g_fs_ctx, g_filename, (uint8_t *)ptr, g_current_pos, len)) {
 			errno = EIO;
@@ -389,8 +387,35 @@ int _link(const char *oldpath, const char *newpath)
 
 off_t _lseek(int fd, off_t offset, int whence)
 {
-	unimplemented_syscall("lseek");
-	__builtin_unreachable();
+	if (fd == SDFILE0_FILENO) {
+		switch (whence) {
+			case SEEK_SET:
+				g_current_pos = (size_t)offset;
+				return (off_t)g_current_pos;
+			case SEEK_CUR:
+				g_current_pos = (size_t)((off_t)g_current_pos + offset);
+				return (off_t)g_current_pos;
+			case SEEK_END:
+				{
+					uint16_t nb_files = fs_get_nb_files(&g_fs_ctx);
+					for (uint16_t i = 0; i < nb_files; ++i) {
+						fs_file_info_t fi;
+						fs_get_file_info(&g_fs_ctx, i, &fi);
+						if (strcmp(fi.name, g_filename) == 0) {
+							g_current_pos = (size_t)((off_t)fi.size + offset);
+							return (off_t)g_current_pos;
+						}
+					}
+					errno = EBADF;
+					return -1;
+				}
+			default:
+				errno = EINVAL;
+				return -1;
+		}
+	}
+	errno = EBADF;
+	return -1;
 }
 
 int _lstat(const char *restrict pathname, struct stat *restrict statbuf)
