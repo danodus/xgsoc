@@ -106,10 +106,8 @@
 #define xgetw(reg)                                  \
     ({                                              \
         uint16_t val = 0;                           \
-        MEM_READ(XOSERA_EVEN_BASE | ((reg) << 4));  \
-        val |= MEM_READ(XOSERA_EVEN_BASE) << 8;     \
-        MEM_READ(XOSERA_ODD_BASE | ((reg) << 4));   \
-        val |= MEM_READ(XOSERA_ODD_BASE) & 0xFF;    \
+        val = MEM_READ(XOSERA_EVEN_BASE | ((reg) << 4)) << 8;  \
+        val |= (MEM_READ(XOSERA_ODD_BASE | ((reg) << 4)) & 0xFF);   \
         val;                                        \
     })
 

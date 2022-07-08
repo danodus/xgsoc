@@ -230,28 +230,45 @@ module xgsoc #(
     logic         xosera_bus_bytesel, xosera_bus_bytesel_r;        // 0 = even byte, 1 = odd byte
     logic [7:0]   xosera_bus_data_in, xosera_bus_data_in_r;        // 8-bit data bus input
     logic [7:0]   xosera_bus_data_out;       // 8-bit data bus output    
-    logic pulse_xosera_bus;
+    logic         xosera_ack;
+    logic [1:0]   xosera_state;
+
 
     logic stream_err_underflow;
 
     always_ff @(posedge clk) begin
         if (reset_i) begin
-            pulse_xosera_bus <= 1'b0;
             xosera_bus_cs_n_r <= 1'b1;
+            xosera_ack <= 1'b0;
+            xosera_state <= 0;
         end else begin
-            if (pulse_xosera_bus) begin
-                xosera_bus_cs_n_r <= 1'b0;
-                pulse_xosera_bus <= 1'b0;
-            end else begin
-                xosera_bus_cs_n_r <= 1'b1;
-            end
-            if (!xosera_bus_cs_n) begin
-                xosera_bus_rd_nwr_r <= xosera_bus_rd_nwr;
-                xosera_bus_reg_num_r <= xosera_bus_reg_num;
-                xosera_bus_bytesel_r <= xosera_bus_bytesel;
-                xosera_bus_data_in_r <= xosera_bus_data_in;
-                pulse_xosera_bus <= 1'b1;
-            end
+            case (xosera_state)
+                0: begin
+                    if (sel && !xosera_bus_cs_n) begin
+                        xosera_bus_rd_nwr_r <= xosera_bus_rd_nwr;
+                        xosera_bus_reg_num_r <= xosera_bus_reg_num;
+                        xosera_bus_bytesel_r <= xosera_bus_bytesel;
+                        xosera_bus_data_in_r <= xosera_bus_data_in;
+                        xosera_state <= 1;
+                    end
+                end
+                1: begin
+                    xosera_bus_cs_n_r <= 1'b0;
+                    xosera_state <= 2;
+                end
+                2: begin
+                    xosera_ack <= 1'b1;
+                    xosera_state <= 3;
+                end
+                3: begin
+                    // wait deselect
+                    xosera_bus_cs_n_r <= 1'b1;
+                    xosera_ack <= 1'b0;
+                    if (!sel)
+                        xosera_state <= 0;
+                end
+            endcase
+           
         end
     end
 
@@ -401,35 +418,32 @@ module xgsoc #(
 
 `endif
 
-    logic cpu_halt;
     always_ff @(posedge clk) begin
         if (reset_i) begin
-            cpu_halt   <= 1'b0;
             device_ack <= 1'b0;
         end else begin
             device_ack <= 1'b0;
-            if (sel && !cpu_halt) begin
-                if (addr[31:28] == 4'h2) begin
+            if (sel) begin
+                if ((addr[31:28] == 4'h2) && (addr[31:8] != 24'h200030) && (addr[31:8] != 24'h200031))
                     device_ack <= 1'b1;
-                end else if (addr[31:28] != 4'h0 && addr[31:28] != 4'h1) begin
-                    $display("Invalid memory access at address: %x", addr);
-                    $display("CPU halted");
-                    cpu_halt <= 1'b1;
-                end
             end
         end
     end
 
     processor cpu(
         .clk(clk),
-        .reset_i(reset_i || cpu_halt),
+        .reset_i(reset_i),
         .sel_o(sel),
         .addr_o(addr),
         .we_o(cpu_we),
         .data_in_i(cpu_data_in),
         .data_out_o(cpu_data_out),
         .wr_mask_o(wr_mask),
-        .ack_i(rom_ack || ram_ack || device_ack)
+        .ack_i(rom_ack || ram_ack || device_ack
+`ifdef XGA
+        || xosera_ack
+`endif
+        )
     );
 
     always_comb begin
