@@ -28,7 +28,7 @@
 #define DOUBLE_CELL_BASE_TYPE long
 
 /* Basic memory configuration */
-#define MEM_SIZE 32768 /* main memory size in bytes */
+#define MEM_SIZE 65536 /* main memory size in bytes */
 #define STACK_SIZE 192 /* cells reserved for the stack */
 #define RSTACK_SIZE 64 /* cells reserved for the return stack */
 #define INPUT_LINE_SIZE 32 /* bytes reserved for the WORD buffer */
