@@ -54,8 +54,14 @@ static void sys_print(const char *s);
 
 static sd_context_t g_sd_ctx;
 static fs_context_t g_fs_ctx;
-static char g_filename[FS_MAX_FILENAME_LEN + 1];
-static size_t g_current_pos;
+
+typedef struct {
+	char filename[FS_MAX_FILENAME_LEN + 1];
+	size_t current_pos;
+} file_t;
+
+static file_t g_files[SYS_MAX_NB_OPEN_FILES];
+
 static unsigned int g_tty_mode = 0x0;
 
 void ebreak()
@@ -80,6 +86,8 @@ void sysinit()
 	// enable timer interrupts
 	MEM_WRITE(TIMER_INTR_ENA, 0x1);
 	
+	for (size_t i = 0; i < SYS_MAX_NB_OPEN_FILES; ++i)
+		g_files[i].filename[0] = '\0';
 #ifdef XIO
 	xinit();
 #endif
@@ -93,6 +101,15 @@ void sys_set_tty_mode(unsigned int mode)
 unsigned int sys_get_tty_mode()
 {
 	return g_tty_mode;
+}
+
+static size_t get_nb_open_files()
+{
+	size_t nb_open_files = 0;
+	for (size_t i = 0; i < SYS_MAX_NB_OPEN_FILES; ++i)
+		if (g_files[i].filename[0])
+			nb_open_files++;
+	return nb_open_files;
 }
 
 static char sys_read_char(bool force_serial)
@@ -198,15 +215,25 @@ int _open(const char *pathname, int flags, mode_t mode)
 		// open serial IO
 		return TTYS0_FILENO;
 	} else {
-		// open file
-		if (!sd_init(&g_sd_ctx)) {
-			errno = EIO;
+
+		size_t nb_open_files = get_nb_open_files();
+		if (nb_open_files >= SYS_MAX_NB_OPEN_FILES - 1) {
+			// too many open files
+			errno = EMFILE;
 			return -1;
 		}
 
-		if (!fs_init(&g_sd_ctx, &g_fs_ctx)) {
-			errno = EIO;
-			return -1;
+		// if this is the first open file, initialize the file system
+		if (nb_open_files == 0) {
+			if (!sd_init(&g_sd_ctx)) {
+				errno = EIO;
+				return -1;
+			}
+
+			if (!fs_init(&g_sd_ctx, &g_fs_ctx)) {
+				errno = EIO;
+				return -1;
+			}
 		}
 
 		// if read-only and file does not exist, return error
@@ -299,9 +326,12 @@ ssize_t _write(int file, const void *ptr, size_t len)
 
 int _close(int file)
 {
-    // not implemented
-    // close is called before _exit()
-    return 0;
+	if (file == SDFILE0_FILENO) {
+    	g_filename[0] = '\0';
+	    return 0;
+	}
+	errno = EBADF;
+	return -1;
 }
 
 int _gettimeofday(struct timeval *restrict tv, struct timezone *restrict tz)
