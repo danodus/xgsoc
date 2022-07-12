@@ -11,7 +11,7 @@ OBJDUMP = ${RISCV_TOOLCHAIN_PATH}${RISCV_TOOLCHAIN_PREFIX}objdump
 CC = ${RISCV_TOOLCHAIN_PATH}${RISCV_TOOLCHAIN_PREFIX}gcc
 RISCV_CC_OPT ?= -march=rv32im -mabi=ilp32
 
-FIRMWARE_SOURCE = start.s ../lib/io.c ../lib/sd_card.c firmware.c
+FIRMWARE_SOURCE = start.S ../lib/io.c ../lib/sd_card.c firmware.c
 
 all: firmware.hex
 
@@ -33,7 +33,7 @@ firmware.hex: firmware.bin
 firmware.bin: firmware.elf firmware.lst
 	${OBJCOPY} -O binary firmware.elf firmware.bin
 
-firmware.elf: $(FIRMWARE_SOURCE) firmware.ld
+firmware.elf: $(FIRMWARE_SOURCE) custom_ops.S firmware.ld
 	${CC} $(RISCV_CC_OPT) -nostartfiles -nostdlib -Os -T firmware.ld -I ../lib $(FIRMWARE_SOURCE) -o firmware.elf
 
 .PHONY: all clean firmware
