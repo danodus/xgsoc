@@ -2,6 +2,7 @@
 site.mk
 rtl/tb/*.out
 rtl/tb/*.vcd
+lib/*.o
 firmware/**/*.hex
 firmware/**/*.bin
 firmware/**/*.elf

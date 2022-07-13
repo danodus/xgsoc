@@ -11,7 +11,7 @@ OBJDUMP = ${RISCV_TOOLCHAIN_PATH}${RISCV_TOOLCHAIN_PREFIX}objdump
 CC = ${RISCV_TOOLCHAIN_PATH}${RISCV_TOOLCHAIN_PREFIX}gcc
 CXX = ${RISCV_TOOLCHAIN_PATH}${RISCV_TOOLCHAIN_PREFIX}g++
 
-SRCS = ../common/start.s ../common/syscalls.c ../common/io.c ../common/gamepad.c ../common/kbd.c program.cpp
+SRCS = ../common/start.s ../common/syscalls.c ../../lib/io.c ../../lib/sd_card.c ../common/fs.c ../common/gamepad.c ../common/kbd.c program.cpp
 OBJS := $(SRCS:%=./%.o)
 DEPS := $(OBJS:.o=.d)
 
@@ -24,7 +24,7 @@ $(SITE_MK):
 	$(error site.mk not found.)
 
 run: program.hex
-	$(PYTHON) ../../utils/sendhex.py $(SERIAL) program.hex 0.0003
+	$(PYTHON) ../../utils/sendhex.py $(SERIAL) program.hex
 
 program: program.hex
 
@@ -44,10 +44,10 @@ program.bin: program.elf program.lst
 	$(AS) -march=rv32i -c $< -o $@
 
 %.c.o: %.c
-	${CC} -march=rv32i -O3 -I ../common -c $< -o $@
+	${CC} -march=rv32i -O3 -I../../lib -I ../common -c $< -o $@
 
 %.cpp.o: %.cpp
-	${CXX} -march=rv32i -O3 -I ../common -c $< -o $@
+	${CXX} -march=rv32i -O3 -I../../lib -I ../common -c $< -o $@
 
 program.elf: $(OBJS)
 	${CC} -march=rv32i -O3 -nostartfiles -T program.ld $(OBJS) -o program.elf -lm -lstdc++
