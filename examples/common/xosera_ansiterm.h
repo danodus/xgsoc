@@ -32,8 +32,6 @@
 
 // external terminal functions
 bool         xansiterm_INIT(void);                       // initialize xansiterm (called from XANSI_CON_INIT)
-const char * xansiterm_PRINT(const char * str);          // EFP output NUL terminated string routine
-const char * xansiterm_PRINTLN(const char * str);        // EFP output NUL terminated string ending with "\r\n"
 void         xansiterm_PRINTCHAR(char c);                // EFP output char routine
 void         xansiterm_CLRSCR(void);                     // EFP clear screen
 void         xansiterm_SETCURSOR(bool enable);           // EFP enable/disable cursor

@@ -6,8 +6,6 @@
 void xinit();
 
 void xprint_chr(char c);
-void xprint(const char *s);
-
 char xget_chr();
 
 #endif

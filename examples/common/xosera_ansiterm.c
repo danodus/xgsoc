@@ -101,7 +101,7 @@ typedef struct xansiterm_data
 
 static xansiterm_data g_xansiterm_data;
 
-static xansiterm_data *get_xansi_data()
+static inline xansiterm_data *get_xansi_data()
 {
     return &g_xansiterm_data;
 }
@@ -1335,101 +1335,75 @@ static inline void xansi_parse_csi(xansiterm_data * td, char cdata)
 // output character to console
 void xansiterm_PRINTCHAR(char cdata)
 {
-    char str[2];
-    str[0] = cdata;
-    str[1] = '\0';
-    if (cdata)
+    xansiterm_data * td = get_xansi_data();
+
+    xansi_erase_cursor(td);
+
+    // ESC or 8-bit CSI received
+    if ((cdata & 0x7f) == '\x1b')
     {
-        xansiterm_PRINT(str);
-        return;
-    }
-    else
-    {
-        // allow printing NUL (useful only if PASSTHRU)
-        LOG("[NUL]");
-        xansiterm_data * td = get_xansi_data();
-        xansi_erase_cursor(td);
-        if (td->state == TSTATE_NORMAL && (td->flags & TFLAG_ATTRIB_PASSTHRU))
+        // if already ESC/CSI and in PASSTHRU mode
+        if (td->state >= TSTATE_ESC && (td->flags & TFLAG_ATTRIB_PASSTHRU))
         {
-            xansi_drawchar(td, 0);
+            td->state = TSTATE_NORMAL;        // fall through and print ESC/CSi
+        }
+        else
+        {
+            // otherwise start new CSI/ESC
+            xansi_begin_csi_or_esc(td, cdata);
+            goto nextchar;
         }
     }
+
+    if (td->state == TSTATE_NORMAL)
+    {
+        xansi_processchar(td, cdata);
+    }
+    else if (cdata == '\x18' || cdata == '\x1A')
+    {
+        // VT:  \x18    CAN terminate current CSI sequence, otherwise ignored
+        // VT:  \x1A    SUB terminate current CSI sequence, otherwise ignored
+        LOG("[CANCEL: ");
+        LOGC(cdata);
+        LOG("]");
+        td->state = TSTATE_NORMAL;
+    }
+    else if (td->state == TSTATE_ESC)        // NOTE: only one char sequences supported
+    {
+        xansi_process_esc(td, cdata);
+    }
+    else if (td->state == TSTATE_CSI)
+    {
+        xansi_parse_csi(td, cdata);
+    }
+    else if (td->state == TSTATE_ILLEGAL)
+    {
+        if (cdata >= 0x40)
+        {
+            td->state = TSTATE_NORMAL;
+            LOG("end Illegal: ");
+            LOGC(cdata);
+            LOG("]");
+        }
+        else
+        {
+            LOG("[illegal: ");
+            LOGC(cdata);
+            LOG(" eaten]");
+        }
+    }
+
+    nextchar:;    
 }
 
 // output NUL terminated string to terminal
 const char * xansiterm_PRINT(const char * strptr)
 {
-    xansiterm_data * td = get_xansi_data();
-    xansi_erase_cursor(td);
-
     char cdata;
     while ((cdata = *strptr++) != '\0')
-    {
-        // ESC or 8-bit CSI received
-        if ((cdata & 0x7f) == '\x1b')
-        {
-            // if already ESC/CSI and in PASSTHRU mode
-            if (td->state >= TSTATE_ESC && (td->flags & TFLAG_ATTRIB_PASSTHRU))
-            {
-                td->state = TSTATE_NORMAL;        // fall through and print ESC/CSi
-            }
-            else
-            {
-                // otherwise start new CSI/ESC
-                xansi_begin_csi_or_esc(td, cdata);
-                goto nextchar;
-            }
-        }
-
-        if (td->state == TSTATE_NORMAL)
-        {
-            xansi_processchar(td, cdata);
-        }
-        else if (cdata == '\x18' || cdata == '\x1A')
-        {
-            // VT:  \x18    CAN terminate current CSI sequence, otherwise ignored
-            // VT:  \x1A    SUB terminate current CSI sequence, otherwise ignored
-            LOG("[CANCEL: ");
-            LOGC(cdata);
-            LOG("]");
-            td->state = TSTATE_NORMAL;
-        }
-        else if (td->state == TSTATE_ESC)        // NOTE: only one char sequences supported
-        {
-            xansi_process_esc(td, cdata);
-        }
-        else if (td->state == TSTATE_CSI)
-        {
-            xansi_parse_csi(td, cdata);
-        }
-        else if (td->state == TSTATE_ILLEGAL)
-        {
-            if (cdata >= 0x40)
-            {
-                td->state = TSTATE_NORMAL;
-                LOG("end Illegal: ");
-                LOGC(cdata);
-                LOG("]");
-            }
-            else
-            {
-                LOG("[illegal: ");
-                LOGC(cdata);
-                LOG(" eaten]");
-            }
-        }
-
-    nextchar:;
-    }
+        xansiterm_PRINTCHAR(cdata);
 
     return strptr;
-}
-
-const char * xansiterm_PRINTLN(const char * strptr)
-{
-    const char * end = xansiterm_PRINT(strptr);
-    xansiterm_PRINT("\r\n");
-    return end;
 }
 
 void xansiterm_SETCURSOR(bool showcursor)
