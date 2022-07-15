@@ -261,8 +261,8 @@ static int getCursorPosition(int ifd, int ofd, int *rows, int *cols) {
  * call fails the function will try to query the terminal itself.
  * Returns 0 on success, -1 on error. */
 static int getWindowSize(int ifd, int ofd, int *rows, int *cols) {
-   *rows = 29;
-   *cols = 80;
+   *rows = 30;
+   *cols = 79;
    return 0;
 }
 
@@ -860,7 +860,7 @@ static void editorRefreshScreen(void) {
             if (E.numrows == 0 && y == E.screenrows/3) {
                 char welcome[80];
                 int welcomelen = snprintf(welcome,sizeof(welcome),
-                    "Kilo editor -- verison %s\x1b[0K\r\n", KILO_VERSION);
+                    "Kilo editor -- version %s\x1b[0K\r\n", KILO_VERSION);
                 int padding = (E.screencols-welcomelen)/2;
                 if (padding) {
                     abAppend(&ab,"~",1);
