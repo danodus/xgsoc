@@ -50,6 +50,8 @@
 #include <stdarg.h>
 #include <fcntl.h>
 
+#include <xosera_ansiterm.h>
+
 /* Syntax highlight types */
 #define HL_NORMAL 0
 #define HL_NONPRINT 1
@@ -809,6 +811,13 @@ writeerr:
 
 /* ============================= Terminal update ============================ */
 
+static void writeScreen(const char *s, size_t len) {
+    for(; len > 0; --len) {
+        xansiterm_PRINTCHAR(*s);
+        ++s;
+    }
+}
+
 /* We define a very simple "append buffer" structure, that is an heap
  * allocated string where we can append to. This is useful in order to
  * write all the escape sequences in a buffer and flush them to the standard
@@ -839,7 +848,7 @@ static void clearScreen(void) {
     abAppend(&ab,"\x1b[2J",4); /* Erase whole screen. */
     abAppend(&ab,"\x1b[H",3); /* Go home. */
 
-    write(STDOUT_FILENO,ab.b,ab.len);
+    writeScreen(ab.b,ab.len);
     abFree(&ab);
 }
 
@@ -959,7 +968,8 @@ static void editorRefreshScreen(void) {
     snprintf(buf,sizeof(buf),"\x1b[%d;%dH",E.cy+1,cx);
     abAppend(&ab,buf,strlen(buf));
     abAppend(&ab,"\x1b[?25h",6); /* Show cursor. */
-    write(STDOUT_FILENO,ab.b,ab.len);
+    writeScreen(ab.b,ab.len);
+    xansiterm_UPDATECURSOR();
     abFree(&ab);
 }
 
