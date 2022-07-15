@@ -23,6 +23,40 @@ int peek(lua_State *L) {
     return 1;
 }
 
+int call(lua_State *L) {
+    unsigned int addr = luaL_checkinteger(L, 1);
+    void (*fun_ptr)(void) = (void (*)(void))addr;
+    (*fun_ptr)();
+    return 1;
+}
+
+int callr(lua_State *L) {
+    unsigned int addr = luaL_checkinteger(L, 1);
+    int (*fun_ptr)(void) = (int (*)(void))addr;
+    int ret = (*fun_ptr)();
+    lua_pushinteger(L, ret);
+    return 1;
+}
+
+int callp1(lua_State *L) {
+    unsigned int addr = luaL_checkinteger(L, 1);
+    int p0 = luaL_checkinteger(L, 2);
+    void (*fun_ptr)(int) = (void (*)(int))addr;
+    (*fun_ptr)(p0);
+    return 1;
+}
+
+
+int callp1r(lua_State *L) {
+    unsigned int addr = luaL_checkinteger(L, 1);
+    int p0 = luaL_checkinteger(L, 2);
+    int (*fun_ptr)(int) = (int (*)(int))addr;
+    int ret = (*fun_ptr)(p0);
+    lua_pushinteger(L, ret);
+    return 1;
+}
+
+
 int edit(lua_State *L) {
     const char *filename = luaL_checkstring(L, 1);
     start_editor(filename);
@@ -54,6 +88,18 @@ void main(void) {
 
     lua_pushcfunction(L, peek);
     lua_setglobal(L, "peek");
+
+    lua_pushcfunction(L, call);
+    lua_setglobal(L, "call");
+
+    lua_pushcfunction(L, callp1);
+    lua_setglobal(L, "callp1");
+
+    lua_pushcfunction(L, callr);
+    lua_setglobal(L, "callr");
+
+    lua_pushcfunction(L, callp1r);
+    lua_setglobal(L, "callp1r");
 
     lua_pushcfunction(L, edit);
     lua_setglobal(L, "edit");
