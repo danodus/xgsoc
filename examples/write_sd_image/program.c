@@ -96,7 +96,7 @@ void main(void)
         return;
     }
 
-    print("The image has been written succesfully.\r\n");
+    print("The image has been written successfully.\r\n");
     print("Press a key to continue...\r\n");
     while (!(MEM_READ(UART_STATUS) & 2));
     // dequeue
