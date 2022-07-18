@@ -1333,77 +1333,78 @@ static inline void xansi_parse_csi(xansiterm_data * td, char cdata)
 }
 
 // output character to console
-void xansiterm_PRINTCHAR(char cdata)
+void xansiterm_PRINTBUF(const char *s, size_t len)
 {
     xansiterm_data * td = get_xansi_data();
 
     xansi_erase_cursor(td);
 
-    // ESC or 8-bit CSI received
-    if ((cdata & 0x7f) == '\x1b')
-    {
-        // if already ESC/CSI and in PASSTHRU mode
-        if (td->state >= TSTATE_ESC && (td->flags & TFLAG_ATTRIB_PASSTHRU))
+    const char *s2 = s + len;
+    while (s != s2) {
+        char cdata = *s;
+        // ESC or 8-bit CSI received
+        if ((cdata & 0x7f) == '\x1b')
         {
-            td->state = TSTATE_NORMAL;        // fall through and print ESC/CSi
+            // if already ESC/CSI and in PASSTHRU mode
+            if (td->state >= TSTATE_ESC && (td->flags & TFLAG_ATTRIB_PASSTHRU))
+            {
+                td->state = TSTATE_NORMAL;        // fall through and print ESC/CSi
+            }
+            else
+            {
+                // otherwise start new CSI/ESC
+                xansi_begin_csi_or_esc(td, cdata);
+                goto nextchar;
+            }
         }
-        else
-        {
-            // otherwise start new CSI/ESC
-            xansi_begin_csi_or_esc(td, cdata);
-            goto nextchar;
-        }
-    }
 
-    if (td->state == TSTATE_NORMAL)
-    {
-        xansi_processchar(td, cdata);
-    }
-    else if (cdata == '\x18' || cdata == '\x1A')
-    {
-        // VT:  \x18    CAN terminate current CSI sequence, otherwise ignored
-        // VT:  \x1A    SUB terminate current CSI sequence, otherwise ignored
-        LOG("[CANCEL: ");
-        LOGC(cdata);
-        LOG("]");
-        td->state = TSTATE_NORMAL;
-    }
-    else if (td->state == TSTATE_ESC)        // NOTE: only one char sequences supported
-    {
-        xansi_process_esc(td, cdata);
-    }
-    else if (td->state == TSTATE_CSI)
-    {
-        xansi_parse_csi(td, cdata);
-    }
-    else if (td->state == TSTATE_ILLEGAL)
-    {
-        if (cdata >= 0x40)
+        if (td->state == TSTATE_NORMAL)
         {
-            td->state = TSTATE_NORMAL;
-            LOG("end Illegal: ");
+            xansi_processchar(td, cdata);
+        }
+        else if (cdata == '\x18' || cdata == '\x1A')
+        {
+            // VT:  \x18    CAN terminate current CSI sequence, otherwise ignored
+            // VT:  \x1A    SUB terminate current CSI sequence, otherwise ignored
+            LOG("[CANCEL: ");
             LOGC(cdata);
             LOG("]");
+            td->state = TSTATE_NORMAL;
         }
-        else
+        else if (td->state == TSTATE_ESC)        // NOTE: only one char sequences supported
         {
-            LOG("[illegal: ");
-            LOGC(cdata);
-            LOG(" eaten]");
+            xansi_process_esc(td, cdata);
         }
-    }
+        else if (td->state == TSTATE_CSI)
+        {
+            xansi_parse_csi(td, cdata);
+        }
+        else if (td->state == TSTATE_ILLEGAL)
+        {
+            if (cdata >= 0x40)
+            {
+                td->state = TSTATE_NORMAL;
+                LOG("end Illegal: ");
+                LOGC(cdata);
+                LOG("]");
+            }
+            else
+            {
+                LOG("[illegal: ");
+                LOGC(cdata);
+                LOG(" eaten]");
+            }
+        }
 
-    nextchar:;    
+        nextchar:;
+        s++;
+    }
 }
 
-// output NUL terminated string to terminal
-const char * xansiterm_PRINT(const char * strptr)
+// output character to console
+void xansiterm_PRINTCHAR(char cdata)
 {
-    char cdata;
-    while ((cdata = *strptr++) != '\0')
-        xansiterm_PRINTCHAR(cdata);
-
-    return strptr;
+    xansiterm_PRINTBUF(&cdata, 1);
 }
 
 void xansiterm_SETCURSOR(bool showcursor)

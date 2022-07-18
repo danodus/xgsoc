@@ -811,13 +811,6 @@ writeerr:
 
 /* ============================= Terminal update ============================ */
 
-static void writeScreen(const char *s, size_t len) {
-    for(; len > 0; --len) {
-        xansiterm_PRINTCHAR(*s);
-        ++s;
-    }
-}
-
 /* We define a very simple "append buffer" structure, that is an heap
  * allocated string where we can append to. This is useful in order to
  * write all the escape sequences in a buffer and flush them to the standard
@@ -829,7 +822,7 @@ struct abuf {
 
 #define ABUF_INIT {NULL,0}
 
-static void abAppend(struct abuf *ab, const char *s, int len) {
+static inline void abAppend(struct abuf *ab, const char *s, int len) {
     char *new = realloc(ab->b,ab->len+len);
 
     if (new == NULL) return;
@@ -838,7 +831,7 @@ static void abAppend(struct abuf *ab, const char *s, int len) {
     ab->len += len;
 }
 
-static void abFree(struct abuf *ab) {
+static inline void abFree(struct abuf *ab) {
     free(ab->b);
 }
 
@@ -848,7 +841,7 @@ static void clearScreen(void) {
     abAppend(&ab,"\x1b[2J",4); /* Erase whole screen. */
     abAppend(&ab,"\x1b[H",3); /* Go home. */
 
-    writeScreen(ab.b,ab.len);
+    xansiterm_PRINTBUF(ab.b, ab.len);
     abFree(&ab);
 }
 
@@ -889,9 +882,11 @@ static void editorRefreshScreen(void) {
         int current_color = -1;
         if (len > 0) {
             if (len > E.screencols) len = E.screencols;
-            char *c = r->render+E.coloff;
-            unsigned char *hl = r->hl+E.coloff;
-            int j;
+            const char *c = r->render+E.coloff;
+            //unsigned char *hl = r->hl+E.coloff;
+            //int j;
+            abAppend(&ab, c, len);
+            /*
             for (j = 0; j < len; j++) {
                 if (hl[j] == HL_NONPRINT) {
                     char sym;
@@ -919,6 +914,7 @@ static void editorRefreshScreen(void) {
                     abAppend(&ab,c+j,1);
                 }
             }
+            */
         }
         abAppend(&ab,"\x1b[39m",5);
         abAppend(&ab,"\x1b[0K",4);
@@ -968,7 +964,7 @@ static void editorRefreshScreen(void) {
     snprintf(buf,sizeof(buf),"\x1b[%d;%dH",E.cy+1,cx);
     abAppend(&ab,buf,strlen(buf));
     abAppend(&ab,"\x1b[?25h",6); /* Show cursor. */
-    writeScreen(ab.b,ab.len);
+    xansiterm_PRINTBUF(ab.b,ab.len);
     xansiterm_UPDATECURSOR();
     abFree(&ab);
 }
