@@ -112,12 +112,14 @@ static uint16_t find_unused_block_table_index(fs_fat_t *fat, fs_file_info_t *fil
 static void remove_file_blocks(fs_fat_t *fat, fs_file_info_t *file_info) {
     // erase block entries
     uint16_t block_table_index = file_info->first_block_table_index;
-    while (block_table_index != 0xFFFF) {
+    uint32_t nb_blocks = (file_info->size + SD_BLOCK_LEN - 1) / SD_BLOCK_LEN;
+    for (; nb_blocks; --nb_blocks) {
         uint16_t next_block_table_index = fat->blocks[block_table_index];
         fat->blocks[block_table_index] = 0xFFFF;
         block_table_index = next_block_table_index;
     }
     file_info->first_block_table_index = 0xFFFF;
+    file_info->size = 0;
 }
 
 bool fs_format(sd_context_t *sd_ctx, bool quick)
@@ -336,8 +338,6 @@ bool fs_write(fs_context_t *ctx, const char *filename, const uint8_t *buf, size_
             PRINT_DBG("Overwrite file\r\n");
             // overwrite the file
             remove_file_blocks(&tmp_fat, file_info);
-            file_info->first_block_table_index = 0xFFFF;
-            file_info->size = 0;
         } else {
             PRINT_DBG("Append to file\r\n");
             PRINTV_DBG("Initial size: ", file_info->size);

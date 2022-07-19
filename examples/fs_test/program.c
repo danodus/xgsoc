@@ -158,7 +158,12 @@ bool low_level_tests(sd_context_t *sd_ctx)
     if (strcmp(buf, s2) != 0) {
         print("Invalid file content\r\n");
         return false;
-    }    
+    }
+
+    if (!fs_delete(&fs_ctx, "test2")) {
+        print("Unable to delete file\r\n");
+        return false;
+    }
 
     //
     // Large file (more than one block) test
@@ -177,6 +182,17 @@ bool low_level_tests(sd_context_t *sd_ctx)
     print("Write large file...\r\n");
     if (!fs_write(&fs_ctx, "test3", (uint8_t *)large_buf, 0, 1024*sizeof(uint32_t))) {
         print("FS write failed\r\n");
+        return false;
+    }
+
+    char *s4 = "test4 file content";
+    if (!fs_write(&fs_ctx, "test4", s1, 0, strlen(s1) + 1)) {
+        print("FS write failed\r\n");
+        return false;
+    }
+
+    if (!fs_delete(&fs_ctx, "test4")) {
+        print("Unable to delete file\r\n");
         return false;
     }
 
