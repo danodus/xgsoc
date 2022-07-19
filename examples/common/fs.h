@@ -9,7 +9,7 @@
 
 #include <sd_card.h>
 
-#define FS_MAX_FILENAME_LEN 31
+#define FS_MAX_FILENAME_LEN 31      // maximum filename length (excluding the terminating null byte)
 #define FS_MAX_NB_FILES     128
 #define FS_MAX_NB_BLOCKS    (2*1024*1024 / SD_BLOCK_LEN)       // maximum number of blocks supported by the FS
 

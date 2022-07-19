@@ -321,9 +321,13 @@ bool fs_write(fs_context_t *ctx, const char *filename, const uint8_t *buf, size_
                 break;
             }
         }
+        if (!found) {
+            PRINT_DBG("Too many files\r\n");
+            return false;
+        }
         file_info = &tmp_fat.file_infos[file_index];
-        // TODO: unsafe
-        strcpy(file_info->name, filename);
+        strncpy(file_info->name, filename, FS_MAX_FILENAME_LEN);
+        file_info->name[FS_MAX_FILENAME_LEN] = '\0';
         file_info->first_block_table_index = 0xFFFF;
         file_info->size = 0;
 
