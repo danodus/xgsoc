@@ -38,5 +38,6 @@ bool fs_get_file_info(fs_context_t *ctx, uint16_t file_index, fs_file_info_t *fi
 bool fs_read(fs_context_t *ctx, const char *filename, uint8_t *buf, size_t current_pos, size_t nb_bytes, size_t *nb_read_bytes);
 bool fs_write(fs_context_t *ctx, const char *filename, const uint8_t *buf, size_t current_pos, size_t nb_bytes);
 bool fs_delete(fs_context_t *ctx, const char *filename);
+bool fs_rename(fs_context_t *ctx, const char *filename, const char *new_filename);
 
 #endif // FS_H

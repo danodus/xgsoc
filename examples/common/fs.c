@@ -1,3 +1,7 @@
+// fs.c
+// Copyright (c) 2022 Daniel Cliche
+// SPDX-License-Identifier: MIT
+
 #include "fs.h"
 
 #include <string.h>
@@ -226,6 +230,30 @@ bool fs_delete(fs_context_t *ctx, const char *filename)
     ctx->fat = tmp_fat;
     return true;
 }
+
+bool fs_rename(fs_context_t *ctx, const char *filename, const char *new_filename)
+{
+    fs_fat_t tmp_fat = ctx->fat;
+
+    fs_file_info_t *file_info = find_file(&tmp_fat, filename);
+    if (!file_info) {
+        PRINT_DBG("File not found\r\n");
+        return false;
+    }
+
+    strncpy(file_info->name, new_filename, FS_MAX_FILENAME_LEN);
+    file_info->name[FS_MAX_FILENAME_LEN] = '\0';
+
+    // write FAT
+    if (!write_fat(ctx->sd_ctx, &tmp_fat)) {
+        // unable to write FAT
+        return false;
+    }
+
+    ctx->fat = tmp_fat;
+    return true;
+}
+
 
 bool fs_read(fs_context_t *ctx, const char *filename, uint8_t *buf, size_t current_pos, size_t nb_bytes, size_t *nb_read_bytes)
 {

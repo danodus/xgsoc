@@ -1,3 +1,7 @@
+// program.c
+// Copyright (c) 2022 Daniel Cliche
+// SPDX-License-Identifier: MIT
+
 #include <io.h>
 #include <fs.h>
 
@@ -118,6 +122,45 @@ int fsdelete(lua_State *L) {
     return 1;
 }
 
+int fsrename(lua_State *L) {
+    const char *filename = luaL_checkstring(L, 1);
+    const char *new_filename = luaL_checkstring(L, 2);
+
+    sd_context_t sd_ctx;
+    if (!sd_init(&sd_ctx)) {
+        lua_pushboolean(L, 0);
+        return 1;
+    }
+    fs_context_t fs_ctx;
+    if (!fs_init(&sd_ctx, &fs_ctx)) {
+        lua_pushboolean(L, 0);
+        return 1;
+    }
+    if (!fs_rename(&fs_ctx, filename, new_filename)) {
+        lua_pushboolean(L, 0);
+        return 1;
+    }
+    lua_pushboolean(L, 1);
+    return 1;
+}
+
+int fsformat(lua_State *L) {
+    luaL_checkany(L, 1);
+    bool quick = lua_toboolean(L, 1) ? true : false;
+
+    sd_context_t sd_ctx;
+    if (!sd_init(&sd_ctx)) {
+        lua_pushboolean(L, 0);
+        return 1;
+    }
+    if (!fs_format(&sd_ctx, quick)) {
+        lua_pushboolean(L, 0);
+        return 1;
+    }
+    lua_pushboolean(L, 1);
+    return 1;
+}
+
 int handle_lua_error(lua_State *L) {
     const char * msg = lua_tostring(L, -1);
     luaL_traceback(L, L, msg, 2);
@@ -164,6 +207,12 @@ void main(void) {
 
     lua_pushcfunction(L, fsdelete);
     lua_setglobal(L, "fsdelete");  
+
+    lua_pushcfunction(L, fsrename);
+    lua_setglobal(L, "fsrename");
+
+    lua_pushcfunction(L, fsformat);
+    lua_setglobal(L, "fsformat");
 
     printf("Ready\n");
 
