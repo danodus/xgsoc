@@ -30,33 +30,93 @@ int peek(lua_State *L) {
 
 int call(lua_State *L) {
     unsigned int addr = luaL_checkinteger(L, 1);
-    void (*fun_ptr)(void) = (void (*)(void))addr;
-    (*fun_ptr)();
-    return 0;
-}
-
-int callr(lua_State *L) {
-    unsigned int addr = luaL_checkinteger(L, 1);
-    int (*fun_ptr)(void) = (int (*)(void))addr;
-    int ret = (*fun_ptr)();
-    lua_pushinteger(L, ret);
-    return 1;
-}
-
-int callp1(lua_State *L) {
-    unsigned int addr = luaL_checkinteger(L, 1);
-    int p0 = luaL_checkinteger(L, 2);
-    void (*fun_ptr)(int) = (void (*)(int))addr;
-    (*fun_ptr)(p0);
-    return 0;
-}
-
-
-int callp1r(lua_State *L) {
-    unsigned int addr = luaL_checkinteger(L, 1);
-    int p0 = luaL_checkinteger(L, 2);
-    int (*fun_ptr)(int) = (int (*)(int))addr;
-    int ret = (*fun_ptr)(p0);
+    int nb_args = lua_gettop(L) - 1;
+    if (nb_args > 8)
+        nb_args = 8;
+    int ret;
+    switch(nb_args) {
+        case 0: {
+            int (*fun_ptr)(void) = (int (*)(void))addr;
+            ret = (*fun_ptr)();
+            break;
+        }
+        case 1: {
+            int p0 = luaL_checkinteger(L, 2);
+            int (*fun_ptr)(int) = (int (*)(int))addr;
+            ret = (*fun_ptr)(p0);
+            break;
+        }
+        case 2: {
+            int p0 = luaL_checkinteger(L, 2);
+            int p1 = luaL_checkinteger(L, 3);
+            int (*fun_ptr)(int, int) = (int (*)(int, int))addr;
+            ret = (*fun_ptr)(p0, p1);
+            break;
+        }
+        case 3: {
+            int p0 = luaL_checkinteger(L, 2);
+            int p1 = luaL_checkinteger(L, 3);
+            int p2 = luaL_checkinteger(L, 4);
+            int (*fun_ptr)(int, int, int) = (int (*)(int, int, int))addr;
+            ret = (*fun_ptr)(p0, p1, p2);
+            break;
+        }
+        case 4: {
+            int p0 = luaL_checkinteger(L, 2);
+            int p1 = luaL_checkinteger(L, 3);
+            int p2 = luaL_checkinteger(L, 4);
+            int p3 = luaL_checkinteger(L, 5);
+            int (*fun_ptr)(int, int, int, int) = (int (*)(int, int, int, int))addr;
+            ret = (*fun_ptr)(p0, p1, p2, p3);
+            break;
+        }
+        case 5: {
+            int p0 = luaL_checkinteger(L, 2);
+            int p1 = luaL_checkinteger(L, 3);
+            int p2 = luaL_checkinteger(L, 4);
+            int p3 = luaL_checkinteger(L, 5);
+            int p4 = luaL_checkinteger(L, 6);
+            int (*fun_ptr)(int, int, int, int, int) = (int (*)(int, int, int, int, int))addr;
+            ret = (*fun_ptr)(p0, p1, p2, p3, p4);
+            break;
+        }
+        case 6: {
+            int p0 = luaL_checkinteger(L, 2);
+            int p1 = luaL_checkinteger(L, 3);
+            int p2 = luaL_checkinteger(L, 4);
+            int p3 = luaL_checkinteger(L, 5);
+            int p4 = luaL_checkinteger(L, 6);
+            int p5 = luaL_checkinteger(L, 7);
+            int (*fun_ptr)(int, int, int, int, int, int) = (int (*)(int, int, int, int, int, int))addr;
+            ret = (*fun_ptr)(p0, p1, p2, p3, p4, p5);
+            break;
+        }
+        case 7: {
+            int p0 = luaL_checkinteger(L, 2);
+            int p1 = luaL_checkinteger(L, 3);
+            int p2 = luaL_checkinteger(L, 4);
+            int p3 = luaL_checkinteger(L, 5);
+            int p4 = luaL_checkinteger(L, 6);
+            int p5 = luaL_checkinteger(L, 7);
+            int p6 = luaL_checkinteger(L, 8);
+            int (*fun_ptr)(int, int, int, int, int, int, int) = (int (*)(int, int, int, int, int, int, int))addr;
+            ret = (*fun_ptr)(p0, p1, p2, p3, p4, p5, p6);
+            break;
+        }
+        case 8: {
+            int p0 = luaL_checkinteger(L, 2);
+            int p1 = luaL_checkinteger(L, 3);
+            int p2 = luaL_checkinteger(L, 4);
+            int p3 = luaL_checkinteger(L, 5);
+            int p4 = luaL_checkinteger(L, 6);
+            int p5 = luaL_checkinteger(L, 7);
+            int p6 = luaL_checkinteger(L, 8);
+            int p7 = luaL_checkinteger(L, 9);
+            int (*fun_ptr)(int, int, int, int, int, int, int, int) = (int (*)(int, int, int, int, int, int, int, int))addr;
+            ret = (*fun_ptr)(p0, p1, p2, p3, p4, p5, p6, p7);
+            break;
+        }
+    }
     lua_pushinteger(L, ret);
     return 1;
 }
@@ -189,15 +249,6 @@ void main(void) {
 
     lua_pushcfunction(L, call);
     lua_setglobal(L, "call");
-
-    lua_pushcfunction(L, callp1);
-    lua_setglobal(L, "callp1");
-
-    lua_pushcfunction(L, callr);
-    lua_setglobal(L, "callr");
-
-    lua_pushcfunction(L, callp1r);
-    lua_setglobal(L, "callp1r");
 
     lua_pushcfunction(L, edit);
     lua_setglobal(L, "edit");
