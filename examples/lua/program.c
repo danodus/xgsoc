@@ -11,8 +11,12 @@
 #include "lauxlib.h"
 #include "lua.h"
 #include "lualib.h"
+#include "luamem.h"
 
 #include "editor.h"
+
+
+LUAMEMMOD_API int luaopen_memory (lua_State *L);
 
 int poke(lua_State *L) {
     unsigned int addr = luaL_checkinteger(L, 1);
@@ -240,6 +244,9 @@ void main(void) {
         for (;;);
     }
     luaL_openlibs(L);
+
+    luaopen_memory(L);
+    lua_setglobal(L, "memory");
 
     lua_pushcfunction(L, poke);
     lua_setglobal(L, "poke");
