@@ -15,6 +15,8 @@ SRC_CORE := ../../external/xglib/rtl/processor.sv \
 		../../external/xglib/rtl/alu.sv \
 		../../external/xglib/rtl/decoder.sv \
 		../../external/xglib/rtl/register_file.sv \
+		../../external/xglib/rtl/multiplier.v \
+		../../external/xglib/rtl/divider.v \
 		../../external/xglib/rtl/sdram_ctrl.v \
 		../../external/xglib/rtl/async_fifo.sv \
 		../../external/xglib/rtl/async_sdram_ctrl.sv \

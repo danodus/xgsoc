@@ -4,7 +4,7 @@ FPGA based system on chip with audio, video and 3D acceleration.
 
 # Features
 
-- RISC-V CPU (RV32I)
+- RISC-V CPU (RV32IM)
 - UART (115200-N-8-1)
 - SD Card
 - SDRAM (16MB, ULX3S and MMM only)
