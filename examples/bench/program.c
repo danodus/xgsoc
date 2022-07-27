@@ -12,6 +12,8 @@
 #define NB_COLS (WIDTH / 8)
 #define NB_LINES 30
 
+void bench_dhry();
+
 void xclear(int c)
 {
     xm_setw(WR_INCR, 1);    
@@ -51,7 +53,12 @@ void xprintxy(unsigned int x, unsigned int y, const char *s, unsigned char color
     }
 }
 
-void main(void)
+long xosera_clock()
+{
+    return xm_getw(TIMER);
+}
+
+void bench_video_ansi()
 {
     // hide cursor
     write(STDOUT_FILENO, "\x1b[?25l", 6);
@@ -86,4 +93,10 @@ void main(void)
         print(s);
         print("\r\n");
     }
+}
+
+void main(void)
+{
+    bench_dhry();
+    for(;;);
 }
