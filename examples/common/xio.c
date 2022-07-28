@@ -45,7 +45,7 @@ char xget_chr()
             return c;
 
         // read character from keyboard
-        uint16_t cc = kbd_get_char();
+        uint16_t cc = kbd_get_char(true);
         if (!KBD_IS_EXTENDED(cc)) {
             return (char)cc;
         } else {

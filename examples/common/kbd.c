@@ -23,7 +23,7 @@ static const char g_keymap[] =
 "  ./\x0C"";\x10""\x1F""   \' [=    \x0D""] \\        \x08""  1 47   0.2568\x1B""  +3-*9      "
 ;
 
-uint16_t kbd_get_char()
+uint16_t kbd_get_char(bool is_blocking)
 {
     static int brk = 0, modifier = 0, shift = 0, control = 0;
 
@@ -95,6 +95,12 @@ uint16_t kbd_get_char()
             if (code < KEYMAP_SIZE)
                 c = g_keymap[code + KEYMAP_SIZE * (control << 1 | shift)];
             return (uint16_t)c;
-        } 
+        } else {
+            if (!is_blocking)
+                break;
+        }
     }
+
+    // no character available
+    return 0;
 }

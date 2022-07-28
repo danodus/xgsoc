@@ -1,6 +1,7 @@
 #ifndef KBD_H
 #define KBD_H
 
+#include <stdbool.h>
 #include <stdint.h>
 
 #define KBD_IS_EXTENDED(_c_) (_c_ & 0x8000)
@@ -38,7 +39,7 @@
 extern "C" {
 #endif
 
-uint16_t kbd_get_char();
+uint16_t kbd_get_char(bool is_blocking);
 
 #ifdef __cplusplus
 }

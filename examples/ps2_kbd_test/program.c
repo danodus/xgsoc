@@ -6,7 +6,7 @@ void main(void)
 {
     print("PS/2 Keyboard Test\r\n");
     for (;;) {
-        uint16_t c = kbd_get_char();
+        uint16_t c = kbd_get_char(true);
         char s[16];
         itoa(c, s, 16);
         print(s);
