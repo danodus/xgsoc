@@ -56,8 +56,7 @@ int main(int argc, char **argv, char **env)
     SDL_Texture *texture = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_RGBA32, SDL_TEXTUREACCESS_STREAMING, vga_width, vga_height);
 
     uint16_t *sdram_mem = new uint16_t[SDRAM_MEM_SIZE];
-    uint8_t sdram_bank = 0; // 4 banks
-    uint32_t sdram_row = 0; // 2^13 = 8192 rows
+    uint32_t sdram_rows[4] = {0, 0, 0, 0};  // 2^13 = 8192 rows per bank
     uint32_t sdram_col = 0; // 2^9 = 512 columns
     uint32_t sdram_addr = 0;
     uint8_t burst_counter = 0;
@@ -168,13 +167,18 @@ int main(int argc, char **argv, char **env)
 
             // if posedge clk sdram
             if (toggle_clk_sdram && top->clk_sdram) {
+                // if not NOP
+                //if (!top->sdram_ras_n_o || !top->sdram_cas_n_o || !top->sdram_we_n_o) {
+                //    printf("a10=%d, ras_n=%d, cas_n=%d, we_n=%d\n", (top->sdram_a_o & 0x400) ? 1 : 0, top->sdram_ras_n_o, top->sdram_cas_n_o, top->sdram_we_n_o);
+                //}
                 // SDRAM
                 if (last_sdram_cke/*top->sdram_cke_o*/ && !top->sdram_cs_n_o) {
+                    uint32_t sdram_bank = top->sdram_ba_o;
                     if (!top->sdram_ras_n_o && top->sdram_cas_n_o && top->sdram_we_n_o) {
-                        sdram_bank = top->sdram_ba_o;
-                        sdram_row = top->sdram_a_o;
-                        //printf("ACT bank=%d, row=%d\n", sdram_bank, sdram_row);
+                        sdram_rows[sdram_bank] = top->sdram_a_o;
+                        //printf("ACT bank=%d, row=%d\n", sdram_bank, sdram_rows[sdram_bank]);
                     }
+                    uint32_t sdram_row = sdram_rows[sdram_bank];
                     if (top->sdram_ras_n_o && !top->sdram_cas_n_o) {
                         sdram_col = top->sdram_a_o & 0x1FF;
                         sdram_addr = 8192 * 512 * sdram_bank + 512 * sdram_row + sdram_col;

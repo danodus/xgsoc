@@ -43,10 +43,8 @@
                 bit 0: miso
 */
 
-`ifdef SYNTHESIS
 `ifdef SDRAM
 `define CPU_SDRAM
-`endif
 `endif
 
 module xgsoc #(
