@@ -18,7 +18,7 @@ FPGA based system on chip with audio, video and 3D acceleration.
 # Requirements
 
 - OSS CAD Suite (https://github.com/YosysHQ/oss-cad-suite-build)
-- RISC-V GNU compiler toolchain for RV32I (https://github.com/riscv-collab/riscv-gnu-toolchain)
+- RISC-V GNU compiler toolchain for RV32IM (https://github.com/riscv-collab/riscv-gnu-toolchain)
 - Python3 with the following PIP3 packages installed: `pyserial`, `pillow`
 - SDL2 (for simulation only)
 
