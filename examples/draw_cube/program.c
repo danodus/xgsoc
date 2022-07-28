@@ -4,6 +4,7 @@
 #include <graphite.h>
 #include <cube.h>
 #include <xga.h>
+#include <kbd.h>
 
 #define WIDTH 640
 #define NB_COLS (WIDTH / 8)
@@ -97,7 +98,6 @@ const uint16_t img[] = {
     63060, 63060, 63060, 63060, 63060, 63060, 63060, 63060, 63060, 63060, 62770, 64373, 63060, 63060, 63060, 63060,
     62770, 62770, 62770, 62770, 62770, 62770, 62770, 62770, 62770, 62770, 62770, 62770, 62770, 62770, 62770, 62770,
     62770, 62770, 62770, 62770, 62770, 62770, 62770, 62770, 62770, 62770, 62770, 62770, 62770, 62770, 62770, 62770};
-
 
 void send_command(struct Command *cmd)
 {
@@ -325,6 +325,31 @@ void xprint(unsigned int x, unsigned int y, const char *s, unsigned char color)
     }
 }
 
+uint16_t diff_time(uint16_t t1, uint16_t t2)
+{
+    uint16_t dt;
+
+    if (t2 >= t1)
+    {
+        dt = t2 - t1;
+    }
+    else
+    {
+        dt = 65535 - t1 + t2;
+    }
+
+    return dt;
+}
+
+void print_time(int y, const char *title, uint16_t t1, uint16_t t2)
+{
+    char s[32];
+    itoa(diff_time(t1, t2) / 10, s, 10);
+    xprint(0, y, title, LIGHT_GREEN);
+    xprint(10, y, "    ms", LIGHT_GREEN);
+    xprint(10, y, s, LIGHT_GREEN);
+}
+
 void main(void)
 {
     // enable Graphite
@@ -333,6 +358,7 @@ void main(void)
     xreg_setw(PA_GFX_CTRL, 0x0000);
     xclear();
     xprint(0, 0, "Draw Cube", BRIGHT_WHITE);
+    xprint(0, 29, "[SPACE]: rotation, [t]: texture, [l]: lighting, [w]: wireframe", WHITE);
 
     float theta = 0.5f;
 
@@ -346,12 +372,34 @@ void main(void)
 
     write_texture();
 
+    bool is_rotating = false;
+    bool is_textured = true;
+    bool is_lighting_ena = true;
+    bool is_wireframe = false;
+
     for (;;) {
+        uint16_t c = kbd_get_char(false);
+        if (c) {
+            if (!KBD_IS_EXTENDED(c)) {
+                if (c == ' ') {
+                    is_rotating = !is_rotating;
+                } else if (c == 't') {
+                    is_textured = !is_textured;
+                } else if (c == 'l') {
+                    is_lighting_ena = !is_lighting_ena;
+                } else if (c == 'w') {
+                    is_wireframe = !is_wireframe;
+                }
+            }
+        }
 
         uint16_t t1 = xm_getw(TIMER);
 
+        uint16_t t1_clear = xm_getw(TIMER);
         clear(0x00F333);
+        uint16_t t2_clear = xm_getw(TIMER);
 
+        uint16_t t1_xform = xm_getw(TIMER);
         // world
         mat4x4 mat_rot_z = matrix_make_rotation_z(theta);
         mat4x4 mat_rot_x = matrix_make_rotation_x(theta);
@@ -361,37 +409,34 @@ void main(void)
         mat_world = matrix_make_identity();
         mat_world = matrix_multiply_matrix(&mat_rot_z, &mat_rot_x);
         mat_world = matrix_multiply_matrix(&mat_world, &mat_trans);
+        uint16_t t2_xform = xm_getw(TIMER);
 
+        uint16_t t1_draw = xm_getw(TIMER);
         texture_t dummy_texture;
-        draw_model(640, 480, &vec_camera, cube_model, &mat_world, &mat_proj, &mat_view, true, false, &dummy_texture, false, false);
+        draw_model(640, 480, &vec_camera, cube_model, &mat_world, &mat_proj, &mat_view, is_lighting_ena, is_wireframe, is_textured ? &dummy_texture : NULL, false, false);
+        uint16_t t2_draw = xm_getw(TIMER);
 
         swap();
 
-        theta += 0.1f;
-        if (theta > 6.28f)
-            theta = 0.0f;
-
+        if (is_rotating) {
+            theta += 0.1f;
+            if (theta > 6.28f)
+                theta = 0.0f;
+        }
 
         uint16_t t2 = xm_getw(TIMER);
 
-        uint16_t dt;
+        print_time(2, "xform:", t1_xform, t2_xform);
+        print_time(3, "clear:", t1_clear, t2_clear);
+        print_time(4, "draw:", t1_draw, t2_draw);
+        print_time(5, "total:", t1, t2);
 
-        if (t2 >= t1)
-        {
-            dt = t2 - t1;
-        }
-        else
-        {
-            dt = 65535 - t1 + t2;
-        }
-
-        float freq = 1.0f / ((float)dt / 10000.0f);
+        float freq = 1.0f / ((float)(diff_time(t1, t2)) / 10000.0f);
         
         char s[32];
         itoa((int)freq, s, 10);
-        xprint(0, 29, "    FPS", WHITE);
-        xprint(0, 29, s, WHITE);        
-
+        xprint(0, 28, "    FPS", WHITE);
+        xprint(0, 28, s, WHITE); 
     }
 
     // disable Graphite
