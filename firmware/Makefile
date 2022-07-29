@@ -9,6 +9,7 @@ AS = ${RISCV_TOOLCHAIN_PATH}${RISCV_TOOLCHAIN_PREFIX}as
 OBJCOPY = ${RISCV_TOOLCHAIN_PATH}${RISCV_TOOLCHAIN_PREFIX}objcopy
 OBJDUMP = ${RISCV_TOOLCHAIN_PATH}${RISCV_TOOLCHAIN_PREFIX}objdump
 CC = ${RISCV_TOOLCHAIN_PATH}${RISCV_TOOLCHAIN_PREFIX}gcc
+RISCV_CC_OPT ?= -march=rv32im -mabi=ilp32
 
 FIRMWARE_SOURCE = start.s ../lib/io.c ../lib/sd_card.c firmware.c
 
@@ -33,6 +34,6 @@ firmware.bin: firmware.elf firmware.lst
 	${OBJCOPY} -O binary firmware.elf firmware.bin
 
 firmware.elf: $(FIRMWARE_SOURCE) firmware.ld
-	${CC} -nostartfiles -nostdlib -Os -T firmware.ld -I ../lib $(FIRMWARE_SOURCE) -o firmware.elf
+	${CC} $(RISCV_CC_OPT) -nostartfiles -nostdlib -Os -T firmware.ld -I ../lib $(FIRMWARE_SOURCE) -o firmware.elf
 
 .PHONY: all clean firmware
