@@ -5,7 +5,7 @@ SITE_MK ?= ../../site.mk
 YOSYS := $(OSS_CAD_SUITE_PATH)yosys
 ECPPACK := $(OSS_CAD_SUITE_PATH)ecppack
 NEXTPNR := $(OSS_CAD_SUITE_PATH)nextpnr-ecp5
-OPENFPGALOADER := $(OSS_CAD_SUITE_PATH)openFPGALoader
+FUJPROG := $(OSS_CAD_SUITE_PATH)fujprog
 
 DEVICE := 85k
 PACKAGE := CABGA381
@@ -69,6 +69,6 @@ top.bin: top.asc
 	$(ECPPACK) --compress --input top.asc --bit top.bin
 
 prog: top.bin
-	$(OPENFPGALOADER) --board ulx3s top.bin
+	$(FUJPROG) -T bit top.bin
 
 .PHONY: all prog
