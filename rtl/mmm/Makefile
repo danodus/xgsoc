@@ -28,6 +28,7 @@ SRC_CORE := ../../external/xglib/rtl/processor.sv \
 		../xga.sv \
 		../fifo.sv \
 		../ps2kbd.v \
+		../ps2mouse.v \
 		../hdmi_encoder.v \
 		../xgsoc.sv \
 		generated_pll.v \

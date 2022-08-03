@@ -15,9 +15,9 @@ module top(
     output      logic       usb_fpga_pu_dp,
     output      logic       usb_fpga_pu_dn,
 
-    input  wire logic       gn0,    // C2
+    inout  wire logic       gn0,    // C2
     input  wire logic       gn1,    // C1
-    input  wire logic       gn2,    // D2
+    inout  wire logic       gn2,    // D2
     input  wire logic       gn3,    // D1
 
     // SD Card
@@ -129,6 +129,9 @@ module top(
         .ps2_kbd_code_i(ps2_kbd_code),
         .ps2_kbd_strobe_i(ps2_kbd_strobe),
         .ps2_kbd_err_i(ps2_kbd_err),
+        .ps2_mouse_btn_i(ps2_mouse_btn),
+        .ps2_mouse_x_i(ps2_mouse_x),
+        .ps2_mouse_y_i(ps2_mouse_y),
 `endif
 `ifdef SD_CARD
         .sd_csn_o(sd_d[3]),
@@ -174,7 +177,7 @@ module top(
         led = display;
     end
 
-    // ps/2
+    // ps/2 keyboard
 
     logic ps2_clk;
     logic ps2_data;
@@ -193,6 +196,35 @@ module top(
         .ps2_code(ps2_kbd_code),
         .strobe(ps2_kbd_strobe),
         .err(ps2_kbd_err)
+    );
+
+    // ps/2 mouse
+
+    logic ps2_mdat_in, ps2_mclk_in, ps2_mdat_out, ps2_mclk_out;
+    assign gn0 = ps2_mclk_out ? 1'bz : 1'b0;
+    assign gn2 = ps2_mdat_out ? 1'bz : 1'b0;
+    assign ps2_mclk_in = gn0;
+    assign ps2_mdat_in = gn2;
+
+    logic [15:0] ps2_mouse_x, ps2_mouse_y;
+    logic [2:0] ps2_mouse_btn;
+
+    ps2mouse
+    #(
+        .c_x_bits(16),
+        .c_y_bits(16)
+    )
+    ps2mouse
+    (
+        .clk(clk_pix),
+        .reset(reset),
+        .ps2mdati(ps2_mdat_in),
+        .ps2mclki(ps2_mclk_in),
+        .ps2mdato(ps2_mdat_out),
+        .ps2mclko(ps2_mclk_out),
+        .xcount(ps2_mouse_x),
+        .ycount(ps2_mouse_y),
+        .btn(ps2_mouse_btn)
     );
 
     //

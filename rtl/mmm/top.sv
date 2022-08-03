@@ -5,7 +5,9 @@ module top(
     input  wire logic       UART1_RXD,
     output      logic       UART1_TXD,
     input  wire logic       PMOD_PS2_K_CLK,
+    inout  wire logic       PMOD_PS2_M_CLK,
     input  wire logic       PMOD_PS2_K_DATA,
+    inout  wire logic       PMOD_PS2_M_DATA,
 
     input  wire logic [3:0] HEX,
 
@@ -116,6 +118,9 @@ module top(
         .ps2_kbd_code_i(ps2_kbd_code),
         .ps2_kbd_strobe_i(ps2_kbd_strobe),
         .ps2_kbd_err_i(ps2_kbd_err),
+        .ps2_mouse_btn_i(ps2_mouse_btn),
+        .ps2_mouse_x_i(ps2_mouse_x),
+        .ps2_mouse_y_i(ps2_mouse_y),
 `endif
 `ifdef SD_CARD
         .sd_csn_o(sd_m_d[3]),
@@ -158,7 +163,7 @@ module top(
         led = display[1:0];
     end
 
-    // ps/2
+    // ps/2 keyboard
 
     logic [7:0] ps2_kbd_code;
     logic       ps2_kbd_strobe;
@@ -172,5 +177,34 @@ module top(
         .strobe(ps2_kbd_strobe),
         .err(ps2_kbd_err)
     );    
+
+    // ps/2 mouse
+
+    logic ps2_mdat_in, ps2_mclk_in, ps2_mdat_out, ps2_mclk_out;
+    assign PMOD_PS2_M_CLK = ps2_mclk_out ? 1'bz : 1'b0;
+    assign PMOD_PS2_M_DATA = ps2_mdat_out ? 1'bz : 1'b0;
+    assign ps2_mclk_in = PMOD_PS2_M_CLK;
+    assign ps2_mdat_in = PMOD_PS2_M_DATA;
+
+    logic [15:0] ps2_mouse_x, ps2_mouse_y;
+    logic [2:0] ps2_mouse_btn;
+
+    ps2mouse
+    #(
+        .c_x_bits(16),
+        .c_y_bits(16)
+    )
+    ps2mouse
+    (
+        .clk(clk),
+        .reset(reset),
+        .ps2mdati(ps2_mdat_in),
+        .ps2mclki(ps2_mclk_in),
+        .ps2mdato(ps2_mdat_out),
+        .ps2mclko(ps2_mclk_out),
+        .xcount(ps2_mouse_x),
+        .ycount(ps2_mouse_y),
+        .btn(ps2_mouse_btn)
+    );
 
 endmodule

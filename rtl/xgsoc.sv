@@ -20,11 +20,14 @@
         0x20004000: report valid
         0x20004004: 64-bit report MSW (32-bit)
         0x20004008: 64-bit report LSW (32-bit)
-    0x20005000 - 0x20005FFF: PS/2 Keyboard
-        0x20005000: Status
+    0x20005000 - 0x20005FFF: PS/2 Keyboard and Mouse
+        0x20005000: Keyboard status
             bit 0: strobe
             bit 1: error
-        0x20005004: Code
+        0x20005004: Keyboard code
+        0x20005008: Mouse buttons
+        0x2000500C: Mouse x
+        0x20005010: Mouse y
     0x20006000 - 0x20006FFF: SD Card (SPI)
         0x20006000:
             Write:
@@ -85,6 +88,9 @@ module xgsoc #(
     input  wire logic [7:0]  ps2_kbd_code_i,
     input  wire logic        ps2_kbd_strobe_i,
     input  wire logic        ps2_kbd_err_i,
+    input  wire logic [2:0]  ps2_mouse_btn_i,
+    input  wire logic [15:0] ps2_mouse_x_i,
+    input  wire logic [15:0] ps2_mouse_y_i,
 `endif
 
 `ifdef SD_CARD
@@ -648,13 +654,22 @@ module xgsoc #(
 `endif // USB
 `ifdef PS2
                     4'h5: begin
-                        // PS/2 Keyboard
+                        // PS/2 keyboard and mouse
                         if (addr[11:0] == 12'd0) begin
-                            // status
+                            // keyboard status
                             cpu_data_in = {31'd0, ~ps2_kbd_fifo_empty};
                         end else if (addr[11:0] == 12'd4) begin
-                            // code
+                            // keyboard code
                             cpu_data_in = {24'd0, ps2_kbd_code_r};
+                        end else if (addr[11:0] == 12'd8) begin
+                            // mouse buttons
+                            cpu_data_in = {29'd0, ps2_mouse_btn_i};
+                        end else if (addr[11:0] == 12'd12) begin
+                            // mouse x
+                            cpu_data_in = {16'd0, ps2_mouse_x_i};
+                        end else if (addr[11:0] == 12'd16) begin
+                            // mouse y
+                            cpu_data_in = {16'd0, ps2_mouse_y_i};
                         end
                     end
 `endif // PS2
