@@ -112,8 +112,9 @@ make run SERIAL=<serial device>
 
 The following examples are available:
 
-| Name         | Description                                         | Compatibility    |
+| Name           | Description                                         | Compatibility    |
 | -------------- | --------------------------------------------------- | ---------------- |
+| write_flash    | Write bitstream to flash (output on UART)           | ULX3S, MMM       |
 | write_sd_image | Write bootable SD card image (see section below)    | ULX3S, MMM, IB   |
 | hello          | Hello message (output on UART)                      | ULX3S, MMM, IB   |
 | sinus          | Sinus waveform on (output on UART)                  | ULX3S, MMM, IB   |
@@ -121,7 +122,6 @@ The following examples are available:
 | ps2_kbd_test   | Test PS/2 keyboard (output on UART)                 | ULX3S, MMM       |
 | ps2_mouse_test | Test PS/2 mouse (output on UART)                    | ULX3S, MMM       |
 | sd_card_test   | Test SD card (output on UART, card content erased!) | ULX3S, MMM       |
-| flash_test     | Test flash (output on UART)                         | ULX3S, MMM       |
 | gamepad_test   | Test USB gamepad                                    | ULX3S            |
 | forth          | Forth language                                      | SIM, ULX3S, MMM  |
 | lua            | Lua language                                        | SIM, ULX3S, MMM  |
