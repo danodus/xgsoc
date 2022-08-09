@@ -122,6 +122,8 @@ module xgsoc #(
 `endif
     );
 
+    localparam TIMER_FREQ_HZ = 1000;
+
     // interrupts
     logic [31:0] irq;   // interrupt request
     logic [31:0] eoi;   // end of interrupt
@@ -439,19 +441,32 @@ module xgsoc #(
     end
 
     // timer
-    logic [15:0] timer_value;
+    logic [31:0] timer_value;
     logic timer_irq;
+    logic timer_wait_irq_handling;
     always_ff @(posedge clk) begin
         if (reset_i) begin
-            timer_value <= FREQ_HZ / 1000 - 1;
+            timer_value <= FREQ_HZ / TIMER_FREQ_HZ - 1;
             timer_irq <= 1'b0;
+            timer_wait_irq_handling <= 1'b0;
         end else begin
-            if (eoi[0])
+            if (timer_wait_irq_handling) begin
+                if (!eoi[0])
+                    timer_wait_irq_handling <= 1'b0;
+            end else if (timer_irq && eoi[0]) begin
                 timer_irq <= 1'b0;
+                //$display("Timer interrupt released");
+            end
             timer_value <= timer_value - 1;
-            if (timer_value == 16'd0) begin
-                timer_irq <= 1'b1;
-                timer_value <= FREQ_HZ / 1000 - 1;
+            if (timer_value == 32'd0) begin
+                if (!timer_wait_irq_handling && eoi[0]) begin
+                    //$display("Timer interrupt");
+                    timer_irq <= 1'b1;
+                    timer_wait_irq_handling <= 1'b1;
+                end else begin
+                    $display("Timer interrupt lost");
+                end
+                timer_value <= FREQ_HZ / TIMER_FREQ_HZ - 1;
             end
         end
     end
