@@ -30,7 +30,7 @@ module top (
     );
 
     xgsoc #(
-        .FREQ_HZ(1 * 1000000),
+        .FREQ_HZ(2 * 1000000),
         .BAUDS(115200),
         .RAM_SIZE(16*1024*1024)
     ) xgsoc(

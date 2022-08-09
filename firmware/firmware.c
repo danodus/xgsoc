@@ -5,10 +5,6 @@
 
 #define RAM_START 0x10000000
 
-static const uint32_t reg_init[15] = {
-        0x000000b3, 0x00000133, 0x000001b3, 0x00000233, 0x000002b3, 0x00000333, 0x000003b3, 0x00000433, 0x000004b3, 0x00000533, 0x000005b3, 0x00000633, 0x000006b3, 0x00000733, 0x000007b3
-};
-
 void start_prog()
 {
     asm volatile(
@@ -119,15 +115,6 @@ void main(void)
             MEM_WRITE(DISPLAY, i << 1);        
         }
         MEM_WRITE(DISPLAY, 0x00);
-    }
-
-    // sanity check
-    // registers initialization expected at the beginning
-    for (uint32_t i = 0; i < 15; ++i) {
-        if (MEM_READ(RAM_START + i*4) != reg_init[i]) {
-            print("Invalid code in RAM\r\n");
-            return;
-        }
     }
 
     start_prog();

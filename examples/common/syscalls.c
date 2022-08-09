@@ -39,6 +39,8 @@
 #define TTYS0_FILENO	3
 #define SDFILE0_FILENO	4
 
+extern volatile unsigned int counter;
+
 extern int errno;
 static void sys_print(const char *s);
 
@@ -450,8 +452,14 @@ pid_t _wait(int *wstatus)
 
 clock_t _times(struct tms *buf)
 {
-	unimplemented_syscall("times");
-	__builtin_unreachable();
+	clock_t c = (unsigned long long)(counter) * CLOCKS_PER_SEC / 1000;
+	if (buf) {
+		buf->tms_utime = c;
+		buf->tms_stime = c;
+		buf->tms_cutime = c;
+		buf->tms_cstime = c;
+	}
+	return c;
 }
 
 int _utimes(const char *filename, const struct timeval times[2])

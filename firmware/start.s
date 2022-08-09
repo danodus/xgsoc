@@ -1,4 +1,4 @@
-#include "custom_ops.S"
+#include "../lib/custom_ops.S"
 
     .section .text
     .global _start
@@ -11,16 +11,15 @@ reset_vec:
 .balign 16
 irq_vec:
     addi sp,sp,-8
-    sw a5,0(sp)
-    sw a4,4(sp)
+    sw s2,4(sp)
+    sw ra,0(sp)
 
-    lui a5,0x20001
-    lw a4,0(a5)
-    addi a4,a4,1
-    sw a4,0(a5)
+    lui s2,0x10000
+    addi s2,s2,0x10
+    jalr ra,0(s2)
 
-    lw a5,0(sp)
-    lw a4,4(sp)
+    lw ra,0(sp)
+    lw s2,4(sp)
     addi sp,sp,8
 
     xgsoc_retirq_insn()
@@ -44,8 +43,6 @@ _start:
 
     lui sp, %hi(__stacktop);
     addi sp, sp, %lo(__stacktop);
-
-    xgsoc_maskirq_insn(zero);
 
     jal ra,main
 loop:
