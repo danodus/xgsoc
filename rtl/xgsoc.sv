@@ -3,15 +3,15 @@
 // SPDX-License-Identifier: MIT
 
 /*
-    0x00000000 - 0x00000FFF: rom (4kB)
+    0x00000000 - 0x00001FFF: rom (8kB)
     0x10000000 - 0x1FFFFFFF: ram (max: 256MB)
-    0x20001000 - 0x00001FFF: display
-    0x20002000 - 0x00002FFF: UART (BAUDS-N-8-1)
+    0x20001000 - 0x20001FFF: display
+    0x20002000 - 0x20002FFF: UART (BAUDS-N-8-1)
         0x20002000: Data Register (8 bits)
         0x20002004: Status Register (Read-only)
             bit 0: busy
             bit 1: valid
-    0x20003000 - 0x00003FFF: XGA
+    0x20003000 - 0x20003FFF: XGA
         0x20003000  // Xosera even byte
         0x20003100  // Xosera odd byte
         0x20003400  // Graphite
@@ -636,6 +636,10 @@ module xgsoc #(
             if (addr[31:28] == 4'h2) begin
                 // peripheral
                 case (addr[15:12])
+                    4'h1: begin
+                        cpu_data_in = {24'd0, display_o};
+                    end
+
                     4'h2: begin
                         // UART
                         if (addr[11:0] == 12'd0) begin
