@@ -10,16 +10,20 @@ reset_vec:
 
 .balign 16
 irq_vec:
+    addi sp,sp,-8
+    sw a5,0(sp)
+    sw a4,4(sp)
+
+    lui a5,0x20001
+    lw a4,0(a5)
+    addi a4,a4,1
+    sw a4,0(a5)
+
+    lw a5,0(sp)
+    lw a4,4(sp)
+    addi sp,sp,8
+
     xgsoc_retirq_insn()
-
-irq_regs:
-    // registers are saved to this memory region during interrupt handling
-    // the program counter is saved as register 0
-    .fill 32,4
-
-    // stack for the interrupt handler
-    .fill 128,4
-irq_stack:
 
 _start:
     add x1,x0,x0
@@ -40,6 +44,8 @@ _start:
 
     lui sp, %hi(__stacktop);
     addi sp, sp, %lo(__stacktop);
+
+    xgsoc_maskirq_insn(zero);
 
     jal ra,main
 loop:
