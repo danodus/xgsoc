@@ -4,26 +4,6 @@
     .global _start
     .global main
 
-reset_vec:
-    // no more than 16 bytes
-    j _start
-
-.balign 16
-irq_vec:
-    addi sp,sp,-8
-    sw s2,4(sp)
-    sw ra,0(sp)
-
-    lui s2,0x10000
-    addi s2,s2,0x10
-    jalr ra,0(s2)
-
-    lw ra,0(sp)
-    lw s2,4(sp)
-    addi sp,sp,8
-
-    xgsoc_retirq_insn()
-
 _start:
     add x1,x0,x0
     add x2,x0,x0

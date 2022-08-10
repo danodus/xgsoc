@@ -1,6 +1,8 @@
+#include <sys.h>
 #include <io.h>
 #include <stdlib.h>
 #include <stdint.h>
+#include <sys/times.h>
 
 #include <xosera.h>
 
@@ -23,6 +25,9 @@
 #define LIGHT_MAGENTA   0xD
 #define YELLOW          0xE
 #define BRIGHT_WHITE    0xF
+
+extern void xosera_irq_handler();
+extern volatile unsigned int frame_counter;
 
 void xclear()
 {
@@ -305,7 +310,7 @@ static void test_audio_sample(int8_t * samp, int bytesize, int speed)
 {
     xm_setw(WR_INCR, 0x0001);
     xm_setw(WR_ADDR, 0x8000);
-    xm_setw(SYS_CTRL, 0x000F);
+    xm_setbl(SYS_CTRL, 0x0F);
     xreg_setw(AUD0_VOL, 0x0000);           // set volume to 0%
     xreg_setw(AUD0_PERIOD, 0x0000);        // 1000 clocks per each sample byte
     xreg_setw(AUD0_LENGTH, 0x0000);        // 1000 clocks per each sample byte
@@ -332,6 +337,10 @@ static void test_audio_sample(int8_t * samp, int bytesize, int speed)
 void main(void)
 {
     print("Xosera Test\r\n");
+
+    // enable Xosera interrupts for VSYNC
+    irq1_handler = &xosera_irq_handler;
+    xm_setbh(SYS_CTRL, 0x08);
 
     xreg_setw(PA_GFX_CTRL, 0x0000);
 
@@ -365,5 +374,13 @@ void main(void)
         itoa(tv, s, 16);
         xprint(0, 29, "          ", WHITE);
         xprint(0, 29, s, WHITE);
+
+        itoa(frame_counter, s, 10);
+        xprint(0, 28, "          ", WHITE);
+        xprint(0, 28, s, WHITE);
+
+        itoa(times(NULL), s, 10);
+        xprint(0, 27, "          ", WHITE);
+        xprint(0, 27, s, WHITE);
     }
 }

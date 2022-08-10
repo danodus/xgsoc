@@ -69,6 +69,9 @@ void unimplemented_syscall(const char *fn)
 
 void sysinit()
 {
+	// enable timer interrupts
+	MEM_WRITE(TIMER_INTR_ENA, 0x1);
+	
 #ifdef XIO
 	xinit();
 #endif

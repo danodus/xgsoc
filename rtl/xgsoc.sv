@@ -5,6 +5,8 @@
 /*
     0x00000000 - 0x00001FFF: rom (8kB)
     0x10000000 - 0x1FFFFFFF: ram (max: 256MB)
+    0x20000000 - 0x20000FFF: system
+        0x20000000: timer interrupt enable
     0x20001000 - 0x20001FFF: display
     0x20002000 - 0x20002FFF: UART (BAUDS-N-8-1)
         0x20002000: Data Register (8 bits)
@@ -124,9 +126,9 @@ module xgsoc #(
 
     localparam TIMER_FREQ_HZ = 1000;
 
-    // interrupts
-    logic [31:0] irq;   // interrupt request
-    logic [31:0] eoi;   // end of interrupt
+    // interrupts (2)
+    logic [1:0] irq;   // interrupt request
+    logic [1:0] eoi;   // end of interrupt
 
     // bus
     logic        sel;
@@ -240,6 +242,7 @@ module xgsoc #(
     logic         xosera_bus_bytesel, xosera_bus_bytesel_r;        // 0 = even byte, 1 = odd byte
     logic [7:0]   xosera_bus_data_in, xosera_bus_data_in_r;        // 8-bit data bus input
     logic [7:0]   xosera_bus_data_out;       // 8-bit data bus output    
+    logic         xosera_bus_intr;
     logic         xosera_ack;
     logic [1:0]   xosera_state;
 
@@ -442,14 +445,19 @@ module xgsoc #(
 
     // timer
     logic [31:0] timer_value;
+    logic timer_intr_ena_we;
+    logic timer_intr_ena;
     logic timer_irq;
     logic timer_wait_irq_handling;
     always_ff @(posedge clk) begin
         if (reset_i) begin
             timer_value <= FREQ_HZ / TIMER_FREQ_HZ - 1;
+            timer_intr_ena <= 1'b0;
             timer_irq <= 1'b0;
             timer_wait_irq_handling <= 1'b0;
         end else begin
+            if (timer_intr_ena_we)
+                timer_intr_ena <= cpu_data_out[0];
             if (timer_wait_irq_handling) begin
                 if (!eoi[0])
                     timer_wait_irq_handling <= 1'b0;
@@ -459,21 +467,60 @@ module xgsoc #(
             end
             timer_value <= timer_value - 1;
             if (timer_value == 32'd0) begin
-                if (!timer_wait_irq_handling && eoi[0]) begin
-                    //$display("Timer interrupt");
-                    timer_irq <= 1'b1;
-                    timer_wait_irq_handling <= 1'b1;
-                end else begin
-                    $display("Timer interrupt lost");
+                if (timer_intr_ena) begin
+                    if (!timer_wait_irq_handling && eoi[0]) begin
+                        //$display("Timer interrupt");
+                        timer_irq <= 1'b1;
+                        timer_wait_irq_handling <= 1'b1;
+                    end else begin
+                        $display("Timer interrupt lost");
+                    end
                 end
                 timer_value <= FREQ_HZ / TIMER_FREQ_HZ - 1;
             end
         end
     end
 
-    always_comb irq = {31'd0, timer_irq};
+`ifdef XGA
+    logic xosera_irq;
+    logic xosera_wait_irq_handling;
+    always_ff @(posedge clk) begin
+        if (reset_i) begin
+            xosera_irq <= 1'b0;
+            xosera_wait_irq_handling <= 1'b0;
+        end else begin
+            if (xosera_wait_irq_handling) begin
+                if (!eoi[1])
+                    xosera_wait_irq_handling <= 1'b0;
+            end else if (xosera_irq && eoi[1]) begin
+                xosera_irq <= 1'b0;
+                //$display("Xosera interrupt released");
+            end            
+            if (xosera_bus_intr) begin
+                if (!xosera_wait_irq_handling && eoi[1]) begin
+                    //$display("Xosera interrupt");
+                    xosera_irq <= 1'b1;
+                    xosera_wait_irq_handling <= 1'b1;
+                end else begin
+                    $display("Xosera interrupt lost");
+                end
+            end
+        end
+    end
 
-    processor cpu(
+`endif
+
+    always_comb irq = { 
+`ifdef XGA
+    xosera_irq,
+`else
+    1'b0,
+`endif
+    timer_irq};
+
+    processor #(
+        .IRQ_VEC_ADDR(32'h10000010)   // IRQ vector in RAM
+    ) cpu(
         .clk(clk),
         .reset_i(reset_i),
         .irq_i(irq),
@@ -536,6 +583,7 @@ module xgsoc #(
         .xosera_bus_bytesel_i(xosera_bus_bytesel_r),
         .xosera_bus_data_i(xosera_bus_data_in_r),
         .xosera_bus_data_o(xosera_bus_data_out),
+        .xosera_bus_intr_o(xosera_bus_intr),
         .xosera_audio_l_o(audio_l_o),
         .xosera_audio_r_o(audio_r_o),
 
@@ -553,6 +601,7 @@ module xgsoc #(
     // address decoding
     always_comb begin
         mem_we = 1'b0;
+        timer_intr_ena_we = 1'b0;
         display_we = 1'b0;
         mem_data_in = cpu_data_out;
         display = 8'd0;
@@ -584,6 +633,11 @@ module xgsoc #(
                 if (!device_ack) begin
                     // peripheral
                     case (addr[15:12])
+                        4'h0: begin
+                            // system
+                            if (addr[11:0] == 12'd0)
+                                timer_intr_ena_we = 1'b1;
+                        end
                         4'h1: begin
                             // display
                             display_we = 1'b1;
@@ -651,6 +705,10 @@ module xgsoc #(
             if (addr[31:28] == 4'h2) begin
                 // peripheral
                 case (addr[15:12])
+                    4'h0: begin
+                        cpu_data_in = {31'd0, timer_intr_ena};
+                    end
+
                     4'h1: begin
                         cpu_data_in = {24'd0, display_o};
                     end

@@ -1,19 +1,26 @@
-#include "../lib/custom_ops.S"
+#include <custom_ops.S>
 
     .section .text
     .global _start
     .global sysinit
     .global main
     .global counter
+    .global irq1_handler
 
 _start:
     j start
 
 .balign 16
-irq:
+irq0_vec:
+    j irq0
+
+irq1_vec:
+    j irq1
+
+irq0:
     addi sp,sp,-8
-    sw a5,0(sp)
-    sw a4,4(sp)
+    sw a5,4(sp)
+    sw a4,0(sp)
 
     lui a5,%hi(counter)
     addi a5,a5,%lo(counter)
@@ -22,12 +29,33 @@ irq:
     addi a4,a4,1
     sw a4,0(a5)
 
-    lw a5,0(sp)
-    lw a4,4(sp)
+    lw a4,0(sp)
+    lw a5,4(sp)
     addi sp,sp,8
-    ret
+    xgsoc_retirq_insn()
+
+irq1:
+    addi sp,sp,-12
+    sw a5,8(sp)
+    sw a4,4(sp)
+    sw ra,0(sp)
+
+    lui a5,%hi(irq1_handler)
+    addi a5,a5,%lo(irq1_handler)
+
+    lw a4,0(a5)
+    beq a4,zero,irq1_0;
+    jalr ra,0(a4)
+irq1_0:
+    lw ra,0(sp)
+    lw a4,4(sp)
+    lw a5,8(sp)
+    addi sp,sp,12
+    xgsoc_retirq_insn()
 
 counter:
+    .word 0x00000000
+irq1_handler:
     .word 0x00000000
 
 start:
@@ -51,8 +79,6 @@ start:
     addi sp, sp, %lo(__stacktop);
 
     jal ra,sysinit
-
-    xgsoc_maskirq_insn(zero);
     jal ra,main
 
     lui a0,0

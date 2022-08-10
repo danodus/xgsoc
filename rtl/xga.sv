@@ -47,6 +47,7 @@ module xga #(
     input  wire logic         xosera_bus_bytesel_i,        // 0 = even byte, 1 = odd byte
     input  wire logic [7:0]   xosera_bus_data_i,           // 8-bit data bus input
     output logic      [7:0]   xosera_bus_data_o,           // 8-bit data bus output
+    output logic              xosera_bus_intr_o,           // Xosera CPU interrupt strobe
     output      logic         xosera_audio_l_o,
     output      logic         xosera_audio_r_o,
 
@@ -230,7 +231,7 @@ module xga #(
         .bus_bytesel_i(xosera_bus_bytesel_i),     // 0 = even byte, 1 = odd byte
         .bus_data_i(xosera_bus_data_i),           // 8-bit data bus input
         .bus_data_o(xosera_bus_data_o),           // 8-bit data bus output
-        .bus_intr_o(),                            // Xosera CPU interrupt strobe
+        .bus_intr_o(xosera_bus_intr_o),           // Xosera CPU interrupt strobe
         .red_o(xosera_vga_r),                     // red color gun output
         .green_o(xosera_vga_g),                   // green color gun output
         .blue_o(xosera_vga_b),                    // blue color gun output
