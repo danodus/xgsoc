@@ -340,6 +340,7 @@ void main(void)
 
     // enable Xosera interrupts for VSYNC
     irq1_handler = &xosera_irq_handler;
+    xm_setbl(TIMER, 0x08);  // TODO: remove this workaround when fixed in Xosera
     xm_setbh(SYS_CTRL, 0x08);
 
     xreg_setw(PA_GFX_CTRL, 0x0000);
