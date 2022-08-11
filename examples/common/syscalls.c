@@ -455,12 +455,12 @@ pid_t _wait(int *wstatus)
 
 clock_t _times(struct tms *buf)
 {
-	clock_t c = (unsigned long long)(counter) * CLOCKS_PER_SEC / 1000;
+	clock_t c = (unsigned long long)(counter) * CLK_TCK / 1000;
 	if (buf) {
 		buf->tms_utime = c;
-		buf->tms_stime = c;
-		buf->tms_cutime = c;
-		buf->tms_cstime = c;
+		buf->tms_stime = 0;
+		buf->tms_cutime = 0;
+		buf->tms_cstime = 0;
 	}
 	return c;
 }

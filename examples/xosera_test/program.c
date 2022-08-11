@@ -2,7 +2,7 @@
 #include <io.h>
 #include <stdlib.h>
 #include <stdint.h>
-#include <sys/times.h>
+#include <time.h>
 
 #include <xosera.h>
 
@@ -380,7 +380,7 @@ void main(void)
         xprint(0, 28, "          ", WHITE);
         xprint(0, 28, s, WHITE);
 
-        itoa(times(NULL), s, 10);
+        itoa(clock() / CLOCKS_PER_SEC, s, 10);
         xprint(0, 27, "          ", WHITE);
         xprint(0, 27, s, WHITE);
     }
