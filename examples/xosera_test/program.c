@@ -334,6 +334,12 @@ static void test_audio_sample(int8_t * samp, int bytesize, int speed)
     xreg_setw(VID_CTRL, 0x0010);                       // enable audio DMA to start playing
 }
 
+void wait_vsync()
+{
+    unsigned fc = frame_counter;
+    while (frame_counter == fc);
+}
+
 void main(void)
 {
     print("Xosera Test\r\n");
@@ -370,6 +376,8 @@ void main(void)
     test_audio_sample(g_sin_data, sizeof(g_sin_data), 1000);
 
     for (;;) {
+        wait_vsync();
+
         uint16_t tv = xm_getw(TIMER);
         char s[32];
         itoa(tv, s, 16);
