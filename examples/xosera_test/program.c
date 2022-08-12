@@ -308,30 +308,34 @@ static int8_t g_sin_data[256] = {
 
 static void test_audio_sample(int8_t * samp, int bytesize, int speed)
 {
-    xm_setw(WR_INCR, 0x0001);
-    xm_setw(WR_ADDR, 0x8000);
-    xm_setbl(SYS_CTRL, 0x0F);
+    uint16_t test_vaddr = 0x8000;
     xreg_setw(AUD0_VOL, 0x0000);           // set volume to 0%
     xreg_setw(AUD0_PERIOD, 0x0000);        // 1000 clocks per each sample byte
     xreg_setw(AUD0_LENGTH, 0x0000);        // 1000 clocks per each sample byte
+    xreg_setw(AUD_CTRL, 0x0001);           // enable audio DMA to start playing
+
+    xm_setw(SYS_CTRL, 0x000F);        // make sure no nibbles masked
+    xm_setw(WR_INCR, 0x0001);         // set write increment
+    xm_setw(WR_ADDR, 0x0000);         // set write address
+    xm_setw(DATA, 0);
+
+    xm_setw(WR_INCR, 0x0001);            // set write increment
+    xm_setw(WR_ADDR, test_vaddr);        // set write address
 
     for (int i = 0; i < bytesize; i += 2)
     {
-        uint8_t s0 = (uint8_t)(*samp++);
-        uint8_t s1 = (uint8_t)(*samp++);
-        uint16_t s = s0 << 8 | s1;
-        xm_setw(DATA, s);
+        xm_setbh(DATA, *samp++);
+        xm_setbl(DATA, *samp++);
     }
 
     uint16_t p  = speed;
-    uint8_t  lv = 0x80;
-    uint8_t  rv = 0x80;
+    uint8_t  lv = 0x40;
+    uint8_t  rv = 0x40;
 
-    xreg_setw(AUD0_PERIOD, p);                         // 1000 clocks per each sample byte
-    xreg_setw(AUD0_START, 0x8000);                     // address in VRAM
-    xreg_setw(AUD0_LENGTH, (bytesize / 2) - 1);        // length in words (256 8-bit samples)
     xreg_setw(AUD0_VOL, lv << 8 | rv);                 // set left 100% volume, right 50% volume
-    xreg_setw(VID_CTRL, 0x0010);                       // enable audio DMA to start playing
+    xreg_setw(AUD0_PERIOD, p);                         // 1000 clocks per each sample byte
+    xreg_setw(AUD0_START, test_vaddr);                 // address in VRAM
+    xreg_setw(AUD0_LENGTH, (bytesize / 2) - 1);        // length in words (256 8-bit samples)
 }
 
 void wait_vsync()
@@ -346,8 +350,7 @@ void main(void)
 
     // enable Xosera interrupts for VSYNC
     irq1_handler = &xosera_irq_handler;
-    xm_setbl(TIMER, 0x08);  // TODO: remove this workaround when fixed in Xosera
-    xm_setbh(SYS_CTRL, 0x08);
+    xm_setw(INT_CTRL, 0x1010);
 
     xreg_setw(PA_GFX_CTRL, 0x0000);
 

@@ -17,8 +17,8 @@ xosera_irq_handler:
     // clear VSYNC interrupt
     lui a5,0x20003
     addi a5,a5,0x100
-    li a4,8
-    sw a4,16*0x9(a5)        // XM_TIMER
+    li a4,0x10
+    sw a4,16*0x1(a5)        // INT_CTRL
 
     lw a4,0(sp)
     lw a5,4(sp)

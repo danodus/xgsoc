@@ -94,6 +94,7 @@ typedef struct xansiterm_data
     uint8_t  state;                             // current ANSI parsing state (e_term_state)
     uint8_t  flags;                             // various terminal flags (e_term_flags)
     uint8_t  color;                             // effective current background and forground color (high/low nibble)
+    char     ver_code[3];                       // Xosera initdata (from COPPER memory after reconfig)
     char     send_buffer[MAX_QUERY_LEN];        // xmit data for query replies
     bool     lcf;                               // flag for delayed last column wrap flag (PITA)
     bool     save_lcf;                          // storeage to save/restore lcf with cursor position
@@ -203,9 +204,8 @@ static inline void xansi_draw_cursor(xansiterm_data * td)
             return;
 
         td->cursor_drawn = true;
-        xm_setw(RW_INCR, 0x0000);
-        xm_setw(RW_ADDR, td->cur_addr);
-        uint16_t data   = xm_getw(RW_DATA);
+        xm_setw(RD_ADDR, td->cur_addr);
+        uint16_t data   = xm_getw(DATA);
         td->cursor_save = data;
 
         // calculate cursor color:
@@ -233,7 +233,8 @@ static inline void xansi_draw_cursor(xansiterm_data * td)
 
         uint16_t newcursor = (uint16_t)(cursor_color | (uint16_t)(data & 0x00ff));
 
-        xm_setw(RW_DATA, newcursor);        // draw char with cursor colors
+        xm_setw(WR_ADDR, td->cur_addr);
+        xm_setw(DATA, newcursor);           // draw char with cursor colors
         td->cursor_word = newcursor;        // save cursor word (to check for overwrite)
     }
 }
@@ -244,13 +245,12 @@ static inline void xansi_erase_cursor(xansiterm_data * td)
     if (td->cursor_drawn)
     {
         td->cursor_drawn = false;
-        xm_setw(RW_INCR, 0x0000);
-        xm_setw(RW_ADDR, td->cur_addr);
-
-        uint16_t cursor_read = xm_getw(RW_DATA);
+        xm_setw(RD_ADDR, td->cur_addr);
+        uint16_t cursor_read = xm_getw(DATA);
         if (cursor_read == td->cursor_word)        // don't erase cursor if it was overwritten
         {
-            xm_setw(RW_DATA, td->cursor_save);
+            xm_setw(WR_ADDR, td->cur_addr);
+            xm_setw(DATA, td->cursor_save);
         }
     }
 }
@@ -274,10 +274,10 @@ static void set_default_colors()
                                               0x0f5f,         // light magenta
                                               0x0ff5,         // yellow
                                               0x0fff};        // bright white
-    xm_setw(XR_ADDR, XR_COLOR_ADDR);
+    xmem_set_addr(XR_COLOR_ADDR);
     for (uint16_t i = 0; i < 16; i++)
     {
-        xm_setw(XR_DATA, def_colors16[i]);
+        xmem_setw_next(def_colors16[i]);
     };
 }
 
@@ -350,11 +350,6 @@ static void xansi_reset(bool reset_colormap)
          td->vram_end,
          cols,
          rows);
-
-    while (!(xreg_getw(SCANLINE) & 0x8000))
-        ;
-    while ((xreg_getw(SCANLINE) & 0x8000))
-        ;
 
     xreg_setw(PA_GFX_CTRL, gfx_ctrl_val);
     xreg_setw(PA_TILE_CTRL, tile_ctrl_val);
@@ -926,19 +921,18 @@ static inline void xansi_process_csi(xansiterm_data * td, char cdata)
                 }
                 else if (num_z == 68)
                 {
-                    uint16_t vercode = xreg_getw(VERSION);
-                    char *   strptr  = td->send_buffer;
-                    td->send_index   = 0;
+                    char * strptr  = td->send_buffer;
+                    td->send_index = 0;
 
                     *strptr++ = '\x1b';
                     *strptr++ = '[';
                     *strptr++ = '?';
                     str_dec(&strptr, 68);
                     *strptr++ = ';';
-                    str_dec(&strptr, (vercode >> 8) & 0xf);
+                    *strptr++ = td->ver_code[0];
                     *strptr++ = ';';
-                    str_dec(&strptr, (vercode >> 4) & 0xf);
-                    str_dec(&strptr, (vercode >> 0) & 0xf);
+                    *strptr++ = td->ver_code[1];
+                    *strptr++ = td->ver_code[2];
                     *strptr++ = ';';
                     str_dec(&strptr, XANSI_TERMINAL_REVISION);
                     *strptr++ = 'c';
@@ -1496,6 +1490,11 @@ bool xansiterm_INIT()
     td->def_color    = DEFAULT_COLOR;                           // default white on black
     td->send_index   = -1;
     td->flags        = TFLAG_NOBLINK_CURSOR;
+
+    // TODO: Not ideal no version code without COPPER
+    td->ver_code[0] = '0';
+    td->ver_code[1] = '0';
+    td->ver_code[2] = '0';    
 
     xansi_reset(true);
     return true;
