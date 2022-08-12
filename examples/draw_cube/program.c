@@ -5,6 +5,7 @@
 #include <cube.h>
 #include <xga.h>
 #include <kbd.h>
+#include <sys.h>
 
 #define WIDTH 640
 #define NB_COLS (WIDTH / 8)
@@ -352,6 +353,8 @@ void print_time(int y, const char *title, uint16_t t1, uint16_t t2)
 
 void main(void)
 {
+    MEM_WRITE(TIMER_INTR_ENA, 0x0);
+
     // enable Graphite
     MEM_WRITE(XGA_CONTROL, 0x1);
 

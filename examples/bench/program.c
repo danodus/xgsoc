@@ -97,6 +97,7 @@ void bench_video_ansi()
 
 void main(void)
 {
+    MEM_WRITE(TIMER_INTR_ENA, 0x0);
     bench_dhry();
     for(;;);
 }
