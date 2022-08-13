@@ -31,7 +31,15 @@ SRC_CORE := ../../external/xglib/rtl/processor.sv \
 		../ps2mouse.v \
 		../hdmi_encoder.v \
 		../xgsoc.sv \
+		../usb/usb_phy.v \
+		../usb/usb_rx_phy.v \
+		../usb/usb_tx_phy.v \
+		../usb/usbh_crc5.v \
+		../usb/usbh_crc16.v \
+		../usb/usbh_host_hid.v \
+		../usb/usbh_sie.v \
 		generated_pll.v \
+		generated_pll_usb.v \
 		top.sv
 
 SRC_GRAPHITE :=  ../../external/graphite/rtl/graphite.sv \
@@ -41,7 +49,7 @@ SRC_XOSERA := $(wildcard ../../external/Xosera/rtl/*.sv)
 
 SRC := $(SRC_CORE) $(SRC_XOSERA) $(SRC_GRAPHITE)
 
-DEFINES := -DPS2 -DSDRAM -DSD_CARD -DFLASH -DXGA -DNO_TESTPATTERN -DEN_PF_B -DEN_PF_B_BLEND
+DEFINES := -DUSB -DPS2 -DSDRAM -DSD_CARD -DFLASH -DXGA -DNO_TESTPATTERN -DEN_PF_B -DEN_PF_B_BLEND
 
 all: top.bin
 

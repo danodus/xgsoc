@@ -1,21 +1,26 @@
 module top(
     input  wire logic       clk_100mhz_p,
     input  wire logic       BTN,
+    output      logic       BF1_LED,
     output      logic [1:0] led,
     input  wire logic       UART1_RXD,
     output      logic       UART1_TXD,
-    input  wire logic       PMOD_PS2_K_CLK,
-    inout  wire logic       PMOD_PS2_M_CLK,
-    input  wire logic       PMOD_PS2_K_DATA,
-    inout  wire logic       PMOD_PS2_M_DATA,
-
-    input  wire logic [3:0] HEX,
+    input  wire logic       PS2_K_CLK,
+    inout  wire logic       PS2_M_CLK,
+    input  wire logic       PS2_K_DATA,
+    inout  wire logic       PS2_M_DATA,
 
     // Digital Video (differential outputs)
     output      logic [3:0] dio_p,
 
     output      logic       AUDIO_L,
     output      logic       AUDIO_R,
+
+    // USB
+    //inout  wire logic       USB_D_P,
+    //inout  wire logic       USB_D_N,
+    //output      logic       USB_PULL_D_P,
+    //output      logic       USB_PULL_D_N,
 
     // SD Card
     output      logic        sd_m_clk,
@@ -41,6 +46,8 @@ module top(
     output      logic [1:0]  sdram_dqm,
     inout       logic [15:0] sdram_d
 );
+
+    localparam USB_REPORT_NB_BYTES = 8;
 
     // reset
     logic auto_reset;
@@ -151,7 +158,7 @@ module top(
 
     // reset
     assign auto_reset = auto_reset_counter < 5'b11111;
-    assign reset = auto_reset || (BTN && HEX == 4'd1);
+    assign reset = auto_reset || !BTN;
 
 	always @(posedge clk) begin
         if (clk_locked)
@@ -160,7 +167,7 @@ module top(
 
     // display
     always_comb begin
-        led = display[1:0];
+        {led, BF1_LED} = display[2:0];
     end
 
     // ps/2 keyboard
@@ -171,8 +178,8 @@ module top(
 
     ps2kbd ps2_kbd(
         .clk(clk),
-        .ps2_clk(PMOD_PS2_K_CLK),
-        .ps2_data(PMOD_PS2_K_DATA),
+        .ps2_clk(PS2_K_CLK),
+        .ps2_data(PS2_K_DATA),
         .ps2_code(ps2_kbd_code),
         .strobe(ps2_kbd_strobe),
         .err(ps2_kbd_err)
@@ -181,10 +188,10 @@ module top(
     // ps/2 mouse
 
     logic ps2_mdat_in, ps2_mclk_in, ps2_mdat_out, ps2_mclk_out;
-    assign PMOD_PS2_M_CLK = ps2_mclk_out ? 1'bz : 1'b0;
-    assign PMOD_PS2_M_DATA = ps2_mdat_out ? 1'bz : 1'b0;
-    assign ps2_mclk_in = PMOD_PS2_M_CLK;
-    assign ps2_mdat_in = PMOD_PS2_M_DATA;
+    assign PS2_M_CLK = ps2_mclk_out ? 1'bz : 1'b0;
+    assign PS2_M_DATA = ps2_mdat_out ? 1'bz : 1'b0;
+    assign ps2_mclk_in = PS2_M_CLK;
+    assign ps2_mdat_in = PS2_M_DATA;
 
     logic [15:0] ps2_mouse_x, ps2_mouse_y;
     logic [2:0] ps2_mouse_btn;
@@ -206,5 +213,39 @@ module top(
         .ycount(ps2_mouse_y),
         .btn(ps2_mouse_btn)
     );
+
+    //
+    // USB
+    //
+
+    logic clk_usb;  // 6 MHz
+    logic pll_locked_usb;
+
+    generated_pll_usb pll_usb(
+        .clkin(clk_100mhz_p),
+
+        .clkout1(clk_usb),
+        .locked(pll_locked_usb)
+    );
+    
+    logic [USB_REPORT_NB_BYTES * 8 - 1:0] usb_report;
+    logic usb_report_valid;
+
+    usbh_host_hid #(
+        .C_usb_speed(0),
+        .C_report_length(USB_REPORT_NB_BYTES),
+        .C_report_length_strict(0)
+    ) us2_hid_host (
+        .clk(clk_usb),
+        .bus_reset(reset),
+        .usb_dif(),
+        .usb_dp(/*USB_D_P*/),
+        .usb_dn(/*USB_D_N*/),
+        .hid_report(usb_report),
+        .hid_valid(usb_report_valid)
+    );
+
+    //assign USB_PULL_D_P = 1'b0;
+    //assign USB_PULL_D_N = 1'b0;
 
 endmodule

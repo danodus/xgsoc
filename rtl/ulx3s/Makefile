@@ -30,13 +30,13 @@ SRC_CORE := ../../external/xglib/rtl/processor.sv \
 		../ps2mouse.v \
 		../hdmi_encoder.v \
 		../xgsoc.sv \
-		usb/usb_phy.v \
-		usb/usb_rx_phy.v \
-		usb/usb_tx_phy.v \
-		usb/usbh_crc5.v \
-		usb/usbh_crc16.v \
-		usb/usbh_host_hid.v \
-		usb/usbh_sie.v \
+		../usb/usb_phy.v \
+		../usb/usb_rx_phy.v \
+		../usb/usb_tx_phy.v \
+		../usb/usbh_crc5.v \
+		../usb/usbh_crc16.v \
+		../usb/usbh_host_hid.v \
+		../usb/usbh_sie.v \
 		generated_pll.v \
 		generated_pll_usb.v \
 		top.sv
