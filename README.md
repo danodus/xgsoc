@@ -80,13 +80,6 @@ make prog
 
 ## MMM
 
-Two hardware configurations are supported with the HEX knob:
-
-| Position  | Hardware Configuration                                                        |
-| --------- | -------------------------------------------------------------------------------
-| 0         | Digilent PS/2 PMOD on EXPMOD2                                                 |
-| 1         | - iCEBreaker breakaway PMOD on EXPMOD1 (reset with button 1)<br>- Digilent PS/2 PMOD on EXPMOD2 |
-
 ```bash
 cd rtl/mmm
 make prog
