@@ -17,10 +17,10 @@ module top(
     output      logic       AUDIO_R,
 
     // USB
-    //inout  wire logic       USB_D_P,
-    //inout  wire logic       USB_D_N,
-    //output      logic       USB_PULL_D_P,
-    //output      logic       USB_PULL_D_N,
+    inout  wire logic       USB_D_P,
+    inout  wire logic       USB_D_N,
+    output      logic       USB_PULL_D_P,
+    output      logic       USB_PULL_D_N,
 
     // SD Card
     output      logic        sd_m_clk,
@@ -120,6 +120,10 @@ module top(
         .vga_de_o(vga_de),
         .audio_l_o(AUDIO_L),
         .audio_r_o(AUDIO_R),
+`endif
+`ifdef USB
+        .usb_report_i(usb_report),
+        .usb_report_valid_i(usb_report_valid),
 `endif
 `ifdef PS2
         .ps2_kbd_code_i(ps2_kbd_code),
@@ -238,14 +242,14 @@ module top(
     ) us2_hid_host (
         .clk(clk_usb),
         .bus_reset(reset),
-        .usb_dif(),
-        .usb_dp(/*USB_D_P*/),
-        .usb_dn(/*USB_D_N*/),
+        .usb_dif(USB_D_P),
+        .usb_dp(USB_D_P),
+        .usb_dn(USB_D_N),
         .hid_report(usb_report),
         .hid_valid(usb_report_valid)
     );
 
-    //assign USB_PULL_D_P = 1'b0;
-    //assign USB_PULL_D_N = 1'b0;
+    assign USB_PULL_D_P = 1'b0;
+    assign USB_PULL_D_N = 1'b0;
 
 endmodule
