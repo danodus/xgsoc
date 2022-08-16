@@ -13,7 +13,7 @@ FPGA based system on chip with audio, video and 3D acceleration.
   - Graphite (3D acceleration, 16MB frame buffer)
 - PS/2 Keyboard and Mouse (ULX3S and MMM only)
 - Flash Memory (ULX3S and MMM only)
-- USB Gamepad (ULX3S only)
+- USB Gamepad (ULX3S and MMM only)
 
 # Requirements
 
@@ -115,7 +115,7 @@ The following examples are available:
 | ps2_kbd_test   | Test PS/2 keyboard (output on UART)                 | ULX3S, MMM       |
 | ps2_mouse_test | Test PS/2 mouse (output on UART)                    | ULX3S, MMM       |
 | sd_card_test   | Test SD card (output on UART, card content erased!) | ULX3S, MMM       |
-| gamepad_test   | Test USB gamepad                                    | ULX3S            |
+| gamepad_test   | Test USB gamepad                                    | ULX3S, MMM       |
 | forth          | Forth language                                      | SIM, ULX3S, MMM  |
 | lua            | Lua language                                        | SIM, ULX3S, MMM  |
 | xosera_test    | Video and sound test                                | SIM, ULX3S, MMM  |
