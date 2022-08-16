@@ -8,6 +8,8 @@
 #define SECTOR_SIZE 65536
 #define PAGE_SIZE   256
 
+#define PACKET_SIZE 4096
+
 #define CS_BIT      0x2
 #define SCLK_BIT    0x4
 
@@ -148,8 +150,13 @@ bool erase_sector(uint32_t addr)
     return true;
 }
 
-bool program_page(uint32_t addr, uint8_t *data)
+bool program_page(uint32_t addr, uint8_t *data, size_t size)
 {
+    if (size > PAGE_SIZE) {
+        print("Invalid page size\r\n");
+        return false;
+    }
+
     enable_write();
 
     CS_ENABLE();
@@ -161,8 +168,12 @@ bool program_page(uint32_t addr, uint8_t *data)
 
     uint8_t *d = data;
     for (size_t i = 0; i < PAGE_SIZE; ++i) {
-        spi_transfer(*d);
-        d++;
+        if (i < size) {
+            spi_transfer(*d);
+            d++;
+        } else {
+            spi_transfer(0xFF);
+        }
     }
     CS_DISABLE();
 
@@ -191,11 +202,6 @@ void read(uint32_t addr, size_t size, uint8_t *data)
 // Note: size must be a multiple of a sector size
 bool program(uint32_t start_addr, size_t size, uint8_t *data, bool erase, bool program, bool verify)
 {
-    if (size % SECTOR_SIZE) {
-        print("Invalid size\r\n");
-        return false;
-    }
-
     if (erase) {
         // erase sectors
         for (uint32_t addr = start_addr; addr < start_addr + size; addr += SECTOR_SIZE) {
@@ -212,7 +218,7 @@ bool program(uint32_t start_addr, size_t size, uint8_t *data, bool erase, bool p
         uint8_t *d = data;
         for (uint32_t addr = start_addr; addr < start_addr + size; addr += PAGE_SIZE) {
             printv("Programming page at address ", addr, 16);
-            if (!program_page(addr, d)) {
+            if (!program_page(addr, d, start_addr + size - addr >= PAGE_SIZE ? PAGE_SIZE : start_addr + size - addr)) {
                 print("Unable to program page\r\n");
                 return false; 
             }
@@ -228,9 +234,10 @@ bool program(uint32_t start_addr, size_t size, uint8_t *data, bool erase, bool p
             uint8_t rb[PAGE_SIZE];
             read(addr, PAGE_SIZE, rb);
             for (size_t i = 0; i < PAGE_SIZE; i++) {
-                if (rb[i] != d[i]) {
+                uint8_t c = addr + i < start_addr + size ? d[i] : 0xFF;
+                if (rb[i] != c) {
                     print("Mismatch detected\r\n");
-                    printv("Expected: ", d[i], 16);
+                    printv("Expected: ", c, 16);
                     printv("Read: ", rb[i], 16);
                     return false;
                 }
@@ -292,15 +299,29 @@ uint32_t uart_read_word()
     return word;
 }
 
+// Ref.: https://stackoverflow.com/questions/50842434/crc32-in-python-vs-crc32b
+uint32_t crc32b(uint32_t crc, void const *mem, size_t len) {
+    unsigned char const *data = mem;
+    if (data == NULL)
+        return 0;
+    crc = ~crc;
+    while (len--) {
+        crc ^= (unsigned)(*data++) << 24;
+        for (unsigned k = 0; k < 8; k++)
+            crc = crc & 0x80000000 ? (crc << 1) ^ 0x4c11db7 : crc << 1;
+    }
+    crc = ~crc;
+    return crc;
+}
+
 bool uart_read(uint8_t **buf, uint32_t *size)
 {
     uint32_t rx_size = uart_read_word();
     printv("Size: ", rx_size, 10);
 
-    uint32_t nb_sectors = (rx_size + (SECTOR_SIZE - 1)) / SECTOR_SIZE;
-    printv("Nb sectors: ", nb_sectors, 10);
+    *size = rx_size;
 
-    *size = nb_sectors * SECTOR_SIZE;
+    uint32_t nb_packets = (rx_size + (PACKET_SIZE - 1)) / PACKET_SIZE;
 
     *buf = malloc(*size);
     if (*buf == NULL) {
@@ -309,19 +330,32 @@ bool uart_read(uint8_t **buf, uint32_t *size)
     }
 
     uint8_t *b = *buf;
-    for (uint32_t i = 0; i < *size; ++i) {
-        if (i < rx_size) {
+    uint8_t *packet_start = *buf;
+    uint32_t remaining_bytes = rx_size;
+    while (remaining_bytes > 0) {
+        uint32_t packet_size = remaining_bytes >= PACKET_SIZE ? PACKET_SIZE : remaining_bytes;
+        uint32_t expected_crc32 = uart_read_word();
+        for (uint32_t i = 0; i < packet_size; ++i) {
             *b = uart_read_byte();
-        } else {
-            *b = 0xFF;
+            b++;
         }
-        b++;
+
+        // Compare CRC-32
+        uint32_t crc32 = crc32b(0, packet_start, packet_size);
+        if (crc32 != expected_crc32) {
+            print("CRC-32 mismatch detected\r\n");
+            printv("expected: 0x", expected_crc32, 16);
+            printv("received: 0x", crc32, 16);
+            return false;
+        }
+
+        packet_start += PACKET_SIZE;
+        remaining_bytes -= packet_size;
+
+        printv("Packet OK. Remaining bytes: ", remaining_bytes, 10);
     }
 
-    if (**buf != 0xFF) {
-        print("Invalid bitstream header\r\n");
-        return false;
-    }
+    print("Valid payload received.\r\n");
 
     return true;
 }
