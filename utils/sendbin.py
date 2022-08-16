@@ -59,6 +59,7 @@ def main(argv):
                 remaining_bytes = 0
 
             print("Packet sent. Remaining bytes: {0}".format(remaining_bytes))
+        time.sleep(2)
         ser.close()
     exit(0)
 

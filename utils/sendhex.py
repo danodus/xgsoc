@@ -43,6 +43,7 @@ def main(argv):
                 d = delay_block
             send(ser, bytearray.fromhex(line), d)
             cnt = cnt + 4
+        time.sleep(2)
         ser.close()
     exit(0)
 

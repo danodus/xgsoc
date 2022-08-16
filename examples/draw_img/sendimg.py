@@ -28,3 +28,6 @@ for y in range(height):
         g = rgba[1] >> 4
         b = rgba[2] >> 4
         send(ser, bytearray([(a << 4) | (r & 0xF), (g << 4) | (b & 0xF)]))
+
+time.sleep(2)
+ser.close()
