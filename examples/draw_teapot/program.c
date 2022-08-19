@@ -276,7 +276,7 @@ void clear(unsigned int color)
 }
 
 void write_texture() {
-    uint32_t tex_addr = 3 * 640 * 480;
+    uint32_t tex_addr = 3 * 320 * 240;
 
     struct Command c;
     c.opcode = OP_SET_TEX_ADDR;
@@ -335,7 +335,7 @@ void main(void)
 
     float theta = 0.5f;
 
-    mat4x4 mat_proj = matrix_make_projection(640, 480, 60.0f);
+    mat4x4 mat_proj = matrix_make_projection(320, 240, 60.0f);
 
     // camera
     vec3d  vec_camera = {FX(0.0f), FX(0.0f), FX(0.0f), FX(1.0f)};
@@ -362,7 +362,7 @@ void main(void)
         mat_world = matrix_multiply_matrix(&mat_world, &mat_trans);
 
         texture_t dummy_texture;
-        draw_model(640, 480, &vec_camera, teapot_model, &mat_world, &mat_proj, &mat_view, true, false, &dummy_texture, false, false);
+        draw_model(320, 240, &vec_camera, teapot_model, &mat_world, &mat_proj, &mat_view, true, false, &dummy_texture, false, false);
 
         swap();
 

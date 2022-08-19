@@ -8,7 +8,7 @@
 #define XGA_CONTROL          0x20003800
 #define FB_BASE_ADDRESS      0x11000000
 
-#define IMAGE_SIZE           (640*480)
+#define IMAGE_SIZE           (320*240)
 
 uint16_t read_pixel()
 {

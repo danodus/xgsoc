@@ -61,8 +61,8 @@ module xga #(
     output      logic        stream_err_underflow_o
 );
 
-    localparam  FB_WIDTH = 640;
-    localparam  FB_HEIGHT = 480;
+    localparam  FB_WIDTH = 320;
+    localparam  FB_HEIGHT = 240;
 
     logic       xosera_vga_hsync;
     logic       xosera_vga_vsync;
@@ -106,20 +106,16 @@ module xga #(
     // Graphite
     //
 
-    logic [3:0] xosera_r, xosera_g, xosera_b;
-    
     // VGA output
     
-    logic [11:0] line_counter, col_counter;
-
     always_comb begin
         graphite_vga_r = 4'h0;
         graphite_vga_g = 4'h0;
         graphite_vga_b = 4'h0;
         if (xosera_vga_de) begin
-            graphite_vga_r = stream_data[11:8];
-            graphite_vga_g = stream_data[7:4];
-            graphite_vga_b = stream_data[3:0];
+            graphite_vga_r = sd_stream_data[11:8];
+            graphite_vga_g = sd_stream_data[7:4];
+            graphite_vga_b = sd_stream_data[3:0];
         end
     end
 
@@ -134,6 +130,21 @@ module xga #(
                 frame <= 1'b1;
         end
     end
+
+    logic sd_stream_ena;
+    logic [15:0] sd_stream_data;
+
+    scan_doubler #(
+        .VGA_WIDTH(640)
+    ) scan_doubler(
+        .clk(clk),
+        .reset_i(reset_i || !ena_graphite_i),
+        .vga_vsync_i(xosera_vga_vsync),
+        .vga_de_i(xosera_vga_de),
+        .fb_stream_data_i(stream_data),
+        .fb_stream_ena_o(sd_stream_ena),
+        .stream_data_o(sd_stream_data)
+    );
 
     logic        vram_ack;
     logic        vram_sel;
@@ -192,7 +203,7 @@ module xga #(
         // Framebuffer output data stream
         .stream_start_frame_i(frame),
         .stream_base_address_i(front_addr[23:0]),
-        .stream_ena_i(xosera_vga_de),
+        .stream_ena_i(sd_stream_ena),
         .stream_data_o(stream_data),
         .stream_preloading_o(stream_preloading),
         .stream_err_underflow_o(stream_err_underflow_o),
