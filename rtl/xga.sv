@@ -18,7 +18,7 @@ module xga #(
     // Memory interface
     
     // Writer (input commands)
-    output      logic [40:0]           writer_d_o,
+    output      logic [59:0]           writer_d_o,
     output      logic                  writer_enq_o,
     input  wire logic                  writer_full_i,
     input  wire logic                  writer_alm_full_i,
@@ -148,7 +148,7 @@ module xga #(
 
     logic        vram_ack;
     logic        vram_sel;
-    logic        vram_wr;
+    logic [19:0] vram_wr_cnt;
     logic [3:0]  vram_mask;
     logic [31:0] vram_address;
     logic [15:0] vram_data_out;
@@ -194,7 +194,7 @@ module xga #(
         // Framebuffer access
         .ack_o(vram_ack),
         .sel_i(vram_sel),
-        .wr_i(vram_wr),
+        .wr_cnt_i(vram_wr_cnt),
         .mask_i(vram_mask),
         .address_i(vram_address[23:0]),
         .data_in_i(vram_data_out),
@@ -221,7 +221,7 @@ module xga #(
         .cmd_axis_tdata_i(cmd_axis_tdata_i),
         .vram_ack_i(vram_ack),
         .vram_sel_o(vram_sel),
-        .vram_wr_o(vram_wr),
+        .vram_wr_cnt_o(vram_wr_cnt),
         .vram_mask_o(vram_mask),
         .vram_addr_o(vram_address),
         .vram_data_in_i(vram_data),

@@ -830,7 +830,7 @@ module xgsoc #(
     logic writer_enq;
     logic writer_full, writer_alm_full;
 
-    logic [40:0] writer_ch2_d;
+    logic [59:0] writer_ch2_d;
     logic writer_ch2_enq;
     logic writer_ch2_full, writer_ch2_alm_full;
 
