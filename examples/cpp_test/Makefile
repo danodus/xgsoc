@@ -11,7 +11,7 @@ OBJDUMP = ${RISCV_TOOLCHAIN_PATH}${RISCV_TOOLCHAIN_PREFIX}objdump
 CC = ${RISCV_TOOLCHAIN_PATH}${RISCV_TOOLCHAIN_PREFIX}gcc
 CXX = ${RISCV_TOOLCHAIN_PATH}${RISCV_TOOLCHAIN_PREFIX}g++
 
-SRCS = ../common/start.s ../common/syscalls.c ../../lib/io.c ../../lib/sd_card.c ../common/fs.c ../common/gamepad.c ../common/kbd.c program.cpp
+SRCS = ../common/start.S ../common/syscalls.c ../../lib/io.c ../../lib/sd_card.c ../common/fs.c ../common/gamepad.c ../common/kbd.c program.cpp
 OBJS := $(SRCS:%=./%.o)
 DEPS := $(OBJS:.o=.d)
 
@@ -40,8 +40,8 @@ program.hex: program.bin
 program.bin: program.elf program.lst
 	${OBJCOPY} -O binary program.elf program.bin
 
-%.s.o: %.s
-	$(AS) -march=rv32i -c $< -o $@
+%.S.o: %.S
+	${CC} -march=rv32i -I../../lib -c $< -o $@
 
 %.c.o: %.c
 	${CC} -march=rv32i -O3 -I../../lib -I ../common -c $< -o $@
