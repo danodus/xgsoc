@@ -16,9 +16,6 @@
 #include "lualib.h"
 #include "luamem.h"
 
-#include "editor.h"
-
-
 LUAMEMMOD_API int luaopen_memory (lua_State *L);
 
 int poke(lua_State *L) {
@@ -164,12 +161,6 @@ int call(lua_State *L) {
     }
     lua_pushinteger(L, ret);
     return 1;
-}
-
-int edit(lua_State *L) {
-    const char *filename = luaL_checkstring(L, 1);
-    start_editor(filename);
-    return 0;
 }
 
 int fsdir(lua_State *L) {
@@ -694,9 +685,6 @@ void main(void) {
 
     lua_pushcfunction(L, call);
     lua_setglobal(L, "call");
-
-    lua_pushcfunction(L, edit);
-    lua_setglobal(L, "edit");
 
     lua_pushcfunction(L, fsdir);
     lua_setglobal(L, "fsdir");
