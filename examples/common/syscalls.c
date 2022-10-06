@@ -116,14 +116,10 @@ static void sys_write_char(bool force_serial, char c)
 #endif
 	if (is_serial) {
 		// serial port
-		if (c == '\n')
-			print_chr('\r');
 		print_chr(c);
 	} else {
 #ifdef XIO
 		// Xosera
-		if (c == '\n')
-			xprint_chr('\r');
 		xprint_chr(c);
 #endif
 	}
@@ -245,9 +241,22 @@ ssize_t _read(int file, void *ptr, size_t len)
 ssize_t _write(int file, const void *ptr, size_t len)
 {
 	if (file == STDOUT_FILENO || file == STDERR_FILENO || file == TTYS0_FILENO) {
-	    const void *eptr = ptr + len;
-		while (ptr != eptr)
-			sys_write_char(file == TTYS0_FILENO, *(char*) (ptr++));
+		bool is_serial = true;
+
+#ifdef XIO
+		if (file != TTYS0_FILENO)
+			is_serial = false;
+#endif		
+
+		if (is_serial) {
+			// serial port
+			print_buf(ptr, len);
+		} else {
+#ifdef XIO
+			// Xosera
+			xprint_buf(ptr, len);
+#endif
+		}
     	return len;
 	} else if (file == SDFILE0_FILENO) {
 		if (!fs_write(&g_fs_ctx, g_filename, (uint8_t *)ptr, g_current_pos, len)) {

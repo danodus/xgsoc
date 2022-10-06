@@ -15,6 +15,12 @@ void xprint_chr(char c)
     xansiterm_UPDATECURSOR();
 }
 
+void xprint_buf(const char *s, size_t len)
+{
+    xansiterm_PRINTBUF(s, len);
+    xansiterm_UPDATECURSOR();
+}
+
 char xget_chr()
 {
     static int seq_index = -1;

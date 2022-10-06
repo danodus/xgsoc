@@ -6,6 +6,16 @@ void print_chr(char c)
     MEM_WRITE(UART_DATA, c);
 }
 
+void print_buf(const char *s, size_t len)
+{
+    while (len > 0) {
+        while(MEM_READ(UART_STATUS) & 1);
+        MEM_WRITE(UART_DATA, *s);
+        s++;
+        len--;
+    }
+}
+
 void print(const char *s)
 {
     while (*s) {
