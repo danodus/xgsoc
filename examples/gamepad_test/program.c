@@ -5,7 +5,7 @@
 #include <xosera.h>
 #include <gamepad.h>
 
-#define SCREEN_WIDTH 640
+#define SCREEN_WIDTH 848
 #define NB_COLS (SCREEN_WIDTH / 8)
 
 void xclear()

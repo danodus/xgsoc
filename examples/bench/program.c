@@ -8,7 +8,7 @@
 #include <sys.h>
 #include <xosera_ansiterm.h>
 
-#define WIDTH 640
+#define WIDTH 848
 #define NB_COLS (WIDTH / 8)
 #define NB_LINES 30
 

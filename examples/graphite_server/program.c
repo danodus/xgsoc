@@ -2,7 +2,7 @@
 #include <unistd.h>
 #include <xosera.h>
 
-#define WIDTH 640
+#define WIDTH 848
 #define NB_COLS (WIDTH / 8)
 
 #define GRAPHITE             0x20003400

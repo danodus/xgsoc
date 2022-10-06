@@ -1,6 +1,6 @@
 # Overview
 
-The desired 640x480 image sent via UART is written to the Graphite frame buffer.
+The desired 424x240 image sent via UART is written to the Graphite frame buffer.
 
 # Getting Started
 

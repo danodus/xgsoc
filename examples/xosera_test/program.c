@@ -6,7 +6,7 @@
 
 #include <xosera.h>
 
-#define WIDTH 640
+#define WIDTH 848
 #define NB_COLS (WIDTH / 8)
 
 #define BLACK           0x0

@@ -7,8 +7,12 @@
 #include <kbd.h>
 #include <sys.h>
 
-#define WIDTH 640
+#define WIDTH 848
+#define HEIGHT 480
 #define NB_COLS (WIDTH / 8)
+
+#define FB_WIDTH (WIDTH / 2)
+#define FB_HEIGHT (HEIGHT / 2)
 
 #define BLACK           0x0
 #define BLUE            0x1
@@ -278,7 +282,7 @@ void clear(unsigned int color)
 }
 
 void write_texture() {
-    uint32_t tex_addr = 3 * 320 * 240;
+    uint32_t tex_addr = 3 * FB_WIDTH * FB_HEIGHT;
 
     struct Command c;
     c.opcode = OP_SET_TEX_ADDR;
@@ -365,7 +369,7 @@ void main(void)
 
     float theta = 0.5f;
 
-    mat4x4 mat_proj = matrix_make_projection(320, 240, 60.0f);
+    mat4x4 mat_proj = matrix_make_projection(FB_WIDTH, FB_HEIGHT, 60.0f);
 
     // camera
     vec3d  vec_camera = {FX(0.0f), FX(0.0f), FX(0.0f), FX(1.0f)};
@@ -416,7 +420,7 @@ void main(void)
 
         uint16_t t1_draw = xm_getw(TIMER);
         texture_t dummy_texture;
-        draw_model(320, 240, &vec_camera, cube_model, &mat_world, &mat_proj, &mat_view, is_lighting_ena, is_wireframe, is_textured ? &dummy_texture : NULL, false, false);
+        draw_model(FB_WIDTH, FB_HEIGHT, &vec_camera, cube_model, &mat_world, &mat_proj, &mat_view, is_lighting_ena, is_wireframe, is_textured ? &dummy_texture : NULL, false, false);
         uint16_t t2_draw = xm_getw(TIMER);
 
         swap();

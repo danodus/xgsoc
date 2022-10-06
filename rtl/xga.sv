@@ -61,11 +61,18 @@ module xga #(
     output      logic        stream_err_underflow_o
 );
 
-    localparam  FB_WIDTH = 320;
-    localparam  FB_HEIGHT = 240;
+`ifdef MODE_848x480
+    localparam  SCREEN_WIDTH = 848;
+`else
+    localparam  SCREEN_WIDTH = 640;
+`endif
+    localparam  SCREEN_HEIGHT = 480;
+
+    localparam  FB_WIDTH = SCREEN_WIDTH / 2;
+    localparam  FB_HEIGHT = SCREEN_HEIGHT / 2;
 
     logic       xosera_vga_hsync;
-    logic       xosera_vga_vsync;
+    logic       xosera_vga_vsync, xosera_vga_vsync_p;
     logic [3:0] xosera_vga_r;
     logic [3:0] xosera_vga_g;
     logic [3:0] xosera_vga_b;
@@ -74,6 +81,12 @@ module xga #(
     logic [3:0] graphite_vga_r;
     logic [3:0] graphite_vga_g;
     logic [3:0] graphite_vga_b;
+
+`ifdef MODE_848x480
+    assign xosera_vga_vsync_p = ~xosera_vga_vsync;
+`else
+    assign xosera_vga_vsync_p = xosera_vga_vsync;
+`endif
 
     always_comb begin
         vga_hsync_o = xosera_vga_hsync;
@@ -119,14 +132,14 @@ module xga #(
         end
     end
 
-    logic prev_xosera_vga_vsync, frame;
+    logic prev_xosera_vga_vsync_p, frame;
     always_ff @(posedge clk) begin
         if (reset_i) begin
             frame <= 1'b0;
         end else begin
-            prev_xosera_vga_vsync <= xosera_vga_vsync;
+            prev_xosera_vga_vsync_p <= xosera_vga_vsync_p;
             frame <= 1'b0;
-            if (prev_xosera_vga_vsync && !xosera_vga_vsync)
+            if (prev_xosera_vga_vsync_p && !xosera_vga_vsync_p)
                 frame <= 1'b1;
         end
     end
@@ -135,11 +148,11 @@ module xga #(
     logic [15:0] sd_stream_data;
 
     scan_doubler #(
-        .VGA_WIDTH(640)
+        .VGA_WIDTH(SCREEN_WIDTH)
     ) scan_doubler(
         .clk(clk),
         .reset_i(reset_i || !ena_graphite_i),
-        .vga_vsync_i(xosera_vga_vsync),
+        .vga_vsync_i(xosera_vga_vsync_p),
         .vga_de_i(xosera_vga_de),
         .fb_stream_data_i(stream_data),
         .fb_stream_ena_o(sd_stream_ena),
@@ -226,7 +239,7 @@ module xga #(
         .vram_addr_o(vram_address),
         .vram_data_in_i(vram_data),
         .vram_data_out_o(vram_data_out),
-        .vsync_i(xosera_vga_vsync),
+        .vsync_i(xosera_vga_vsync_p),
         .swap_o(),
         .front_addr_o(front_addr)
     );

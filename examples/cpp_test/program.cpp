@@ -6,7 +6,7 @@
 #include <string>
 #include <vector>
 
-#define WIDTH 640
+#define WIDTH 848
 #define NB_COLS (WIDTH / 8)
 
 void xclear()

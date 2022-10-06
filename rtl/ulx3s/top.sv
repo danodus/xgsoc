@@ -97,10 +97,10 @@ module top(
     assign flash_holdn = 1'b1;     // disable hold
 
     xgsoc #(
-        .FREQ_HZ(25_000_000),
+        .FREQ_HZ(33_750_000),
         .BAUDS(115200),
         .RAM_SIZE(256*1024),    // must be a power of 2
-        .SDRAM_CLK_FREQ_MHZ(63)
+        .SDRAM_CLK_FREQ_MHZ(61)
     ) xgsoc(
         .clk(clk_pix),
         .clk_sdram(clk_sdram),

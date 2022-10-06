@@ -50,7 +50,7 @@ SRC_XOSERA := $(wildcard ../../external/Xosera/rtl/*.sv)
 
 SRC := $(SRC_CORE) $(SRC_XOSERA) $(SRC_GRAPHITE)
 
-DEFINES := -DUSB -DPS2 -DSDRAM -DSD_CARD -DFLASH -DXGA -DNO_TESTPATTERN -DEN_PF_B -DEN_PF_B_BLEND
+DEFINES := -DUSB -DPS2 -DSDRAM -DSD_CARD -DFLASH -DXGA -DNO_TESTPATTERN -DEN_PF_B -DEN_PF_B_BLEND -DMODE_848x480
 
 all: top.bin
 
@@ -63,7 +63,7 @@ clean:
 
 top.json: $(SRC) ../../firmware/firmware.hex
 	cp ../../firmware/firmware.hex .
-	$(YOSYS) -ql top.log -p 'verilog_defines $(DEFINES) ; read_verilog -sv $(SRC); synth_ecp5 -top top -abc9 -json top.json'
+	$(YOSYS) -ql top.log -p 'verilog_defines $(DEFINES) ; read_verilog -sv $(SRC); synth_ecp5 -top top -json top.json'
 
 top.asc: top.json $(PIN_DEF)
 	$(NEXTPNR) -l top_nextpnr.log --$(DEVICE) --package $(PACKAGE) --speed $(SPEED) --json top.json --lpf $(PIN_DEF) --textcfg top.asc --randomize-seed
