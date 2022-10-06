@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: MIT
 
 #include <io.h>
+#include <sys.h>
 #include <fs.h>
 #include <xga.h>
 #include <graphite.h>
@@ -161,6 +162,12 @@ int call(lua_State *L) {
     }
     lua_pushinteger(L, ret);
     return 1;
+}
+
+int setttymode(lua_State *L) {
+    unsigned int mode = luaL_checknumber(L, 1);
+    sys_set_tty_mode(mode);
+    return 0;
 }
 
 int fsdir(lua_State *L) {
@@ -650,6 +657,7 @@ int handle_lua_error(lua_State *L) {
 }
 
 void main(void) {
+    printf("\e[20h");
     printf("%s\n", LUA_RELEASE);
 
     char buff[256];
@@ -685,6 +693,9 @@ void main(void) {
 
     lua_pushcfunction(L, call);
     lua_setglobal(L, "call");
+
+    lua_pushcfunction(L, setttymode);
+    lua_setglobal(L, "setttymode");
 
     lua_pushcfunction(L, fsdir);
     lua_setglobal(L, "fsdir");
