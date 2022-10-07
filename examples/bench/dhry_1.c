@@ -225,6 +225,7 @@ void bench_dhry ()
 #endif
 
   printf ("Execution ends\n");
+/*  
   printf ("\n");
   printf ("Final values of the variables used in the benchmark:\n");
   printf ("\n");
@@ -275,6 +276,7 @@ void bench_dhry ()
   printf ("        should be:   DHRYSTONE PROGRAM, 1'ST STRING\n");
   printf ("Str_2_Loc:           %s\n", Str_2_Loc);
   printf ("        should be:   DHRYSTONE PROGRAM, 2'ND STRING\n");
+*/
   printf ("\n");
 
 #ifdef XOSERA_CLOCK
@@ -286,7 +288,6 @@ void bench_dhry ()
   {
       User_Time = 65535 - Begin_Time + End_Time;
   }
-  printf("Xosera counter: %d, %d, %d\n", End_Time, Begin_Time, User_Time);
 #else
   User_Time = End_Time - Begin_Time;
 #endif

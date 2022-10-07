@@ -98,6 +98,7 @@ void bench_video_ansi()
 void main(void)
 {
     MEM_WRITE(TIMER_INTR_ENA, 0x0);
+    printf("\e[20h");
     bench_dhry();
     for(;;);
 }
