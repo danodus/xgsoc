@@ -72,6 +72,7 @@ typedef struct xansiterm_data
     uint16_t vram_base;               // base VRAM address for text screen
     uint16_t vram_size;               // size of text screen in current mode (init clears to allow 8x8 font)
     uint16_t vram_end;                // ending address for text screen in current mode
+    uint16_t vram_memend;             // highest ending address used (for clear)
     uint16_t line_len;                // user specified line len (normally 0)
     uint16_t lines_high;              // user specified screen lines_high (normally 0)
     uint16_t cursor_glyph;            // custom cursor color and/or glyph (ignored if zero)
@@ -107,9 +108,29 @@ static inline xansiterm_data *get_xansi_data()
     return &g_xansiterm_data;
 }
 
-static void xansi_memset(void * str, unsigned int n)
+static void xansi_memclear(void * str, unsigned int n)
 {
     memset(str, 0, n);
+}
+
+static void xwait_blit_done()
+{
+    while (xm_getbh(SYS_CTRL) & SYS_CTRL_BLIT_BUSY_F);
+}
+
+static void xwait_blit_ready()
+{
+    while (xm_getbh(SYS_CTRL) & SYS_CTRL_BLIT_FULL_F);
+}
+
+static void xwait_vblank()
+{
+    while (!(xm_getbh(SYS_CTRL) & SYS_CTRL_VBLANK_F));
+}
+
+static void xwait_not_vblank()
+{
+    while (xm_getbh(SYS_CTRL) & SYS_CTRL_VBLANK_F);
 }
 
 // calculate VRAM address from x, y
@@ -124,7 +145,7 @@ static inline void xansi_calc_cur_addr(xansiterm_data * td)
     td->cur_addr = xansi_calc_addr(td, td->x, td->y);
 }
 
-static void        xansi_scroll_up();
+static void        xansi_scroll_up(xansiterm_data * td);
 static inline void xansi_check_lcf(xansiterm_data * td)
 {
     if (td->lcf)
@@ -133,7 +154,7 @@ static inline void xansi_check_lcf(xansiterm_data * td)
         if ((uint16_t)(td->cur_addr - td->vram_base) >= td->vram_size)
         {
             td->cur_addr = td->vram_base + (td->vram_size - td->cols);
-            xansi_scroll_up();
+            xansi_scroll_up(td);
         }
     }
 }
@@ -178,13 +199,35 @@ static __attribute__((noinline)) void xansi_clear(uint16_t start, uint16_t end)
         start      = end;
         end        = t;
     }
-    xm_setw(WR_INCR, 1);
-    xm_setw(WR_ADDR, start);
-    xm_setbh(DATA, td->color);
-    do
+    uint16_t count = end - start;
+
+    xwait_blit_ready();
+    xreg_setw(BLIT_CTRL, 0x0003);                         // constA+constB
+    xreg_setw(BLIT_MOD_A, 0x0000);                        // no modulo A
+    xreg_setw(BLIT_SRC_A, (td->color << 8) | ' ');        // A = const data
+    xreg_setw(BLIT_MOD_B, 0x0000);                        // no modulo B
+    xreg_setw(BLIT_SRC_B, 0xFFFF);                        // AND with B (and disable transparency)
+    xreg_setw(BLIT_VAL_C, 0x0000);                        // XOR with C
+    xreg_setw(BLIT_MOD_D, 0x0000);                        // no modulo D
+    xreg_setw(BLIT_DST_D, start);                         // VRAM display dest address
+    xreg_setw(BLIT_SHIFT, 0xFF00);                        // no edge masking or shifting
+    xreg_setw(BLIT_LINES, 0x0000);                        // lines (0 for 1-D blit)
+    xreg_setw(BLIT_WORDS, count);                         // words to write -1
+
+    if (!(xm_getbh(SYS_CTRL) & SYS_CTRL_MEM_BUSY_F))
     {
-        xm_setbl(DATA, ' ');
-    } while (++start <= end);
+        xm_setw(WR_INCR, 1);
+        xm_setw(WR_ADDR, start);
+        xm_setbh(DATA, td->color);
+        do
+        {
+            xm_setbl(DATA, ' ');
+        } while (++start <= end);
+    }
+    else
+    {
+        xwait_blit_done();
+    }
 }
 
 // draw input cursor (trying to make it visible)
@@ -193,12 +236,11 @@ static inline void xansi_draw_cursor(xansiterm_data * td)
     if (!td->cursor_drawn)
     {
         bool gfx_change =
-            (((uint16_t)(td->gfx_ctrl ^ xreg_getw(PA_GFX_CTRL)) & 0x007f) !=
-             0) ||                                                    // gfx_ctrl mode bits changed
-            (td->vram_base != xreg_getw(PA_DISP_ADDR)) ||        // display address changed
-            (td->h_size != xreg_getw(VID_HSIZE)) ||              // screen video mode H changed
-            (td->v_size != xreg_getw(VID_VSIZE)) ||              // screen video mode V changed
-            (xreg_getw(PA_LINE_LEN) != (td->line_len ? td->line_len : td->cols));        // line length changed
+            (((uint16_t)(td->gfx_ctrl ^ xreg_getw(PA_GFX_CTRL)) & 0x007f) != 0) ||        // gfx_ctrl mode bits changed
+            (td->vram_base != xreg_getw(PA_DISP_ADDR)) ||                                 // display address changed
+            (td->h_size != xreg_getw(VID_HSIZE)) ||                                       // screen video mode H changed
+            (td->v_size != xreg_getw(VID_VSIZE)) ||                                       // screen video mode V changed
+            (xreg_getw(PA_LINE_LEN) != (td->line_len ? td->line_len : td->cols));         // line length changed
 
         if (gfx_change)
             return;
@@ -302,6 +344,8 @@ static void xansi_reset(bool reset_colormap)
     uint16_t v_frac        = hv_frac & 0x7;
     uint16_t rows          = td->lines_high;
     uint16_t cols          = td->line_len;
+    uint16_t rows_ru       = td->lines_high;
+    uint16_t cols_ru       = td->line_len;
 
     if (h_frac)
     {
@@ -315,15 +359,15 @@ static void xansi_reset(bool reset_colormap)
 
     if (rows == 0)
     {
-        rows = v_size / tile_h;        // calc full text rows
+        rows    = v_size / tile_h;                       // calc full text rows
+        rows_ru = (v_size + tile_h - 1) / tile_h;        // calc full text rows rounded up
     }
 
     if (cols == 0)
     {
-        cols = h_size / tile_w;        // calc full text columns
+        cols    = h_size / tile_w;                       // calc full text columns
+        cols_ru = (h_size + tile_w - 1) / tile_w;        // calc full text columns rounded up
     }
-
-    uint16_t prev_end = td->vram_end;
 
     td->h_size    = h_size;
     td->v_size    = v_size;
@@ -351,6 +395,9 @@ static void xansi_reset(bool reset_colormap)
          cols,
          rows);
 
+    xwait_not_vblank();
+    xwait_vblank();
+
     xreg_setw(PA_GFX_CTRL, gfx_ctrl_val);
     xreg_setw(PA_TILE_CTRL, tile_ctrl_val);
     xreg_setw(PA_DISP_ADDR, td->vram_base);
@@ -363,9 +410,11 @@ static void xansi_reset(bool reset_colormap)
     }
 
     // only clear any additional VRAM used from previous mode
-    if (prev_end < td->vram_end)
+    uint16_t clear_end = td->vram_base + (cols_ru * rows_ru);
+    if (td->vram_memend < clear_end)
     {
-        xansi_clear(prev_end, td->vram_end);
+        xansi_clear(td->vram_memend, clear_end);
+        td->vram_memend = clear_end;
     }
 
     xansi_calc_cur_addr(td);
@@ -376,14 +425,14 @@ static void xansi_visualbell(bool invert)
 {
     xansiterm_data * td = get_xansi_data();
 
+    xm_setw(RD_INCR, 1);
     xm_setw(WR_INCR, 1);
     for (int l = 0; l < (invert ? 1 : 2); l++)
     {
-        uint16_t read_addr = td->vram_base;
+        xm_setw(RD_ADDR, td->vram_base);
         xm_setw(WR_ADDR, td->vram_base);
         for (uint16_t i = 0; i < td->vram_end; i++)
         {
-            xm_setw(RD_ADDR, read_addr++);
             uint16_t data = xm_getw(DATA);
             xm_setw(DATA,
                     (((uint16_t)(data & 0xf000) >> 4) | (uint16_t)((data & 0x0f00) << 4) | (uint16_t)(data & 0xff)));
@@ -407,51 +456,65 @@ static void xansi_cls()
 // setup Xosera registers for scrolling up and call scroll function
 static void xansi_scroll_up(xansiterm_data * td)
 {
-    // auto-increment works for write, but not yet for read
-    xm_setw(WR_INCR, 1);
-    xm_setw(WR_ADDR, td->vram_base);
+    uint16_t saddr = td->vram_base + td->cols;
+    uint16_t daddr = td->vram_base;
+    uint16_t count = td->vram_size - td->cols;
 
-    uint16_t rd_addr = td->vram_base + td->cols;
+    xwait_blit_ready();
+    xreg_setw(BLIT_CTRL, 0x0002);            // constB
+    xreg_setw(BLIT_MOD_A, 0x0000);           // no modulo A
+    xreg_setw(BLIT_SRC_A, saddr);            // A = source
+    xreg_setw(BLIT_MOD_B, 0x0000);           // no modulo B
+    xreg_setw(BLIT_SRC_B, 0xFFFF);           // AND with B (and disable transparency)
+    xreg_setw(BLIT_VAL_C, 0x0000);           // XOR with C
+    xreg_setw(BLIT_MOD_D, 0x0000);           // no modulo D
+    xreg_setw(BLIT_DST_D, daddr);            // VRAM display dest address
+    xreg_setw(BLIT_SHIFT, 0xFF00);           // no edge masking or shifting
+    xreg_setw(BLIT_LINES, 0x0000);           // lines (0 for 1-D blit)
+    xreg_setw(BLIT_WORDS, count - 1);        // words to write -1
 
-    for (int y = 1; y < td->rows; ++y) {
-        for (int x = 0; x < td->cols; ++x) {
-            xm_setw(RD_ADDR, rd_addr++);
-            unsigned int d = xm_getw(DATA);
-            xm_setw(DATA, d);
-        }
-    }
+    // clear bottom line
+    daddr = td->vram_base + td->vram_size - td->cols;
+    count = td->cols;
 
-    // clear new line
-    xm_setbh(DATA, td->color);
-    for (uint16_t i = 0; i < td->cols; i++)
-    {
-        xm_setbl(DATA, ' ');
-    }
+    xwait_blit_ready();
+    xreg_setw(BLIT_CTRL, 0x0003);                         // constB+constA
+    xreg_setw(BLIT_SRC_A, (td->color << 8) | ' ');        // A = const data
+    xreg_setw(BLIT_DST_D, daddr);                         // VRAM display dest address
+    xreg_setw(BLIT_WORDS, count - 1);                     // words to write -1
+    xwait_blit_done();
 }
 
 // setup Xosera registers for scrolling down and call scroll function
 static void xansi_scroll_down(xansiterm_data * td)
 {
-    // auto-increment works for write, but not yet for read
-    xm_setw(WR_INCR, -1);
-    xm_setw(WR_ADDR, td->vram_end - 1);
+    uint16_t saddr = td->vram_base + td->cols;
+    uint16_t daddr = td->vram_base;
+    uint16_t count = td->vram_size - td->cols;
 
-    uint16_t rd_addr = td->vram_end - 1 - td->cols;
+    xwait_blit_ready();
+    xreg_setw(BLIT_CTRL, 0x0002);                  // constB
+    xreg_setw(BLIT_MOD_A, -(td->cols * 2));        // no modulo A
+    xreg_setw(BLIT_SRC_A, saddr);                  // A = source
+    xreg_setw(BLIT_MOD_B, 0x0000);                 // modulo B
+    xreg_setw(BLIT_SRC_B, 0xFFFF);                 // AND with B (and disable transparency)
+    xreg_setw(BLIT_VAL_C, 0x0000);                 // XOR with C
+    xreg_setw(BLIT_MOD_D, -(td->cols * 2));        // modulo D
+    xreg_setw(BLIT_DST_D, daddr);                  // VRAM display dest address
+    xreg_setw(BLIT_SHIFT, 0xFF00);                 // no edge masking or shifting
+    xreg_setw(BLIT_LINES, td->rows - 1);           // lines
+    xreg_setw(BLIT_WORDS, td->cols - 1);           // words per line -1
 
-    for (int y = 1; y < td->rows; ++y) {
-        for (int x = 0; x < td->cols; ++x) {
-            xm_setw(RD_ADDR, rd_addr--);
-            unsigned int d = xm_getw(DATA);
-            xm_setw(DATA, d);
-        }
-    }
+    // clear top line
+    daddr = td->vram_base;
+    count = td->cols;
 
-    // clear new line
-    xm_setbh(DATA, td->color);
-    for (uint16_t i = 0; i < td->cols; i++)
-    {
-        xm_setbl(DATA, ' ');
-    }
+    xwait_blit_ready();
+    xreg_setw(BLIT_CTRL, 0x0003);                         // constB+constA
+    xreg_setw(BLIT_SRC_A, (td->color << 8) | ' ');        // A = const data
+    xreg_setw(BLIT_DST_D, daddr);                         // VRAM display dest address
+    xreg_setw(BLIT_WORDS, count - 1);                     // words to write -1
+    xwait_blit_done();
 }
 
 // process control character
@@ -600,7 +663,7 @@ static inline void xansi_begin_csi_or_esc(xansiterm_data * td, char c)
     td->state             = (c == '\x1b') ? TSTATE_ESC : TSTATE_CSI;
     td->intermediate_char = 0;
     td->num_parms         = 0;
-    xansi_memset(td->csi_parms, sizeof(td->csi_parms));
+    xansi_memclear(td->csi_parms, sizeof(td->csi_parms));
 }
 
 // process ESC sequence (only single character supported)
@@ -1480,21 +1543,21 @@ void xansiterm_ERASECURSOR(void)
 bool xansiterm_INIT()
 {
     xansiterm_data * td = get_xansi_data();
-    xansi_memset(td, sizeof(*td));
+    xansi_memclear(td, sizeof(*td));
     // default values (others will be zero or computed)
     td->gfx_ctrl = MAKE_GFX_CTRL(0x00, 0, 0, 0, 0, 0);          // 16-colors 0-15, 1-BPP tiled, H repeat x1, V repeat x1
-    td->tile_ctrl[0] = MAKE_TILE_CTRL(0x0000, 0, 0, 16);        // 1st font in tile RAM 8x16 (initial default)
-    td->tile_ctrl[1] = MAKE_TILE_CTRL(0x0800, 0, 0, 8);         // 2nd font in tile RAM 8x8
-    td->tile_ctrl[2] = MAKE_TILE_CTRL(0x0C00, 0, 0, 8);         // 3rd font in tile RAM 8x8
-    td->tile_ctrl[3] = MAKE_TILE_CTRL(0x0000, 0, 0, 16);        // same as 0 (for user defined)
-    td->def_color    = DEFAULT_COLOR;                           // default white on black
+    td->tile_ctrl[0] = MAKE_TILE_CTRL(0x0000, 0, 0, 16);        // 1st font in tile RAM (8x16 ST font - default)
+    td->tile_ctrl[1] = MAKE_TILE_CTRL(0x0800, 0, 0, 8);         // 2nd font in tile RAM (8x8 ST font)
+    td->tile_ctrl[2] = MAKE_TILE_CTRL(0x0C00, 0, 0, 8);         // 3rd font in tile RAM (8x8 PC font)
+    td->tile_ctrl[3] = MAKE_TILE_CTRL(0x1000, 0, 0, 8);         // 4th font in tile RAM (8x8 hex font)
+    td->def_color    = DEFAULT_COLOR;                           // default dark-green on black
     td->send_index   = -1;
     td->flags        = TFLAG_NOBLINK_CURSOR;
 
     // TODO: Not ideal no version code without COPPER
     td->ver_code[0] = '0';
     td->ver_code[1] = '0';
-    td->ver_code[2] = '0';    
+    td->ver_code[2] = '0';
 
     xansi_reset(true);
     return true;

@@ -54,6 +54,28 @@
 #define XM_UNUSED_0E 0xE        // (- /- )
 #define XM_UNUSED_0F 0xF        // (- /- )
 
+
+// SYS_CTRL bit numbers NOTE: These are bits in high byte of SYS_CTRL word (for access with fast address register
+// indirect with no offset)
+#define SYS_CTRL_MEM_BUSY_B  7        // (RO   )  memory read/write operation pending (with contended memory)
+#define SYS_CTRL_BLIT_FULL_B 6        // (RO   )  blitter queue is full, do not write new operation to blitter registers
+#define SYS_CTRL_BLIT_BUSY_B 5        // (RO   )  blitter is still busy performing an operation (not done)
+#define SYS_CTRL_UNUSED_12_B 4        // (RO   )  unused (reads 0)
+#define SYS_CTRL_HBLANK_B    3        // (RO   )  video signal is in horizontal blank period
+#define SYS_CTRL_VBLANK_B    2        // (RO   )  video signal is in vertical blank period
+#define SYS_CTRL_UNUSED_9_B  1        // (RO   )  unused (reads 0)
+#define SYS_CTRL_UNUSED_8_B  0        // (- /- )
+// SYS_CTRL bit flags
+#define SYS_CTRL_MEM_BUSY_F  0x80        // (RO   )  memory read/write operation pending (with contended memory)
+#define SYS_CTRL_BLIT_FULL_F 0x40        // (RO   )  blitter queue is full (do not write to blitter registers)
+#define SYS_CTRL_BLIT_BUSY_F 0x20        // (RO   )  blitter is still busy performing an operation (not done)
+#define SYS_CTRL_UNUSED_12_F 0x10        // (RO   )  unused (reads 0)
+#define SYS_CTRL_HBLANK_F    0x08        // (RO   )  video signal is in horizontal blank period
+#define SYS_CTRL_VBLANK_F    0x04        // (RO   )  video signal is in vertical blank period
+#define SYS_CTRL_UNUSED_9_F  0x02        // (RO   )  unused (reads 0)
+#define SYS_CTRL_UNUSED_8_F  0x01        // (- /- )
+
+
 // XR Extended Register / Region (accessed via XM_XR_ADDR and XM_XR_DATA)
 
 //  Video Config and Copper XR Registers
@@ -113,6 +135,24 @@
 #define XR_AUD3_LENGTH 0x2E        // (WO/-) // TODO: WIP
 #define XR_AUD3_START  0x2F        // (WO/-) // TODO: WIP
 
+// Blitter Registers
+#define XR_BLIT_CTRL  0x40        // (R /W) blit control (transparency control, logic op and op input flags)
+#define XR_BLIT_MOD_A 0x41        // (R /W) blit line modulo added to SRC_A (XOR if A const)
+#define XR_BLIT_SRC_A 0x42        // (R /W) blit A source VRAM read address / constant value
+#define XR_BLIT_MOD_B 0x43        // (R /W) blit line modulo added to SRC_B (XOR if B const)
+#define XR_BLIT_SRC_B 0x44        // (R /W) blit B AND source VRAM read address / constant value
+#define XR_BLIT_MOD_C 0x45        // (R /W) blit line XOR modifier for C_VAL const
+#define XR_BLIT_VAL_C 0x46        // (R /W) blit C XOR constant value
+#define XR_BLIT_MOD_D 0x47        // (R /W) blit modulo added to D destination after each line
+#define XR_BLIT_DST_D 0x48        // (R /W) blit D VRAM destination write address
+#define XR_BLIT_SHIFT 0x49        // (R /W) blit first and last word nibble masks and nibble right shift (0-3)
+#define XR_BLIT_LINES 0x4A        // (R /W) blit number of lines minus 1, (repeats blit word count after modulo calc)
+#define XR_BLIT_WORDS 0x4B        // (R /W) blit word count minus 1 per line (write starts blit operation)
+#define XR_UNUSED_2C  0x4C        // (- /-) TODO: unused XR 2C
+#define XR_UNUSED_2D  0x4D        // (- /-) TODO: unused XR 2D
+#define XR_UNUSED_2E  0x4E        // (- /-) TODO: unused XR 2E
+#define XR_UNUSED_2F  0x4F        // (- /-) TODO: unused XR 2F
+
 #define MAKE_GFX_CTRL(colbase, blank, bpp, bm, hx, vx)                                                                 \
     (XB_(colbase, 8, 8) | XB_(blank, 7, 1) | XB_(bm, 6, 1) | XB_(bpp, 4, 2) | XB_(hx, 2, 2) | XB_(vx, 0, 2))
 #define MAKE_TILE_CTRL(tilebase, map_in_tile, glyph_in_vram, tileheight)                                               \
@@ -125,12 +165,24 @@
         MEM_WRITE(XOSERA_ODD_BASE | ((reg) << 4), (v) & 0xFF);    \
     }
 
-#define xgetw(reg)                                  \
-    ({                                              \
-        uint16_t val = 0;                           \
-        val = MEM_READ(XOSERA_EVEN_BASE | ((reg) << 4)) << 8;  \
+#define xgetw(reg)                                                  \
+    ({                                                              \
+        uint16_t val = 0;                                           \
+        val = MEM_READ(XOSERA_EVEN_BASE | ((reg) << 4)) << 8;       \
         val |= (MEM_READ(XOSERA_ODD_BASE | ((reg) << 4)) & 0xFF);   \
-        val;                                        \
+        val;                                                        \
+    })
+
+#define xgetbh(reg)                                                    \
+    ({                                                                 \
+        uint8_t val = MEM_READ(XOSERA_EVEN_BASE | ((reg) << 4));       \
+        val;                                                           \
+    })
+
+#define xgetbl(reg)                                                  \
+    ({                                                               \
+        uint8_t val = (MEM_READ(XOSERA_ODD_BASE | ((reg) << 4)));    \
+        val;                                                         \
     })
 
 #define xm_setbh(reg, val)                                        \
@@ -148,6 +200,12 @@
 
 #define xm_getw(reg)                                \
     ({xgetw(XM_STR(reg));})
+
+#define xm_getbh(reg)                                \
+    ({xgetbh(XM_STR(reg));})
+
+#define xm_getbl(reg)                                \
+    ({xgetbl(XM_STR(reg));})
 
 #define xreg_setw(reg, val)                         \
     {                                               \
