@@ -315,9 +315,6 @@ static void test_audio_sample(int8_t * samp, int bytesize, int speed)
     xreg_setw(AUD_CTRL, 0x0001);           // enable audio DMA to start playing
 
     xm_setw(SYS_CTRL, 0x000F);        // make sure no nibbles masked
-    xm_setw(WR_INCR, 0x0001);         // set write increment
-    xm_setw(WR_ADDR, 0x0000);         // set write address
-    xm_setw(DATA, 0);
 
     xm_setw(WR_INCR, 0x0001);            // set write increment
     xm_setw(WR_ADDR, test_vaddr);        // set write address
