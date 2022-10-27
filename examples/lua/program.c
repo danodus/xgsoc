@@ -641,7 +641,12 @@ int gr_draw_model(lua_State *L) {
     luaL_checkany(L, 12);
     bool clamp_t = lua_toboolean(L, 12);
 
-    model.triangles_to_raster = (triangle_t *)malloc(model.mesh.nb_faces * sizeof(triangle_t));
+    // note: clipping can produce an additional triangle
+    model.triangles_to_raster = (triangle_t *)malloc(2 * model.mesh.nb_faces * sizeof(triangle_t));
+    if (model.triangles_to_raster == NULL) {
+        print("Draw model malloc failed!\r\n");
+        return 0;
+    }
     texture_t dummy_texture;
     draw_model(viewport_width, viewport_height, vec_camera, &model, mat_world, mat_proj, mat_view, is_lighting_ena, is_wireframe, is_texture_ena ? &dummy_texture : NULL, clamp_s, clamp_t);
     free(model.triangles_to_raster);
