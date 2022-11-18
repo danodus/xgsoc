@@ -310,8 +310,6 @@ void swap()
     send_command(&cmd);
 }
 
-void draw_line(vec3d v0, vec3d v1, vec3d c0, vec3d c1, fx32 thickness);
-
 void xclear()
 {
     xm_setw(WR_INCR, 1);    
