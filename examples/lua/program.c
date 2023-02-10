@@ -504,6 +504,37 @@ int gr_swap(lua_State *L) {
     return 0;
 }
 
+int gr_vector_make(lua_State *L) {
+    int x = luaL_checkinteger(L, 1);
+    int y = luaL_checkinteger(L, 2);
+    int z = luaL_checkinteger(L, 3);
+
+    vec3d vec = (vec3d){x, y, z, FX(1.0f)};
+    char *v = luamem_newalloc(L, sizeof(vec3d));
+    memcpy(v, &vec, sizeof(vec));
+    return 1;
+}
+
+int gr_vector_add(lua_State *L) {
+    vec3d *v1 = (vec3d *)luamem_checkmemory(L, 1, NULL);
+    vec3d *v2 = (vec3d *)luamem_checkmemory(L, 2, NULL);
+
+    vec3d vec = vector_add(v1, v2);
+    char *v = luamem_newalloc(L, sizeof(vec3d));
+    memcpy(v, &vec, sizeof(vec));
+    return 1;
+}
+
+int gr_vector_mul(lua_State *L) {
+    vec3d *v1 = (vec3d *)luamem_checkmemory(L, 1, NULL);
+    int k = luaL_checkinteger(L, 2);
+
+    vec3d vec = vector_mul(v1, k);
+    char *v = luamem_newalloc(L, sizeof(vec3d));
+    memcpy(v, &vec, sizeof(vec));
+    return 1;
+}
+
 int gr_matrix_make_identity(lua_State *L) {
     mat4x4 mat_ident = matrix_make_identity();
     char *m = luamem_newalloc(L, sizeof(mat4x4));
@@ -530,6 +561,30 @@ int gr_matrix_make_translation(lua_State *L) {
     mat4x4 mat = matrix_make_translation(x, y, z);
     char *m = luamem_newalloc(L, sizeof(mat4x4));
     memcpy(m, &mat, sizeof(mat));
+
+    return 1;
+}
+
+int gr_matrix_make_scale(lua_State *L) {
+    int x = luaL_checkinteger(L, 1);
+    int y = luaL_checkinteger(L, 2);
+    int z = luaL_checkinteger(L, 3);
+
+    mat4x4 mat = matrix_make_scale(x, y, z);
+    char *m = luamem_newalloc(L, sizeof(mat4x4));
+    memcpy(m, &mat, sizeof(mat));
+
+    return 1;
+}
+
+int gr_matrix_multiply_vector(lua_State *L) {
+
+    mat4x4 *m = (mat4x4 *)luamem_checkmemory(L, 1, NULL);
+    vec3d *v = (vec3d *)luamem_checkmemory(L, 2, NULL);
+
+    vec3d vec = matrix_multiply_vector(m, v);
+    char *vv = luamem_newalloc(L, sizeof(vec3d));
+    memcpy(vv, &vec, sizeof(vec));
 
     return 1;
 }
@@ -575,6 +630,28 @@ int gr_matrix_make_rotation_z(lua_State *L) {
     mat4x4 mat = matrix_make_rotation_z(theta);
     char *m = luamem_newalloc(L, sizeof(mat4x4));
     memcpy(m, &mat, sizeof(mat));
+
+    return 1;
+}
+
+int gr_matrix_point_at(lua_State *L) {
+    vec3d *pos = (vec3d *)luamem_checkmemory(L, 1, NULL);
+    vec3d *target = (vec3d *)luamem_checkmemory(L, 2, NULL);
+    vec3d *up = (vec3d *)luamem_checkmemory(L, 3, NULL);
+    
+    mat4x4 mat = matrix_point_at(pos, target, up);
+    char *m = luamem_newalloc(L, sizeof(mat4x4));
+    memcpy(m, &mat, sizeof(mat));
+
+    return 1;
+}
+
+int gr_matrix_quick_inverse(lua_State *L) {
+   mat4x4 *m = (mat4x4 *)luamem_checkmemory(L, 1, NULL);
+
+    mat4x4 mat = matrix_quick_inverse(m);
+    char *mm = luamem_newalloc(L, sizeof(mat4x4));
+    memcpy(mm, &mat, sizeof(mat));
 
     return 1;
 }
@@ -732,6 +809,15 @@ void main(void) {
     lua_pushcfunction(L, gr_swap);
     lua_setglobal(L, "gr_swap");
 
+    lua_pushcfunction(L, gr_vector_make);
+    lua_setglobal(L, "gr_vector_make");
+
+    lua_pushcfunction(L, gr_vector_add);
+    lua_setglobal(L, "gr_vector_add");
+
+    lua_pushcfunction(L, gr_vector_mul);
+    lua_setglobal(L, "gr_vector_mul");
+
     lua_pushcfunction(L, gr_matrix_make_identity);
     lua_setglobal(L, "gr_matrix_make_identity");
     
@@ -740,6 +826,12 @@ void main(void) {
 
     lua_pushcfunction(L, gr_matrix_make_translation);
     lua_setglobal(L, "gr_matrix_make_translation");
+
+    lua_pushcfunction(L, gr_matrix_make_scale);
+    lua_setglobal(L, "gr_matrix_make_scale");
+
+    lua_pushcfunction(L, gr_matrix_multiply_vector);
+    lua_setglobal(L, "gr_matrix_multiply_vector");
 
     lua_pushcfunction(L, gr_matrix_multiply_matrix);
     lua_setglobal(L, "gr_matrix_multiply_matrix");
@@ -752,6 +844,12 @@ void main(void) {
 
     lua_pushcfunction(L, gr_matrix_make_rotation_z);
     lua_setglobal(L, "gr_matrix_make_rotation_z");
+
+    lua_pushcfunction(L, gr_matrix_point_at);
+    lua_setglobal(L, "gr_matrix_point_at");
+
+    lua_pushcfunction(L, gr_matrix_quick_inverse);
+    lua_setglobal(L, "gr_matrix_quick_inverse");
 
     lua_pushcfunction(L, gr_draw_model);
     lua_setglobal(L, "gr_draw_model");
