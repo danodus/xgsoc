@@ -55,8 +55,8 @@ module top (
 
         .ps2_kbd_code_i(ps2_kbd_code_i),
         .ps2_kbd_strobe_i(ps2_kbd_strobe_i),
-        .ps2_kbd_err_i(),
-
+        .ps2_kbd_err_i()
+/*
         // SDRAM
         .sdram_clk_o,
         .sdram_cke_o,
@@ -68,6 +68,7 @@ module top (
         .sdram_ba_o,
         .sdram_dqm_o,
         .sdram_dq_io
+*/
     );
     
     initial begin
