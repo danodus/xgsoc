@@ -576,7 +576,7 @@ module xgsoc #(
         .clk(clk_pix),
         .reset_i(reset_i),
         .sel_i(sel && (addr[31:28] == 4'h3)),
-        .address_in_i(15'(addr[27:0] >> 2)),
+        .address_in_i(16'(addr[27:0] >> 2)),
         .wr_en_i(mem_we),
         .wr_mask_i(wr_mask),
         .data_in_i(mem_data_in), 
