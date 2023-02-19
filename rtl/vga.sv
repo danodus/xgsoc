@@ -9,7 +9,7 @@ module vga(
     input  wire logic        sel_i,
     input  wire logic        wr_en_i,
     input  wire logic [3:0]  wr_mask_i,
-    input  wire logic [14:0] address_in_i,
+    input  wire logic [15:0] address_in_i,
     input  wire logic [31:0] data_in_i,
     output      logic [31:0] data_out_o,
     output      logic        ack_o,
@@ -59,17 +59,36 @@ module vga(
         $readmemh("vga_palette.hex", palette);
     end
 
-    logic [14:0] address, base_address, line_address;
+    logic [14:0] base_address, line_address;
     logic [31:0] data_out;
     logic [1:0] byte_counter;
     logic [31:0] data;
-    logic ack;
+    logic vram_ack, regs_ack;
 
     always_comb begin
-        address = sel_i ? address_in_i : base_address;
-        ack_o = sel_i ? ack : 1'b0;
+        ack_o = vram_ack | regs_ack;
     end
 
+    // registers
+    always_ff @(posedge clk) begin
+        if (reset_i) begin
+            regs_ack <= 1'b0;
+        end else begin
+            regs_ack <= 1'b0;
+            if (sel_i && address_in_i[15]) begin
+                if (wr_en_i) begin
+                    // write
+                    palette[address_in_i[8:0]] <= data_in_i;
+                end else begin
+                    // read
+                    data_out_o <= palette[address_in_i[8:0]];
+                end
+                regs_ack <= 1'b1;
+            end
+        end
+    end
+
+    // video display
     always_ff @(posedge clk) begin
         if (reset_i) begin
             base_address <= 15'h0;
@@ -119,15 +138,17 @@ module vga(
 `ifndef SYNTHESIS
         .INIT_FILE("vga_vram.hex")
 `endif        
-    ) bram(
+    ) vram(
         .clk(clk),
-        .sel_i(1'b1),
-        .wr_en_i(sel_i & wr_en_i),
+        .sel_i(sel_i & ~address_in_i[15]),
+        .wr_en_i(wr_en_i),
         .wr_mask_i(wr_mask_i),
-        .address_in_i(address),
+        .address_in_i(address_in_i[14:0]),
         .data_in_i(data_in_i),
-        .data_out_o(data_out),
-        .ack_o(ack)
+        .data_out_o(data_out_o),
+        .sec_address_in_i(base_address),
+        .sec_data_out_o(data_out),
+        .ack_o(vram_ack)
     );
 
 endmodule
