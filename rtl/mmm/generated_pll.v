@@ -7,13 +7,13 @@ module pll
     input clkin, // 100 MHz, 0 deg
     output clkout0, // 168.75 MHz, 0 deg
     output clkout2, // 33.75 MHz, 0 deg
-    output clkout3, // 61.3636 MHz, 0 deg
+    output clkout3, // 75 MHz, 0 deg
     output locked
 );
 (* FREQUENCY_PIN_CLKI="100" *)
 (* FREQUENCY_PIN_CLKOP="168.75" *)
 (* FREQUENCY_PIN_CLKOS2="33.75" *)
-(* FREQUENCY_PIN_CLKOS3="61.3636" *)
+(* FREQUENCY_PIN_CLKOS3="75" *)
 (* ICP_CURRENT="12" *) (* LPF_RESISTOR="8" *) (* MFG_ENABLE_FILTEROPAMP="1" *) (* MFG_GMCREF_SEL="2" *)
 EHXPLLL #(
         .PLLRST_ENA("DISABLED"),
@@ -34,7 +34,7 @@ EHXPLLL #(
         .CLKOS2_CPHASE(2),
         .CLKOS2_FPHASE(0),
         .CLKOS3_ENABLE("ENABLED"),
-        .CLKOS3_DIV(11),
+        .CLKOS3_DIV(9),
         .CLKOS3_CPHASE(2),
         .CLKOS3_FPHASE(0),
         .FEEDBK_PATH("CLKOP"),
