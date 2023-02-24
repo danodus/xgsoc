@@ -1,6 +1,10 @@
+// syscalls.c
+// Copyright (c) 2022-2023 Daniel Cliche
+// SPDX-License-Identifier: MIT
+
 // An extremely minimalist syscalls.c for newlib
 // Based on riscv newlib libgloss/riscv/sys_*.c
-// Written by Clifford Wolf.
+// Initial version written by Clifford Wolf.
 
 #include <sys/stat.h>
 #include <sys/time.h>
@@ -11,7 +15,7 @@
 #include <sys/signal.h>
 #include <stddef.h>
 #include <string.h>
-
+#include <fcntl.h>
 #include <stdbool.h>
 
 #include "sys.h"
@@ -172,6 +176,18 @@ static size_t sys_read_line(bool force_serial, char *s, size_t buffer_len, bool 
 	return len;
 }
 
+static bool file_exists(fs_context_t *ctx, const char *filename)
+{
+	uint16_t nb_files = fs_get_nb_files(ctx);
+	for (uint16_t i = 0; i < nb_files; ++i) {
+		fs_file_info_t file_info;
+		fs_get_file_info(ctx, i, &file_info);
+		if (strcmp(file_info.name, filename) == 0)
+			return true;
+	}
+	return false;
+}
+
 int _open(const char *pathname, int flags, mode_t mode)
 {
 	if (strcmp(pathname, "/dev/ttyS0") == 0) {
@@ -189,8 +205,15 @@ int _open(const char *pathname, int flags, mode_t mode)
 			return -1;
 		}
 
-		// TODO: unsafe
-		strcpy(g_filename, pathname);
+		// if read-only and file does not exist, return error
+		if (flags == O_RDONLY) {
+			if (!file_exists(&g_fs_ctx, pathname)) {
+				errno = ENOENT;
+				return -1;
+			}
+		}
+
+		strncpy(g_filename, pathname, sizeof(g_filename));
 		g_current_pos = 0;
 
 		return SDFILE0_FILENO;
