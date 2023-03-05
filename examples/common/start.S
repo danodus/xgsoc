@@ -6,6 +6,8 @@
     .global main
     .global counter
     .global irq1_handler
+    .global ecall_handler
+    .global ebreak_handler
 
 _start:
     j start
@@ -16,6 +18,12 @@ irq0_vec:
 
 irq1_vec:
     j irq1
+
+ecall_vec:
+    j ecall
+
+ebreak_vec:
+    j ebreak
 
 irq0:
     addi sp,sp,-8
@@ -32,7 +40,7 @@ irq0:
     lw a4,0(sp)
     lw a5,4(sp)
     addi sp,sp,8
-    xgsoc_retirq_insn()
+    mret
 
 irq1:
     addi sp,sp,-12
@@ -51,11 +59,49 @@ irq1_0:
     lw a4,4(sp)
     lw a5,8(sp)
     addi sp,sp,12
-    xgsoc_retirq_insn()
+    mret
+
+ecall:
+    addi sp,sp,-4
+    sw ra,0(sp)
+
+    lui t0,%hi(ecall_handler)
+    addi t0,t0,%lo(ecall_handler)
+
+    lw t1,0(t0)
+    beq t1,zero,ecall_0;
+    jalr ra,0(t1)
+ecall_0:
+    lw ra,0(sp)
+    addi sp,sp,4
+    sret
+
+ebreak:
+    addi sp,sp,-12
+    sw a5,8(sp)
+    sw a4,4(sp)
+    sw ra,0(sp)
+
+    lui a5,%hi(ebreak_handler)
+    addi a5,a5,%lo(ebreak_handler)
+
+    lw a4,0(a5)
+    beq a4,zero,ebreak_0;
+    jalr ra,0(a4)
+ebreak_0:
+    lw ra,0(sp)
+    lw a4,4(sp)
+    lw a5,8(sp)
+    addi sp,sp,12
+    sret
 
 counter:
     .word 0x00000000
 irq1_handler:
+    .word 0x00000000
+ecall_handler:
+    .word 0x00000000
+ebreak_handler:
     .word 0x00000000
 
 start:
