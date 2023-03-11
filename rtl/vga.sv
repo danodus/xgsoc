@@ -78,10 +78,10 @@ module vga(
             if (sel_i && address_in_i[15]) begin
                 if (wr_en_i) begin
                     // write
-                    palette[address_in_i[8:0]] <= data_in_i;
+                    palette[address_in_i[7:0]] <= data_in_i;
                 end else begin
                     // read
-                    data_out_o <= palette[address_in_i[8:0]];
+                    data_out_o <= palette[address_in_i[7:0]];
                 end
                 regs_ack <= 1'b1;
             end
@@ -146,7 +146,7 @@ module vga(
         .address_in_i(address_in_i[14:0]),
         .data_in_i(data_in_i),
         .data_out_o(data_out_o),
-        .sec_address_in_i(base_address),
+        .sec_address_in_i(line_address),
         .sec_data_out_o(data_out),
         .ack_o(vram_ack)
     );
