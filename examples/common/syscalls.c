@@ -43,6 +43,10 @@
 #define TTYS0_FILENO	3
 #define SDFILE0_FILENO	4
 
+// Fixes the __dso_handle not defined with statically allocated standard library object in C++
+// Ref.: https://lists.debian.org/debian-gcc/2003/07/msg00070.html
+void* __dso_handle = (void*) &__dso_handle;
+
 extern volatile unsigned int counter;
 
 extern int errno;
