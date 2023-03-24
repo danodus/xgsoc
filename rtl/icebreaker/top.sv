@@ -28,7 +28,7 @@ module top(
 
     xgsoc #(
         .FREQ_HZ(12000000),
-        .BAUDS(115200)
+        .BAUDS(230400)
     ) xgsoc(
         .clk(CLK),
         .reset_i(reset),
