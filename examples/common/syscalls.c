@@ -43,6 +43,8 @@
 #define TTYS0_FILENO	3
 #define SDFILE0_FILENO	4
 
+#define SYS_MAX_NB_OPEN_FILES 32
+
 // Fixes the __dso_handle not defined with statically allocated standard library object in C++
 // Ref.: https://lists.debian.org/debian-gcc/2003/07/msg00070.html
 void* __dso_handle = (void*) &__dso_handle;
@@ -58,9 +60,9 @@ static fs_context_t g_fs_ctx;
 typedef struct {
 	char filename[FS_MAX_FILENAME_LEN + 1];
 	size_t current_pos;
-} file_t;
+} file_entry_t;
 
-static file_t g_files[SYS_MAX_NB_OPEN_FILES];
+static file_entry_t g_file_entries[SYS_MAX_NB_OPEN_FILES];
 
 static unsigned int g_tty_mode = 0x0;
 
@@ -86,9 +88,12 @@ void sysinit()
 	// enable timer interrupts
 	MEM_WRITE(TIMER_INTR_ENA, 0x1);
 	
+	// initialize the file entries
 	for (size_t i = 0; i < SYS_MAX_NB_OPEN_FILES; ++i)
-		g_files[i].filename[0] = '\0';
+		g_file_entries[i].filename[0] = '\0';
+
 #ifdef XIO
+	// initialize Xosera
 	xinit();
 #endif
 }
@@ -107,9 +112,19 @@ static size_t get_nb_open_files()
 {
 	size_t nb_open_files = 0;
 	for (size_t i = 0; i < SYS_MAX_NB_OPEN_FILES; ++i)
-		if (g_files[i].filename[0])
+		if (g_file_entries[i].filename[0])
 			nb_open_files++;
 	return nb_open_files;
+}
+
+static file_entry_t *find_empty_file_entry(size_t *file_entry_index)
+{
+	for (size_t i = 0; i < SYS_MAX_NB_OPEN_FILES; ++i)
+		if (!g_file_entries[i].filename[0]) {
+			*file_entry_index = i;
+			return &g_file_entries[i];
+		}
+	return NULL;
 }
 
 static char sys_read_char(bool force_serial)
@@ -216,21 +231,24 @@ int _open(const char *pathname, int flags, mode_t mode)
 		return TTYS0_FILENO;
 	} else {
 
-		size_t nb_open_files = get_nb_open_files();
-		if (nb_open_files >= SYS_MAX_NB_OPEN_FILES - 1) {
+		// find an available file entry
+		size_t file_entry_index = 0;
+		file_entry_t *file_entry = find_empty_file_entry(&file_entry_index);
+
+		if (file_entry == NULL) {
 			// too many open files
 			errno = EMFILE;
 			return -1;
 		}
 
 		// if this is the first open file, initialize the file system
-		if (nb_open_files == 0) {
+		if (get_nb_open_files() == 0) {
 			if (!sd_init(&g_sd_ctx)) {
 				errno = EIO;
 				return -1;
 			}
 
-			if (!fs_init(&g_sd_ctx, &g_fs_ctx)) {
+			if (!fs_init(&g_sd_ctx, &g_fs_ctx, false)) {
 				errno = EIO;
 				return -1;
 			}
@@ -244,10 +262,11 @@ int _open(const char *pathname, int flags, mode_t mode)
 			}
 		}
 
-		strncpy(g_filename, pathname, sizeof(g_filename));
-		g_current_pos = 0;
+		// initialize the file entry
+		strncpy(file_entry->filename, pathname, sizeof(file_entry->filename));
+		file_entry->current_pos = 0;
 
-		return SDFILE0_FILENO;
+		return SDFILE0_FILENO + (int)file_entry_index;
 	}
 }
 
@@ -276,16 +295,19 @@ ssize_t _read(int file, void *ptr, size_t len)
 		for (size_t i = 0; i < c; ++i)
 			p[i] = buf[i];
 		return c;
-	} else if (file == SDFILE0_FILENO) {
+	} else if (file >= SDFILE0_FILENO && file < (SDFILE0_FILENO + SYS_MAX_NB_OPEN_FILES)) {
 		if (len == 0)
-			return 0;		
+			return 0;
 
+		size_t file_entry_index = file - SDFILE0_FILENO;
+		file_entry_t *file_entry = &g_file_entries[file_entry_index];
+		
 		size_t nb_read_bytes;
-		if (!fs_read(&g_fs_ctx, g_filename, (uint8_t *)ptr, g_current_pos, len, &nb_read_bytes)) {
+		if (!fs_read(&g_fs_ctx, file_entry->filename, (uint8_t *)ptr, file_entry->current_pos, len, &nb_read_bytes)) {
 			errno = EIO;
 			return -1;
 		}
-		g_current_pos += len;
+		file_entry->current_pos += len;
 		return nb_read_bytes;
 	}
 	errno = EBADF;
@@ -312,12 +334,16 @@ ssize_t _write(int file, const void *ptr, size_t len)
 #endif
 		}
     	return len;
-	} else if (file == SDFILE0_FILENO) {
-		if (!fs_write(&g_fs_ctx, g_filename, (uint8_t *)ptr, g_current_pos, len)) {
+	} else if (file >= SDFILE0_FILENO && file < (SDFILE0_FILENO + SYS_MAX_NB_OPEN_FILES)) {
+
+		size_t file_entry_index = file - SDFILE0_FILENO;
+		file_entry_t *file_entry = &g_file_entries[file_entry_index];
+
+		if (!fs_write(&g_fs_ctx, file_entry->filename, (uint8_t *)ptr, file_entry->current_pos, len)) {
 			errno = EIO;
 			return -1;
 		}
-		g_current_pos += len;
+		file_entry->current_pos += len;
 		return len;
 	}
 	errno = EBADF;
@@ -326,8 +352,17 @@ ssize_t _write(int file, const void *ptr, size_t len)
 
 int _close(int file)
 {
-	if (file == SDFILE0_FILENO) {
-    	g_filename[0] = '\0';
+	if (file >= SDFILE0_FILENO && file < (SDFILE0_FILENO + SYS_MAX_NB_OPEN_FILES)) {
+		size_t file_entry_index = file - SDFILE0_FILENO;
+		file_entry_t *file_entry = &g_file_entries[file_entry_index];
+    	file_entry->filename[0] = '\0';
+
+		if (get_nb_open_files() == 0)
+			if (!fs_close(&g_fs_ctx)) {
+				errno = EIO;
+				return -1;
+			}
+
 	    return 0;
 	}
 	errno = EBADF;
@@ -458,23 +493,25 @@ int _link(const char *oldpath, const char *newpath)
 
 off_t _lseek(int fd, off_t offset, int whence)
 {
-	if (fd == SDFILE0_FILENO) {
+	if (fd == SDFILE0_FILENO && fd < (SDFILE0_FILENO + SYS_MAX_NB_OPEN_FILES)) {
+		size_t file_entry_index = fd - SDFILE0_FILENO;
+		file_entry_t *file_entry = &g_file_entries[file_entry_index];
 		switch (whence) {
 			case SEEK_SET:
-				g_current_pos = (size_t)offset;
-				return (off_t)g_current_pos;
+				file_entry->current_pos = (size_t)offset;
+				return (off_t)file_entry->current_pos;
 			case SEEK_CUR:
-				g_current_pos = (size_t)((off_t)g_current_pos + offset);
-				return (off_t)g_current_pos;
+				file_entry->current_pos = (size_t)((off_t)file_entry->current_pos + offset);
+				return (off_t)file_entry->current_pos;
 			case SEEK_END:
 				{
 					uint16_t nb_files = fs_get_nb_files(&g_fs_ctx);
 					for (uint16_t i = 0; i < nb_files; ++i) {
 						fs_file_info_t fi;
 						fs_get_file_info(&g_fs_ctx, i, &fi);
-						if (strcmp(fi.name, g_filename) == 0) {
-							g_current_pos = (size_t)((off_t)fi.size + offset);
-							return (off_t)g_current_pos;
+						if (strcmp(fi.name, file_entry->filename) == 0) {
+							file_entry->current_pos = (size_t)((off_t)fi.size + offset);
+							return (off_t)file_entry->current_pos;
 						}
 					}
 					errno = EBADF;

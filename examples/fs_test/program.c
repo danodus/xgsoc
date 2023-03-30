@@ -6,6 +6,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
+#include <fcntl.h>
 
 void prints(const char *s, const char *s2)
 {
@@ -67,7 +68,7 @@ bool low_level_tests(sd_context_t *sd_ctx)
     print("\r\n--- Low Level Tests ---\r\n");
 
     fs_context_t fs_ctx;
-    if (!fs_init(sd_ctx, &fs_ctx)) {
+    if (!fs_init(sd_ctx, &fs_ctx, true)) {
         print("Unable to initialize the FS\r\n");
         return false;
     }
@@ -213,6 +214,9 @@ bool low_level_tests(sd_context_t *sd_ctx)
         }
 
     free(large_buf);
+
+    fs_close(&fs_ctx);
+
     return true;
 }
 
@@ -305,6 +309,113 @@ bool stdio_tests()
     return true;
 }
 
+bool copy_file_test()
+{
+    const char *text = "The quick brown fox jumps over the lazy dog";
+    size_t text_len = strlen(text);
+
+    // create a file to copy
+    print("Creating a file to copy...\r\n");
+    FILE *f = fopen("f1.txt", "w");
+    if (f == NULL) {
+        print("Unable to open file\r\n");
+        return false;
+    }
+    size_t nb_written = fwrite(text, 1, text_len, f);
+    if (nb_written != text_len) {
+        printv("Invalid nb written bytes: ", nb_written);
+        fclose(f);
+        return false;
+    }
+    fclose(f);
+
+    // copy the file byte by byte using low-level functions
+    print("Copying the file byte by byte...\r\n");
+
+    int in = open("f1.txt", O_RDONLY, 0);
+    if (in < 0) {
+        print("Unable to open input file\r\n");
+        return false;
+    }
+
+    int out = open("f2.txt", O_WRONLY, 0);
+    if (out < 0) {
+        print("Unable to open output file\r\n");
+        return false;
+    }
+
+    char c;
+    for(;;) {
+        int n = read(in, &c, 1);
+        if (n < 0) {
+            print("Read failed\r\n");
+            close(out);
+            close(in);
+            return false;
+        }
+        if (n > 1) {
+            print("Unexpected number of bytes\r\n");
+            close(out);
+            close(in);
+            return false;
+        }
+        if (n == 1) {
+            int nw = write(out, &c, 1);
+            if (nw < 0) {
+                print("Write failed\r\n");
+                close(out);
+                close(in);
+                return false;
+            }
+            if (nw != 1) {
+                print("Unexpected number of bytes\r\n");
+                close(out);
+                close(in);
+                return false;
+            }
+        }
+        if (n == 0)
+            break;
+    }
+    
+    close(out);
+    close(in);
+
+    // validate the copy
+    print("Validating the copy...\r\n");
+
+    f = fopen("f1.txt", "r");
+    if (f == NULL) {
+        print("Unable to open file\r\n");
+        return false;
+    }
+
+    char text_copy[512];
+    memset(text_copy, 0, sizeof(text_copy));
+    size_t nb_read = fread(text_copy, 1, sizeof(text_copy), f);
+    if (nb_read != text_len) {
+        printv("Invalid nb read bytes: ", nb_read);
+        fclose(f);
+        return false;
+    }
+
+    print("Read text: ");
+    print(text_copy);
+    print("\r\n");
+
+    if (strcmp(text, text_copy) != 0) {
+        print("Mismatch detected between strings\r\n");
+        fclose(f);
+        return false;
+    }
+
+    print("The copy is valid\r\n");
+
+    fclose(f);
+
+    return true;
+}
+
 void main(void)
 {
     print("************** FILE SYSTEM TEST **************\r\n");
@@ -327,14 +438,22 @@ void main(void)
     if (!stdio_tests()) {
         printf("Standard IO tests failed\r\n");
         fs_context_t fs_ctx;
-        if (fs_init(&sd_ctx, &fs_ctx))
+        if (fs_init(&sd_ctx, &fs_ctx, false))
+            dump_fat(&fs_ctx);
+        for(;;);
+    }
+
+    if (!copy_file_test()) {
+        printf("Copy file test failed\r\n");
+        fs_context_t fs_ctx;
+        if (fs_init(&sd_ctx, &fs_ctx, false))
             dump_fat(&fs_ctx);
         for(;;);
     }
 
     print("Success!\r\n");
     fs_context_t fs_ctx;
-    if (fs_init(&sd_ctx, &fs_ctx))
+    if (fs_init(&sd_ctx, &fs_ctx, false))
         dump_fat(&fs_ctx);
     for(;;);
 }

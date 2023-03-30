@@ -1,5 +1,5 @@
 // fs.h
-// Copyright (c) 2022 Daniel Cliche
+// Copyright (c) 2022-2023 Daniel Cliche
 // SPDX-License-Identifier: MIT
 
 #ifndef FS_H
@@ -26,13 +26,17 @@ typedef struct {
 } fs_fat_t;
 
 typedef struct {
-    fs_fat_t fat;
+    bool auto_write_fat;
+    fs_fat_t fat, tmp_fat;
+    bool fat_dirty;
     sd_context_t *sd_ctx;
 } fs_context_t;
 
 bool fs_format(sd_context_t *sd_ctx, bool quick);
 
-bool fs_init(sd_context_t *sd_ctx, fs_context_t *fs_ctx);
+bool fs_init(sd_context_t *sd_ctx, fs_context_t *fs_ctx, bool auto_write_fat);
+bool fs_close(fs_context_t *fs_ctx);
+
 uint16_t fs_get_nb_files(fs_context_t *ctx);
 bool fs_get_file_info(fs_context_t *ctx, uint16_t file_index, fs_file_info_t *file_info);
 bool fs_read(fs_context_t *ctx, const char *filename, uint8_t *buf, size_t current_pos, size_t nb_bytes, size_t *nb_read_bytes);
