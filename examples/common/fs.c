@@ -183,10 +183,9 @@ bool fs_format(sd_context_t *sd_ctx, bool quick)
     return true;
 }
 
-bool fs_init(sd_context_t *sd_ctx, fs_context_t *fs_ctx, bool auto_write_fat)
+bool fs_init(sd_context_t *sd_ctx, fs_context_t *fs_ctx)
 {
     fs_ctx->sd_ctx = sd_ctx;
-    fs_ctx->auto_write_fat = auto_write_fat;
     fs_ctx->fat_dirty = false;
     if (!read_fat(sd_ctx, &fs_ctx->tmp_fat))
         return false;
@@ -198,7 +197,7 @@ uint16_t fs_get_nb_files(fs_context_t *ctx)
 {
     uint16_t nb_files = 0;
     for (size_t i = 0; i < FS_MAX_NB_FILES; ++i) {
-        if (ctx->fat.file_infos[i].name[0])
+        if (ctx->tmp_fat.file_infos[i].name[0])
             nb_files++;
     }
     return nb_files;
@@ -208,9 +207,9 @@ bool fs_get_file_info(fs_context_t *ctx, uint16_t file_index, fs_file_info_t *fi
 {
     uint16_t current_file_index = 0;
     for (size_t i = 0; i < FS_MAX_NB_FILES; ++i) {
-        if (ctx->fat.file_infos[i].name[0]) {
+        if (ctx->tmp_fat.file_infos[i].name[0]) {
             if (current_file_index == file_index) {
-                *file_info = ctx->fat.file_infos[i];
+                *file_info = ctx->tmp_fat.file_infos[i];
                 return true;
             }
             current_file_index++;
@@ -221,9 +220,6 @@ bool fs_get_file_info(fs_context_t *ctx, uint16_t file_index, fs_file_info_t *fi
 
 bool fs_delete(fs_context_t *ctx, const char *filename)
 {
-    write_fat(ctx);
-
-    ctx->tmp_fat = ctx->fat;
     fs_fat_t *tmp_fat = &ctx->tmp_fat;
 
     fs_file_info_t *file_info = find_file(tmp_fat, filename);
@@ -237,21 +233,13 @@ bool fs_delete(fs_context_t *ctx, const char *filename)
     // clear file info entry
     file_info->name[0] = '\0'; 
 
-    // write FAT
     ctx->fat_dirty = true;
-    if (!write_fat(ctx)) {
-        // unable to write FAT
-        return false;
-    }
 
     return true;
 }
 
 bool fs_rename(fs_context_t *ctx, const char *filename, const char *new_filename)
 {
-    write_fat(ctx);
-
-    ctx->tmp_fat = ctx->fat;
     fs_fat_t *tmp_fat = &ctx->tmp_fat;
 
     fs_file_info_t *file_info = find_file(tmp_fat, filename);
@@ -263,12 +251,7 @@ bool fs_rename(fs_context_t *ctx, const char *filename, const char *new_filename
     strncpy(file_info->name, new_filename, FS_MAX_FILENAME_LEN);
     file_info->name[FS_MAX_FILENAME_LEN] = '\0';
 
-    // write FAT
     ctx->fat_dirty = true;
-    if (!write_fat(ctx)) {
-        // unable to write FAT
-        return false;
-    }
 
     return true;
 }
@@ -286,9 +269,6 @@ bool fs_read(fs_context_t *ctx, const char *filename, uint8_t *buf, size_t curre
     size_t initial_skip = current_pos % SD_BLOCK_LEN;
     current_pos -= initial_skip;
     nb_bytes += initial_skip;
-
-    if (initial_skip > 0)
-        PRINTV_DBG("**** Initial skip: ", initial_skip);
 
     fs_file_info_t *file_info = find_file(&ctx->tmp_fat, filename);
 
@@ -356,9 +336,6 @@ bool fs_write(fs_context_t *ctx, const char *filename, const uint8_t *buf, size_
     size_t initial_skip = current_pos % SD_BLOCK_LEN;
     current_pos -= initial_skip;
     nb_bytes += initial_skip;
-
-    if (initial_skip > 0)
-        PRINTV_DBG("**** Initial skip: ", initial_skip);
 
     fs_fat_t *tmp_fat = &ctx->tmp_fat;
 
@@ -462,15 +439,13 @@ bool fs_write(fs_context_t *ctx, const char *filename, const uint8_t *buf, size_
         tmp_fat->blocks[last_block_table_index] = 0;
 
     ctx->fat_dirty = true;
-    if (ctx->auto_write_fat)
-        write_fat(ctx);
 
     PRINTV_DBG("Final size: ", file_info->size);
 
     return true;
 }
 
-bool fs_close(fs_context_t *ctx)
+bool fs_sync(fs_context_t *ctx)
 {
     if (!write_fat(ctx)) {
         PRINT_DBG("Unable to write FAT\r\n");

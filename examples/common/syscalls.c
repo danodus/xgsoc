@@ -56,6 +56,7 @@ static void sys_print(const char *s);
 
 static sd_context_t g_sd_ctx;
 static fs_context_t g_fs_ctx;
+static bool g_volume_mounted = false;
 
 typedef struct {
 	char filename[FS_MAX_FILENAME_LEN + 1];
@@ -98,6 +99,18 @@ void sysinit()
 #endif
 }
 
+static bool mount_volume_if_required()
+{
+	if (!g_volume_mounted) {
+		if (!sd_init(&g_sd_ctx))
+			return false;
+		if (!fs_init(&g_sd_ctx, &g_fs_ctx))
+			return false;
+		g_volume_mounted = true;
+	}
+	return true;
+}
+
 void sys_set_tty_mode(unsigned int mode)
 {
 	g_tty_mode = mode;
@@ -106,6 +119,51 @@ void sys_set_tty_mode(unsigned int mode)
 unsigned int sys_get_tty_mode()
 {
 	return g_tty_mode;
+}
+
+bool sys_fs_format(bool quick)
+{
+	if (!sd_init(&g_sd_ctx))
+		return false;
+	return fs_format(&g_sd_ctx, quick);
+}
+
+bool sys_fs_unmount()
+{
+	if (!g_volume_mounted)
+		return false;	// volume not mounted
+	if (!fs_sync(&g_fs_ctx))
+		return false;
+	g_volume_mounted = false;
+	return true;
+}
+
+uint16_t sys_fs_get_nb_files()
+{
+	if (!mount_volume_if_required())
+		return 0;
+	return fs_get_nb_files(&g_fs_ctx);
+}
+
+bool sys_fs_get_file_info(uint16_t file_index, fs_file_info_t *file_info)
+{
+	if (!mount_volume_if_required())
+		return false;
+	return fs_get_file_info(&g_fs_ctx, file_index, file_info);
+}
+
+bool sys_fs_delete(const char *filename)
+{
+	if (!mount_volume_if_required())
+		return false;
+	return fs_delete(&g_fs_ctx, filename);
+}
+
+bool sys_fs_rename(const char *filename, const char *new_filename)
+{
+	if (!mount_volume_if_required())
+		return false;
+	return fs_rename(&g_fs_ctx, filename, new_filename);
 }
 
 static size_t get_nb_open_files()
@@ -241,17 +299,10 @@ int _open(const char *pathname, int flags, mode_t mode)
 			return -1;
 		}
 
-		// if this is the first open file, initialize the file system
-		if (get_nb_open_files() == 0) {
-			if (!sd_init(&g_sd_ctx)) {
-				errno = EIO;
-				return -1;
-			}
-
-			if (!fs_init(&g_sd_ctx, &g_fs_ctx, false)) {
-				errno = EIO;
-				return -1;
-			}
+		// mount the volume if required
+		if (!mount_volume_if_required()) {
+			errno = EIO;
+			return -1;
 		}
 
 		// if read-only and file does not exist, return error
@@ -358,7 +409,7 @@ int _close(int file)
     	file_entry->filename[0] = '\0';
 
 		if (get_nb_open_files() == 0)
-			if (!fs_close(&g_fs_ctx)) {
+			if (!fs_sync(&g_fs_ctx)) {
 				errno = EIO;
 				return -1;
 			}
