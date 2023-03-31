@@ -1,10 +1,9 @@
 // program.c
-// Copyright (c) 2022 Daniel Cliche
+// Copyright (c) 2022-2023 Daniel Cliche
 // SPDX-License-Identifier: MIT
 
 #include <io.h>
 #include <sys.h>
-#include <fs.h>
 #include <xga.h>
 
 #include <stdio.h>
@@ -170,21 +169,11 @@ int setttymode(lua_State *L) {
 }
 
 int fsdir(lua_State *L) {
-    sd_context_t sd_ctx;
-    if (!sd_init(&sd_ctx)) {
-        lua_pushnil(L);
-        return 1;
-    }
-    fs_context_t fs_ctx;
-    if (!fs_init(&sd_ctx, &fs_ctx)) {
-        lua_pushnil(L);
-        return 1;
-    }
     lua_newtable(L);
-    uint16_t nb_files = fs_get_nb_files(&fs_ctx);
+    uint16_t nb_files = sys_fs_get_nb_files();
     for (uint16_t i = 0; i < nb_files; ++i) {
         fs_file_info_t file_info;
-        if (fs_get_file_info(&fs_ctx, i, &file_info)) {
+        if (sys_fs_get_file_info(i, &file_info)) {
             lua_pushstring(L, file_info.name);
             lua_newtable(L);
 
@@ -206,17 +195,7 @@ int fsdir(lua_State *L) {
 int fsdelete(lua_State *L) {
     const char *filename = luaL_checkstring(L, 1);
 
-    sd_context_t sd_ctx;
-    if (!sd_init(&sd_ctx)) {
-        lua_pushboolean(L, 0);
-        return 1;
-    }
-    fs_context_t fs_ctx;
-    if (!fs_init(&sd_ctx, &fs_ctx)) {
-        lua_pushboolean(L, 0);
-        return 1;
-    }
-    if (!fs_delete(&fs_ctx, filename)) {
+    if (!sys_fs_delete(filename)) {
         lua_pushboolean(L, 0);
         return 1;
     }
@@ -228,17 +207,7 @@ int fsrename(lua_State *L) {
     const char *filename = luaL_checkstring(L, 1);
     const char *new_filename = luaL_checkstring(L, 2);
 
-    sd_context_t sd_ctx;
-    if (!sd_init(&sd_ctx)) {
-        lua_pushboolean(L, 0);
-        return 1;
-    }
-    fs_context_t fs_ctx;
-    if (!fs_init(&sd_ctx, &fs_ctx)) {
-        lua_pushboolean(L, 0);
-        return 1;
-    }
-    if (!fs_rename(&fs_ctx, filename, new_filename)) {
+    if (!sys_fs_rename(filename, new_filename)) {
         lua_pushboolean(L, 0);
         return 1;
     }
@@ -250,12 +219,16 @@ int fsformat(lua_State *L) {
     luaL_checkany(L, 1);
     bool quick = lua_toboolean(L, 1) ? true : false;
 
-    sd_context_t sd_ctx;
-    if (!sd_init(&sd_ctx)) {
+    if (!sys_fs_format(quick)) {
         lua_pushboolean(L, 0);
         return 1;
     }
-    if (!fs_format(&sd_ctx, quick)) {
+    lua_pushboolean(L, 1);
+    return 1;
+}
+
+int fsunmount(lua_State *L) {
+    if (!sys_fs_unmount()) {
         lua_pushboolean(L, 0);
         return 1;
     }

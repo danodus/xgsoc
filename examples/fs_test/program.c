@@ -1,3 +1,7 @@
+// program.c
+// Copyright (c) 2022-2023 Daniel Cliche
+// SPDX-License-Identifier: MIT
+
 #include <unistd.h>
 #include <io.h>
 #include <sd_card.h>
@@ -68,7 +72,7 @@ bool low_level_tests(sd_context_t *sd_ctx)
     print("\r\n--- Low Level Tests ---\r\n");
 
     fs_context_t fs_ctx;
-    if (!fs_init(sd_ctx, &fs_ctx, true)) {
+    if (!fs_init(sd_ctx, &fs_ctx)) {
         print("Unable to initialize the FS\r\n");
         return false;
     }
@@ -91,6 +95,11 @@ bool low_level_tests(sd_context_t *sd_ctx)
     char *s2 = "test2 file content with a long string";
     if (!fs_write(&fs_ctx, "test2", s2, 0, strlen(s2) + 1)) {
         print("FS write failed\r\n");
+        return false;
+    }
+
+    if (!fs_sync(&fs_ctx)) {
+        print("FS sync failed\r\n");
         return false;
     }
 
@@ -122,6 +131,11 @@ bool low_level_tests(sd_context_t *sd_ctx)
 
     if (!fs_delete(&fs_ctx, "test1")) {
         print("Unable to delete file\r\n");
+        return false;
+    }
+
+    if (!fs_sync(&fs_ctx)) {
+        print("FS sync failed\r\n");
         return false;
     }
 
@@ -166,6 +180,11 @@ bool low_level_tests(sd_context_t *sd_ctx)
         return false;
     }
 
+    if (!fs_sync(&fs_ctx)) {
+        print("FS sync failed\r\n");
+        return false;
+    }
+
     //
     // Large file (more than one block) test
     //
@@ -192,8 +211,18 @@ bool low_level_tests(sd_context_t *sd_ctx)
         return false;
     }
 
+    if (!fs_sync(&fs_ctx)) {
+        print("FS sync failed\r\n");
+        return false;
+    }
+
     if (!fs_delete(&fs_ctx, "test4")) {
         print("Unable to delete file\r\n");
+        return false;
+    }
+
+    if (!fs_sync(&fs_ctx)) {
+        print("FS sync failed\r\n");
         return false;
     }
 
@@ -214,8 +243,6 @@ bool low_level_tests(sd_context_t *sd_ctx)
         }
 
     free(large_buf);
-
-    fs_close(&fs_ctx);
 
     return true;
 }
@@ -311,7 +338,7 @@ bool stdio_tests()
 
 bool copy_file_test()
 {
-    const char *text = "The quick brown fox jumps over the lazy dog";
+    const char *text = "Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Fusce ut placerat orci nulla pellentesque dignissim enim sit amet. Quisque sagittis purus sit amet volutpat consequat mauris nunc congue. Tellus integer feugiat scelerisque varius morbi enim nunc faucibus. Feugiat vivamus at augue eget arcu dictum varius duis. Placerat in egestas erat imperdiet sed euismod nisi porta lorem. Ut tellus elementum sagittis vitae et. Nunc scelerisque viverra mauris in aliquam sem fringilla ut morbi. In eu mi bibendum neque egestas congue quisque. Amet cursus sit amet dictum sit amet. Mauris augue neque gravida in fermentum et. Et molestie ac feugiat sed. Libero volutpat sed cras ornare arcu dui. Fermentum et sollicitudin ac orci. Odio euismod lacinia at quis risus sed vulputate. Tristique senectus et netus et malesuada fames ac turpis egestas. Quam vulputate dignissim suspendisse in. Aliquet bibendum enim facilisis gravida.";
     size_t text_len = strlen(text);
 
     // create a file to copy
@@ -390,7 +417,7 @@ bool copy_file_test()
         return false;
     }
 
-    char text_copy[512];
+    char text_copy[1024];
     memset(text_copy, 0, sizeof(text_copy));
     size_t nb_read = fread(text_copy, 1, sizeof(text_copy), f);
     if (nb_read != text_len) {
@@ -438,7 +465,7 @@ void main(void)
     if (!stdio_tests()) {
         printf("Standard IO tests failed\r\n");
         fs_context_t fs_ctx;
-        if (fs_init(&sd_ctx, &fs_ctx, false))
+        if (fs_init(&sd_ctx, &fs_ctx))
             dump_fat(&fs_ctx);
         for(;;);
     }
@@ -446,14 +473,14 @@ void main(void)
     if (!copy_file_test()) {
         printf("Copy file test failed\r\n");
         fs_context_t fs_ctx;
-        if (fs_init(&sd_ctx, &fs_ctx, false))
+        if (fs_init(&sd_ctx, &fs_ctx))
             dump_fat(&fs_ctx);
         for(;;);
     }
 
     print("Success!\r\n");
     fs_context_t fs_ctx;
-    if (fs_init(&sd_ctx, &fs_ctx, false))
+    if (fs_init(&sd_ctx, &fs_ctx))
         dump_fat(&fs_ctx);
     for(;;);
 }
