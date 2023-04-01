@@ -98,11 +98,6 @@ bool low_level_tests(sd_context_t *sd_ctx)
         return false;
     }
 
-    if (!fs_sync(&fs_ctx)) {
-        print("FS sync failed\r\n");
-        return false;
-    }
-
     if (!print_dir(&fs_ctx)) {
         print("Dir failed\r\n");
         return false;
@@ -131,11 +126,6 @@ bool low_level_tests(sd_context_t *sd_ctx)
 
     if (!fs_delete(&fs_ctx, "test1")) {
         print("Unable to delete file\r\n");
-        return false;
-    }
-
-    if (!fs_sync(&fs_ctx)) {
-        print("FS sync failed\r\n");
         return false;
     }
 
@@ -180,11 +170,6 @@ bool low_level_tests(sd_context_t *sd_ctx)
         return false;
     }
 
-    if (!fs_sync(&fs_ctx)) {
-        print("FS sync failed\r\n");
-        return false;
-    }
-
     //
     // Large file (more than one block) test
     //
@@ -211,18 +196,8 @@ bool low_level_tests(sd_context_t *sd_ctx)
         return false;
     }
 
-    if (!fs_sync(&fs_ctx)) {
-        print("FS sync failed\r\n");
-        return false;
-    }
-
     if (!fs_delete(&fs_ctx, "test4")) {
         print("Unable to delete file\r\n");
-        return false;
-    }
-
-    if (!fs_sync(&fs_ctx)) {
-        print("FS sync failed\r\n");
         return false;
     }
 
@@ -332,6 +307,50 @@ bool stdio_tests()
         }    
 
     free(large_buf);
+
+    return true;
+}
+
+bool basic_read_write_test()
+{
+    print("Basic read/write test\r\n");
+    int out = open("test.txt", O_WRONLY, 0);
+    if (out < 0) {
+        print("Cannot open output file\r\n");
+		return false;
+	}
+
+	int i = 0;
+	for (; i < 600; i++) {
+        char c = 'A' + (i % 26);
+        write(out, &c, 1);
+	}
+
+    close(out);
+
+    int in = open("test.txt", O_RDONLY, 0);
+    if (in < 0) {
+		print("Cannot open input file\r\n");
+		return false;
+	}
+
+	i = 0;
+	for (; i < 5; i++) {
+        char expected_c = 'A' + i; 
+        char c;
+        read(in, &c, 1);
+        if (c != expected_c) {
+            printv("Mismatch at index: ", i);
+            printv("Expected: ", expected_c);
+            printv("Received: ", c);
+            close(in);
+            return false;
+        }
+	}
+
+    close(in);
+
+    printf("Success\r\n");
 
     return true;
 }
@@ -469,6 +488,14 @@ void main(void)
             dump_fat(&fs_ctx);
         for(;;);
     }
+/*
+    if (!basic_read_write_test()) {
+        printf("Basic read/write test failed\r\n");
+        fs_context_t fs_ctx;
+        if (fs_init(&sd_ctx, &fs_ctx))
+            dump_fat(&fs_ctx);
+        for(;;);
+    }
 
     if (!copy_file_test()) {
         printf("Copy file test failed\r\n");
@@ -477,7 +504,7 @@ void main(void)
             dump_fat(&fs_ctx);
         for(;;);
     }
-
+*/
     print("Success!\r\n");
     fs_context_t fs_ctx;
     if (fs_init(&sd_ctx, &fs_ctx))

@@ -132,8 +132,6 @@ bool sys_fs_unmount()
 {
 	if (!g_volume_mounted)
 		return false;	// volume not mounted
-	if (!fs_sync(&g_fs_ctx))
-		return false;
 	g_volume_mounted = false;
 	return true;
 }
@@ -409,10 +407,7 @@ int _close(int file)
     	file_entry->filename[0] = '\0';
 
 		if (get_nb_open_files() == 0)
-			if (!fs_sync(&g_fs_ctx)) {
-				errno = EIO;
-				return -1;
-			}
+			g_volume_mounted = false;
 
 	    return 0;
 	}
