@@ -1020,6 +1020,8 @@ void addBuiltin(cell code, const char* name, const byte flags, builtin f)
 /* Program setup and jump to outer interpreter */
 int main()
 {
+    tell("\e[20h");
+
     memory = malloc(MEM_SIZE);
 
     errorFlag = 0;

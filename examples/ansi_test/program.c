@@ -3,6 +3,7 @@
 
 void main(void)
 {
+    puts("\e[20h");
     for(;;) {
         char c = getchar();
         char s[16];
