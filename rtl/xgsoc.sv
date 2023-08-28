@@ -473,7 +473,9 @@ module xgsoc #(
                         timer_irq <= 1'b1;
                         timer_wait_irq_handling <= 1'b1;
                     end else begin
+`ifndef SYNTHESIS                        
                         $display("Timer interrupt lost");
+`endif
                     end
                 end
                 timer_value <= FREQ_HZ / TIMER_FREQ_HZ - 1;
@@ -502,7 +504,9 @@ module xgsoc #(
                     xosera_irq <= 1'b1;
                     xosera_wait_irq_handling <= 1'b1;
                 end else begin
+`ifndef SYNTHESIS                    
                     $display("Xosera interrupt lost");
+`endif
                 end
             end
         end
