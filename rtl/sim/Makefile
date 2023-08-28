@@ -5,6 +5,9 @@ VERILATOR = verilator
 LDFLAGS := -LDFLAGS "$(shell sdl2-config --libs)"
 CFLAGS := -CFLAGS "$(shell sdl2-config --cflags)"
 
+XOSERA_SRCDIR = ../../external/Xosera/rtl
+XOSERA_SRC := $(XOSERA_SRCDIR)/xosera_main.sv $(filter-out $(XOSERA_SRCDIR)/xosera_main.sv,$(wildcard $(XOSERA_SRCDIR)/*.sv))
+
 all: sim
 
 clean:
@@ -16,7 +19,7 @@ sim: top.sv sim_main.cpp $(PROGRAM)
 	mkdir -p tilesets
 	cp ../../external/Xosera/rtl/tilesets/*.mem tilesets
 	cp ../../external/graphite/rtl/*.hex .
-	$(VERILATOR) -cc --exe $(CFLAGS) $(LDFLAGS) top.sv sdl_ps2.cpp sim_main.cpp -DSDRAM -DPS2 -DXGA -DEN_PF_B -DEN_PF_B_BLEND -DMODE_848x480 -I.. -I../../external/xglib/rtl -I../../external/graphite/rtl -I../../external/Xosera/rtl -Wno-PINMISSING -Wno-WIDTH -Wno-CASEINCOMPLETE -Wno-TIMESCALEMOD -Wno-NULLPORT
+	$(VERILATOR) -cc --exe $(CFLAGS) $(LDFLAGS) --top-module top $(XOSERA_SRC) top.sv sdl_ps2.cpp sim_main.cpp -DSDRAM -DPS2 -DXGA -DEN_PF_B -DEN_PF_B_BLEND -DMODE_848x480 -I.. -I../../external/xglib/rtl -I../../external/graphite/rtl -I../../external/Xosera/rtl -Wno-PINMISSING -Wno-WIDTH -Wno-CASEINCOMPLETE -Wno-TIMESCALEMOD -Wno-NULLPORT
 	$(MAKE) -j 4 -C obj_dir -f Vtop.mk
 
 run: sim
