@@ -360,7 +360,12 @@ void main(void)
     // enable Graphite
     MEM_WRITE(XGA_CONTROL, 0x1);
 
-    xreg_setw(PA_GFX_CTRL, 0x0000);
+    xreg_setw(PB_GFX_CTRL, 0x0080); // blank pb
+
+    xreg_setw(PA_TILE_CTRL, 0x000F); // 8x16 tiles @ tilemem 0x0000
+    xreg_setw(PA_LINE_LEN, WIDTH/8);
+    xreg_setw(VID_RIGHT, WIDTH);
+
     xclear();
     xprint(0, 0, "Draw Cube", BRIGHT_WHITE);
     xprint(0, 29, "[SPACE]: rotation, [t]: texture, [l]: lighting, [w]: wireframe", WHITE);

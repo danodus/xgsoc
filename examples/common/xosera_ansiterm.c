@@ -201,6 +201,8 @@ static __attribute__((noinline)) void xansi_clear(uint16_t start, uint16_t end)
     }
     uint16_t count = end - start;
 
+    xm_setbl(SYS_CTRL, 0x0F);
+
     xwait_blit_ready();
     xreg_setw(BLIT_CTRL, 0x0001);                  // no transp, constS
     xreg_setw_next(0x0000);                        // ANDC constant
@@ -213,7 +215,7 @@ static __attribute__((noinline)) void xansi_clear(uint16_t start, uint16_t end)
     xreg_setw_next(0x0000);                        // LINES lines (0 for 1-D blit)
     xreg_setw_next(count);                         // WORDS words to write -1
 
-    if (!(xm_getbh(SYS_CTRL) & SYS_CTRL_MEM_BUSY_F))
+    if (!(xm_getbh(SYS_CTRL) & SYS_CTRL_BLIT_BUSY_F))
     {
         xm_setw(WR_INCR, 1);
         xm_setw(WR_ADDR, start);
@@ -397,11 +399,15 @@ static void xansi_reset(bool reset_colormap)
     xwait_not_vblank();
     xwait_vblank();
 
+    xreg_setw(VID_RIGHT, h_size);
+    xreg_setw(PB_GFX_CTRL, 0x0080); // blank PB
+
     xreg_setw(PA_GFX_CTRL, gfx_ctrl_val);
     xreg_setw(PA_TILE_CTRL, tile_ctrl_val);
     xreg_setw(PA_DISP_ADDR, td->vram_base);
     xreg_setw(PA_LINE_LEN, cols);
     xreg_setw(PA_HV_SCROLL, 0x0000);
+    xm_setbl(SYS_CTRL, 0x0F);
 
     if (reset_colormap)
     {
@@ -1550,6 +1556,8 @@ bool xansiterm_INIT()
     td->def_color    = DEFAULT_COLOR;                           // default dark-green on black
     td->send_index   = -1;
     td->flags        = TFLAG_NOBLINK_CURSOR;
+
+    xm_setbl(SYS_CTRL, 0x0F);
 
     // TODO: Not ideal no version code without COPPER
     td->ver_code[0] = '0';

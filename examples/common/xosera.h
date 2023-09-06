@@ -49,34 +49,34 @@
 #define XM_WR_ADDR   0x9        // (R /W ) VRAM address for writing to VRAM when XM_DATA/XM_DATA_2 is written
 #define XM_DATA      0xA        // (R+/W+) read/write VRAM word at XM_RD_ADDR/XM_WR_ADDR & add XM_RD_INCR/XM_WR_INCR
 #define XM_DATA_2    0xB        // (R+/W+) 2nd XM_DATA(to allow for 32-bit read/write access)
-#define XM_UNUSED_0C 0xC        // (- /- )
-#define XM_UNUSED_0D 0xD        // (- /- )
-#define XM_UNUSED_0E 0xE        // (- /- )
-#define XM_FEATURES  0xF        // (RO)
+#define XM_PIXEL_X   0xC        // (- /W+) pixel X coordinate / pixel base address
+#define XM_PIXEL_Y   0xD        // (- /W+) pixel Y coordinate / pixel line width
+#define XM_UART      0xE        // (R+/W+) optional debug USB UART communication
+#define XM_FEATURE   0xF        // (R /W+) Xosera feature flags, write sets pixel base, width to X, Y and mask mode
 
 
 // SYS_CTRL bit numbers NOTE: These are bits in high byte of SYS_CTRL word (for access with fast address register
 // indirect with no offset)
-#define SYS_CTRL_MEM_BUSY_B  7        // (RO   )  memory read/write operation pending (with contended memory)
-#define SYS_CTRL_BLIT_FULL_B 6        // (RO   )  blitter queue is full, do not write new operation to blitter registers
-#define SYS_CTRL_BLIT_BUSY_B 5        // (RO   )  blitter is still busy performing an operation (not done)
-#define SYS_CTRL_UNUSED_12_B 4        // (RO   )  unused (reads 0)
-#define SYS_CTRL_HBLANK_B    3        // (RO   )  video signal is in horizontal blank period
-#define SYS_CTRL_VBLANK_B    2        // (RO   )  video signal is in vertical blank period
-#define SYS_CTRL_UNUSED_9_B  1        // (RO   )  unused (reads 0)
-#define SYS_CTRL_UNUSED_8_B  0        // (- /- )
+#define SYS_CTRL_MEM_WAIT_B    7        // (RO   )  memory read/write operation pending (with contended memory)
+#define SYS_CTRL_BLIT_FULL_B   6        // (RO   )  blitter queue is full, do not write new operation to blitter registers
+#define SYS_CTRL_BLIT_BUSY_B   5        // (RO   )  blitter is still busy performing an operation (not done)
+#define SYS_CTRL_UNUSED_12_B   4        // (RO   )  unused (reads 0)
+#define SYS_CTRL_HBLANK_B      3        // (RO   )  video signal is in horizontal blank period
+#define SYS_CTRL_VBLANK_B      2        // (RO   )  video signal is in vertical blank period
+#define SYS_CTRL_PIX_NO_MASK_B 1        // (R /W )  PIXEL_X/Y won't set WR_MASK (low two bits of PIXEL_X ignored)
+#define SYS_CTRL_PIX_8B_MASK_B 0        // (R /W )  PIXEL_X/Y 8-bit pixel mask for WR_MASK
 // SYS_CTRL bit flags
-#define SYS_CTRL_MEM_BUSY_F  0x80        // (RO   )  memory read/write operation pending (with contended memory)
-#define SYS_CTRL_BLIT_FULL_F 0x40        // (RO   )  blitter queue is full (do not write to blitter registers)
-#define SYS_CTRL_BLIT_BUSY_F 0x20        // (RO   )  blitter is still busy performing an operation (not done)
-#define SYS_CTRL_UNUSED_12_F 0x10        // (RO   )  unused (reads 0)
-#define SYS_CTRL_HBLANK_F    0x08        // (RO   )  video signal is in horizontal blank period
-#define SYS_CTRL_VBLANK_F    0x04        // (RO   )  video signal is in vertical blank period
-#define SYS_CTRL_UNUSED_9_F  0x02        // (RO   )  unused (reads 0)
-#define SYS_CTRL_UNUSED_8_F  0x01        // (- /- )
+#define SYS_CTRL_MEM_WAIT_F    0x80        // (RO   )  memory read/write operation pending (with contended memory)
+#define SYS_CTRL_BLIT_FULL_F   0x40        // (RO   )  blitter queue is full (do not write to blitter registers)
+#define SYS_CTRL_BLIT_BUSY_F   0x20        // (RO   )  blitter is still busy performing an operation (not done)
+#define SYS_CTRL_UNUSED_12_F   0x10        // (RO   )  unused (reads 0)
+#define SYS_CTRL_HBLANK_F      0x08        // (RO   )  video signal is in horizontal blank period
+#define SYS_CTRL_VBLANK_F      0x04        // (RO   )  video signal is in vertical blank period
+#define SYS_CTRL_PIX_NO_MASK_F 0x02        // (R /W )  PIXEL_X/Y won't set WR_MASK (low two bits of PIXEL_X ignored)
+#define SYS_CTRL_PIX_8B_MASK_F 0x01        // (R /W )  PIXEL_X/Y 8-bit pixel mask for WR_MASK
 
 
-// XR Extended Register / Region (accessed via XM_XR_ADDR and XM_XR_DATA)
+// XR Extended Register / Region (accessed via XM_RD_XADDR/XM_WR_XADDR and XM_XDATA)
 
 //  Video Config and Copper XR Registers
 #define XR_VID_CTRL  0x00        // (R /W) display control and border color index
@@ -85,8 +85,8 @@
 #define XR_SCANLINE  0x03        // (R /W) read scanline (incl. offscreen), write signal video interrupt
 #define XR_VID_LEFT  0x04        // (R /W) left edge of active display window (typically 0)
 #define XR_VID_RIGHT 0x05        // (R /W) right edge of active display window +1 (typically 640 or 848)
-#define XR_UNUSED_06 0x06        // (- /-) unused XR 06
-#define XR_UNUSED_07 0x07        // (- /-) unused XR 07
+#define XR_POINTER_H 0x06        // (- /W) pointer sprite raw H position
+#define XR_POINTER_V 0x07        // (- /W) pointer sprite raw V position / pointer color select
 #define XR_UNUSED_08 0x08        // (- /-) unused XR 08
 #define XR_UNUSED_09 0x09        // (- /-) unused XR 09
 #define XR_UNUSED_0A 0x0A        // (- /-) unused XR 0A
@@ -96,7 +96,6 @@
 #define XR_UNUSED_0E 0x0E        // (- /-) unused XR 0E
 #define XR_UNUSED_0F 0x0F        // (- /-) unused XR 0F
 
-
 // Playfield A Control XR Registers
 #define XR_PA_GFX_CTRL  0x10        // (R /W) playfield A graphics control
 #define XR_PA_TILE_CTRL 0x11        // (R /W) playfield A tile control
@@ -105,7 +104,7 @@
 #define XR_PA_HV_FSCALE 0x14        // (R /W) playfield A horizontal and vertical fractional scale
 #define XR_PA_HV_SCROLL 0x15        // (R /W) playfield A horizontal and vertical fine scroll
 #define XR_PA_LINE_ADDR 0x16        // (- /W) playfield A scanline start address (loaded at start of line)
-#define XR_PA_UNUSED_17 0x17        // // TODO: colorbase?
+#define XR_PA_UNUSED_17 0x17        // (- /-)
 
 // Playfield B Control XR Registers
 #define XR_PB_GFX_CTRL  0x18        // (R /W) playfield B graphics control
@@ -115,7 +114,7 @@
 #define XR_PB_HV_FSCALE 0x1C        // (R /W) playfield B horizontal and vertical fractional scale
 #define XR_PB_HV_SCROLL 0x1D        // (R /W) playfield B horizontal and vertical fine scroll
 #define XR_PB_LINE_ADDR 0x1E        // (- /W) playfield B scanline start address (loaded at start of line)
-#define XR_PB_UNUSED_1F 0x1F        // // TODO: colorbase?
+#define XR_PB_UNUSED_1F 0x1F        // (- /-)
 
 // Audio Registers
 #define XR_AUD0_VOL    0x20        // (WO/-) // TODO: WIP
@@ -239,7 +238,7 @@
 #define xmem_setw_next(word_value) xm_setw(XDATA, (word_value))
 
 #define xosera_vid_width()                         \
-    (((xm_getbl(FEATURES) & 0xF) == 0) ? 640 : 848)
+    (((xm_getbl(FEATURE) & 0xF) == 0) ? 640 : 848)
 
 #define xosera_vid_height()                        \
     480

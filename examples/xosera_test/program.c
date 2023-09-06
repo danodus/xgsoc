@@ -7,6 +7,7 @@
 #include <xosera.h>
 
 #define WIDTH 848
+#define HEIGHT 480
 #define NB_COLS (WIDTH / 8)
 
 #define BLACK           0x0
@@ -306,7 +307,7 @@ static int8_t g_sin_data[256] = {
     -4,          // 255
 };
 
-static void test_audio_sample(int8_t * samp, int bytesize, int speed)
+static void play_audio_sample(int8_t * samp, int bytesize, int speed)
 {
     uint16_t test_vaddr = 0x8000;
     xreg_setw(AUD0_VOL, 0x0000);           // set volume to 0%
@@ -341,16 +342,154 @@ void wait_vsync()
     while (frame_counter == fc);
 }
 
-void main(void)
+void wait_blit_done() {
+    uint16_t v;
+    do {
+      v = xm_getw(SYS_CTRL);
+    } while ((v & 0x2000) != 0x0000);
+}
+
+// slightly optimized version ~20% faster
+void line_draw(int16_t x1, int16_t y1, int16_t x2, int16_t y2, uint16_t color)
 {
-    print("Xosera Test\r\n");
+    int16_t x = x1, y = y1;
+    int16_t d;
+    int16_t a = x2 - x1, b = y2 - y1;
+    int16_t dx_diag, dy_diag;
+    int16_t dx_nondiag, dy_nondiag;
+    int16_t inc_nondiag, inc_diag;
 
-    // enable Xosera interrupts for VSYNC
-    irq1_handler = &xosera_irq_handler;
-    xm_setw(INT_CTRL, 0x1010);
+    // always draw first pixel, and this sets up full data word and latch
+    xm_setw(PIXEL_X, x);
+    xm_setw(PIXEL_Y, y);
+    xm_setw(DATA, color);
 
+    if (a < 0)
+    {
+        a       = -a;
+        dx_diag = -1;
+    }
+    else
+    {
+        dx_diag = 1;
+    }
+
+    if (b < 0)
+    {
+        b       = -b;
+        dy_diag = -1;
+    }
+    else
+    {
+        dy_diag = 1;
+    }
+
+    // instead of swapping for one loop, have x major and y major loops
+    // remove known zero terms
+    if (a < b)
+    {
+        dy_nondiag = dy_diag;
+
+        d           = a + a - b;
+        inc_nondiag = a + a;
+        inc_diag    = a + a - b - b;
+
+        // start count at one (drew one pixel already )
+        for (int16_t i = 1; i <= b; i++)
+        {
+            if (d < 0)
+            {
+                y += dy_nondiag;
+                d += inc_nondiag;
+                // x not changing, don't need to set it
+                xm_setw(PIXEL_Y, y);
+                xm_setbl(DATA, color);        // we can get away with bl here, since upper byte is latched
+            }
+            else
+            {
+                x += dx_diag;
+                y += dy_diag;
+                d += inc_diag;
+                xm_setw(PIXEL_X, x);
+                xm_setw(PIXEL_Y, y);
+                xm_setbl(DATA, color);        // we can get away with bl here, since upper byte is latched
+            }
+        }
+    }
+    else
+    {
+        dx_nondiag = dx_diag;
+
+        d           = b + b - a;
+        inc_nondiag = b + b;
+        inc_diag    = b + b - a - a;
+
+        // start count at one (drew one pixel already )
+        for (int16_t i = 1; i <= a; i++)
+        {
+            if (d < 0)
+            {
+                x += dx_nondiag;
+                d += inc_nondiag;
+                // y not changing, don't need to set it
+                xm_setw(PIXEL_X, x);
+                xm_setbl(DATA, color);        // we can get away with bl here, since upper byte is latched
+            }
+            else
+            {
+                x += dx_diag;
+                y += dy_diag;
+                d += inc_diag;
+                xm_setw(PIXEL_X, x);
+                xm_setw(PIXEL_Y, y);
+                xm_setbl(DATA, color);        // we can get away with bl here, since upper byte is latched
+            }
+        }
+    }
+}
+
+void test_line_draw()
+{
+    xreg_setw(PA_GFX_CTRL, 0x0055);
+    xreg_setw(PA_LINE_LEN, WIDTH / 8);
+
+    // clear playfield B
+
+    xreg_setw(BLIT_CTRL, 0x0001);
+    xreg_setw(BLIT_SRC_S, 0x0000);
+    xreg_setw(BLIT_MOD_D, 0x0000);
+    xreg_setw(BLIT_DST_D, 0x0000);
+    xreg_setw(BLIT_SHIFT, 0xFF00);
+    xreg_setw(BLIT_LINES, HEIGHT / 2 - 1);
+    xreg_setw(BLIT_WORDS, WIDTH / 8 - 1);
+    wait_blit_done();    
+
+    xm_setw(WR_INCR, 0);
+    uint16_t color = 0xFFFF;
+
+    // init
+    xm_setw(PIXEL_X, 0x0000);         // base VRAM address
+    xm_setw(PIXEL_Y, WIDTH / 8);      // words per line
+    xm_setbh(SYS_CTRL, 0x00);         // set PIXEL_BASE and PIXEL_WIDTH for 4-bpp
+
+    for (uint16_t x = 0; x < WIDTH / 4; x += 8) {
+        line_draw(x, 0, WIDTH / 2 - x - 1, HEIGHT / 2 - 1, color);
+        line_draw(WIDTH / 2 - x - 1, 0, x, HEIGHT / 2 - 1, color);
+        color = (color == 0xFFFF) ? 0 : color + 0x1111;
+    }
+
+    for (int i = 0; i < 300; ++i)
+        wait_vsync();
+}
+
+void test_text(void)
+{
     xreg_setw(PA_GFX_CTRL, 0x0000);
+    xreg_setw(PA_TILE_CTRL, 0x000F); // 8x16 tiles @ tilemem 0x0000
+    xreg_setw(PA_LINE_LEN, WIDTH / 8);
+    xm_setw(SYS_CTRL, 0x000F);        // make sure no nibbles masked
 
+    
     xclear();
 
     xprint(5, 1, " Xosera ", WHITE);
@@ -373,9 +512,7 @@ void main(void)
     xprint(20, 12," YELLOW        ", YELLOW);
     xprint(20, 13," BRIGHT WHITE  ", BRIGHT_WHITE);
 
-    test_audio_sample(g_sin_data, sizeof(g_sin_data), 1000);
-
-    for (;;) {
+    for (int i = 0; i < 300; ++i) {
         wait_vsync();
 
         uint16_t tv = xm_getw(TIMER);
@@ -391,5 +528,25 @@ void main(void)
         itoa(clock() / CLOCKS_PER_SEC, s, 10);
         xprint(0, 27, "          ", WHITE);
         xprint(0, 27, s, WHITE);
+    }
+}
+
+void main(void)
+{
+    print("Xosera Test\r\n");
+
+    // enable Xosera interrupts for VSYNC
+    irq1_handler = &xosera_irq_handler;
+    xm_setw(INT_CTRL, 0x1010);
+    xreg_setw(VID_RIGHT, WIDTH);
+
+    xreg_setw(PB_GFX_CTRL, 0x0080); // blank pb
+
+    play_audio_sample(g_sin_data, sizeof(g_sin_data), 1000);
+
+    for (;;) {
+
+        test_text();
+        test_line_draw();
     }
 }
