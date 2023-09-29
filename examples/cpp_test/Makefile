@@ -41,16 +41,16 @@ program.bin: program.elf program.lst
 	${OBJCOPY} -O binary program.elf program.bin
 
 %.S.o: %.S
-	${CC} -march=rv32i -I../../lib -c $< -o $@
+	${CC} -march=rv32im -mabi=ilp32 -I../../lib -c $< -o $@
 
 %.c.o: %.c
-	${CC} -march=rv32i -O3 -I../../lib -I ../common -c $< -o $@
+	${CC} -march=rv32im -mabi=ilp32 -O3 -I../../lib -I ../common -c $< -o $@
 
 %.cpp.o: %.cpp
-	${CXX} -march=rv32i -O3 -I../../lib -I ../common -c $< -o $@
+	${CXX} -march=rv32im -mabi=ilp32 -std=c++17 -O3 -I../../lib -I ../common -c $< -o $@
 
 program.elf: $(OBJS)
-	${CC} -march=rv32i -O3 -nostartfiles -T program.ld $(OBJS) -o program.elf -lm -lstdc++
+	${CC} -march=rv32im -mabi=ilp32 -O3 -nostartfiles -T program.ld $(OBJS) -o program.elf -lm -lstdc++
 
 -include $(DEPS)
 

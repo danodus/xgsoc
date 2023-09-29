@@ -16,6 +16,7 @@ rtl/**/*.log
 rtl/**/*.asc
 rtl/**/*.bin
 rtl/**/*.json
+rtl/**/*.history
 rtl/tb/*.hex
 rtl/icebreaker/*.hex
 rtl/tinyfpga_b2/*.hex
