@@ -44,6 +44,7 @@ SRC_CORE := ../../external/xglib/rtl/processor.sv \
 		top.sv
 
 SRC_GRAPHITE :=  ../../external/graphite/rtl/graphite.sv \
+		../../external/graphite/rtl/div.sv \
 		../../external/graphite/rtl/reciprocal.sv
 
 SRC_XOSERA := $(wildcard ../../external/Xosera/rtl/*.sv)
