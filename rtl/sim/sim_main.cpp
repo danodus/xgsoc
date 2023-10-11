@@ -16,7 +16,7 @@
 
 #define SDRAM_MEM_SIZE (32*1024*1024/2)
 
-const int screen_width = 1024;
+const int screen_width = 1280;
 const int screen_height = 768;
 
 // 640x480
