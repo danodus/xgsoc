@@ -417,16 +417,20 @@ module xgsoc #(
         .data_out_o(ram_data_out),
         .ack_o(ram_ack),
 
-        .writer_d_o(writer_d),
-        .writer_enq_o(writer_enq),
-        .writer_full_i(writer_full),
-        .writer_alm_full_i(writer_alm_full),
-
-        .reader_q_i(reader_q),
-        .reader_deq_o(reader_deq),
-        .reader_empty_i(reader_empty),
-        .reader_alm_empty_i(reader_alm_empty)
+        // SDRAM interface
+        .sdram_clk(clk_sdram),
+        .ba_o(sdram_ba_o),
+        .a_o(sdram_a_o),
+        .cs_n_o(sdram_cs_n_o),
+        .ras_n_o(sdram_ras_n_o),
+        .cas_n_o(sdram_cas_n_o),
+        .we_n_o(sdram_we_n_o),
+        .dq_io(sdram_dq_io),
+        .dqm_o(sdram_dqm_o),
+        .cke_o(sdram_cke_o),
+        .sdram_clk_o(sdram_clk_o)
     );
+
 `endif // CPU_SDRAM
 
 `endif
@@ -823,96 +827,5 @@ module xgsoc #(
         end
     end 
 `endif // XGA
-
-`ifdef SDRAM
-
-    // -----------------------------------------------------------------------------------------------------------------
-    // SDRAM
-    //
-
-    logic [42:0] writer_d;
-    logic writer_enq;
-    logic writer_full, writer_alm_full;
-
-    logic [40:0] writer_ch2_d;
-    logic writer_ch2_enq;
-    logic writer_ch2_full, writer_ch2_alm_full;
-
-    logic [31:0] writer_burst_d;
-    logic writer_burst_enq;
-    logic writer_burst_full, writer_burst_alm_full;
-
-    logic [15:0] reader_q;
-    logic reader_deq;
-    logic reader_empty, reader_alm_empty;    
-
-    logic [15:0] reader_ch2_q;
-    logic reader_ch2_deq;
-    logic reader_ch2_empty, reader_ch2_alm_empty;    
-
-    logic [127:0] reader_burst_q;
-    logic reader_burst_deq;
-    logic reader_burst_empty, reader_burst_alm_empty;
-
-    async_sdram_ctrl #(
-        .SDRAM_CLK_FREQ_MHZ(SDRAM_CLK_FREQ_MHZ)
-    ) async_sdram_ctrl(
-        // SDRAM interface
-        .sdram_rst(reset_i),
-        .sdram_clk(clk_sdram),
-        .ba_o(sdram_ba_o),
-        .a_o(sdram_a_o),
-        .cs_n_o(sdram_cs_n_o),
-        .ras_n_o(sdram_ras_n_o),
-        .cas_n_o(sdram_cas_n_o),
-        .we_n_o(sdram_we_n_o),
-        .dq_io(sdram_dq_io),
-        .dqm_o(sdram_dqm_o),
-        .cke_o(sdram_cke_o),
-
-        // Writer (input commands)
-        .writer_clk(clk),
-        .writer_rst_i(reset_i),
-
-        .writer_d_i(writer_d),
-        .writer_enq_i(writer_enq),
-        .writer_full_o(writer_full),
-        .writer_alm_full_o(writer_alm_full),
-
-        .writer_ch2_d_i(writer_ch2_d),
-        .writer_ch2_enq_i(writer_ch2_enq),
-        .writer_ch2_full_o(writer_ch2_full),
-        .writer_ch2_alm_full_o(writer_ch2_alm_full),        
-
-        .writer_burst_d_i(writer_burst_d),
-        .writer_burst_enq_i(writer_burst_enq),
-        .writer_burst_full_o(writer_burst_full),
-        .writer_burst_alm_full_o(writer_burst_alm_full),
-
-        // Reader
-        .reader_clk(clk),
-        .reader_rst_i(reset_i),
-
-        // Reader main channel
-        .reader_q_o(reader_q),
-        .reader_deq_i(reader_deq),
-        .reader_empty_o(reader_empty),
-        .reader_alm_empty_o(reader_alm_empty),
-
-        // Reader secondary channel
-        .reader_ch2_q_o(reader_ch2_q),
-        .reader_ch2_deq_i(reader_ch2_deq),
-        .reader_ch2_empty_o(reader_ch2_empty),
-        .reader_ch2_alm_empty_o(reader_ch2_alm_empty),
-
-        // Reader burst channel
-        .reader_burst_q_o(reader_burst_q),
-        .reader_burst_deq_i(reader_burst_deq),
-        .reader_burst_empty_o(reader_burst_empty),
-        .reader_burst_alm_empty_o(reader_burst_alm_empty)
-    );
-
-    assign sdram_clk_o = clk_sdram;
-`endif
 
 endmodule

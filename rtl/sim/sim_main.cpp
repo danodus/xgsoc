@@ -100,7 +100,7 @@ int main(int argc, char **argv, char **env)
         contextp->randReset(0);
 
         // Verilator must compute traced signals
-        contextp->traceEverOn(false);
+        contextp->traceEverOn(true);
 
         // Pass arguments so Verilated code can see them, e.g. $value$plusargs
         // This needs to be called before you create any model
@@ -144,6 +144,8 @@ int main(int argc, char **argv, char **env)
 
         int clk_sdram_counter = 0, clk_counter = 0;
         int delay_burst = 0;
+        bool write_sdram = false;
+        bool read_sdram = false;
 
         while (!contextp->gotFinish() && !quit)
         {
@@ -165,6 +167,9 @@ int main(int argc, char **argv, char **env)
             contextp->timeInc(1);
             top->eval();
 
+            if (contextp->time() > 10000)
+                quit = true;
+
             // if posedge clk sdram
             if (toggle_clk_sdram && top->clk_sdram) {
                 // if not NOP
@@ -176,7 +181,7 @@ int main(int argc, char **argv, char **env)
                     uint32_t sdram_bank = top->sdram_ba_o;
                     if (!top->sdram_ras_n_o && top->sdram_cas_n_o && top->sdram_we_n_o) {
                         sdram_rows[sdram_bank] = top->sdram_a_o;
-                        //printf("ACT bank=%d, row=%d\n", sdram_bank, sdram_rows[sdram_bank]);
+                        printf("ACT bank=%d, row=%d\n", sdram_bank, sdram_rows[sdram_bank]);
                     }
                     uint32_t sdram_row = sdram_rows[sdram_bank];
                     if (top->sdram_ras_n_o && !top->sdram_cas_n_o) {
@@ -184,35 +189,53 @@ int main(int argc, char **argv, char **env)
                         sdram_addr = 8192 * 512 * sdram_bank + 512 * sdram_row + sdram_col;
                         assert(sdram_addr < 8192 * 512 * 4);
                         if (!top->sdram_we_n_o) {
-                            uint8_t mask = ~top->sdram_dqm_o & 0x03;
                             // Write
-                            //printf("WRITE bank=%d, row=%d, col=%d (addr=%d), mask=%d\n", sdram_bank, sdram_row, sdram_col, sdram_addr, mask);
-                            switch (mask) {
-                                case 0:
-                                    break;
-                                case 1:
-                                    sdram_mem[sdram_addr] = (sdram_mem[sdram_addr] & 0xFF00) | (top->sdram_dq_io & 0x00FF);
-                                    break;
-                                case 2:
-                                    sdram_mem[sdram_addr] = (sdram_mem[sdram_addr] & 0x00FF) | (top->sdram_dq_io & 0xFF00);
-                                    break;
-                                case 3:
-                                    sdram_mem[sdram_addr] = top->sdram_dq_io;
-                                    break;
-                            }
+                            printf("WRITE bank=%d, row=%d, col=%d (addr=%d), mask=%d\n", sdram_bank, sdram_row, sdram_col, sdram_addr, ~top->sdram_dqm_o & 0x03);
+                            burst_counter = 0;
+                            delay_burst = 0;
+                            write_sdram = true;
                         } else {
                             // Read
-                            //printf("READ bank=%d, row=%d, col=%d (addr=%d)\n", sdram_bank, sdram_row, sdram_col, sdram_addr);
+                            printf("READ bank=%d, row=%d, col=%d (addr=0x%x)\n", sdram_bank, sdram_row, sdram_col, sdram_addr);
                             burst_counter = 0;
-                            delay_burst = 2;
+                            delay_burst = 3;
+                            read_sdram = true;
                         }
                     }
                 }
-                assert((sdram_addr + burst_counter) < 8192 * 512 * 4);
-                top->sdram_dq_io = sdram_mem[sdram_addr + burst_counter];
-                //printf("%d\n", sdram_addr + burst_counter);
+
+                uint32_t addr = sdram_addr + burst_counter;
+                assert(addr < 8192 * 512 * 4);
+                uint8_t mask = ~top->sdram_dqm_o & 0x03;
+
+                if ((write_sdram || read_sdram) && (/*(burst_counter >= 8) || */(top->sdram_ras_n_o && top->sdram_cas_n_o))) {
+                    printf("EOB\n");
+                    write_sdram = false;
+                    read_sdram = false;
+                }
+
+                if (write_sdram) {
+                    printf("Write %x at addr %x, mask=%x\n", top->sdram_dq_io, addr, mask);
+                    switch (mask) {
+                        case 0:
+                            break;
+                        case 1:
+                            sdram_mem[addr] = (sdram_mem[addr] & 0xFF00) | (top->sdram_dq_io & 0x00FF);
+                            break;
+                        case 2:
+                            sdram_mem[addr] = (sdram_mem[addr] & 0x00FF) | (top->sdram_dq_io & 0xFF00);
+                            break;
+                        case 3:
+                            sdram_mem[addr] = top->sdram_dq_io;
+                            break;
+                    } 
+                } else {
+                    printf("Read %x at addr %x, mask=%x\n", top->sdram_dq_io, addr, mask);
+                    top->sdram_dq_io = sdram_mem[sdram_addr + burst_counter];
+                }
+
                 if (delay_burst == 0) {
-                    if (burst_counter < 7)
+                    //if (burst_counter < 8)
                         burst_counter++;
                 } else {
                     delay_burst--;

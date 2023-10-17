@@ -1,5 +1,5 @@
 // sdram.sv
-// Copyright (c) 2022 Daniel Cliche
+// Copyright (c) 2022-2023 Daniel Cliche
 // SPDX-License-Identifier: MIT
 
 module sdram(
@@ -13,133 +13,88 @@ module sdram(
     output      logic [31:0] data_out_o,
     output      logic        ack_o,
 
-    output      logic [42:0] writer_d_o,
-    output      logic        writer_enq_o,
-    input  wire logic        writer_full_i,
-    input  wire logic        writer_alm_full_i,
-
-    input  wire logic [15:0] reader_q_i,
-    output      logic        reader_deq_o,
-    input  wire logic        reader_empty_i,
-    input  wire logic        reader_alm_empty_i
+    // SDRAM interface
+    input  wire logic                   sdram_clk,
+    output	    logic [1:0]	            ba_o,
+    output	    logic [12:0]            a_o,
+    output	    logic                   cs_n_o,
+    output      logic                   ras_n_o,
+    output      logic                   cas_n_o,
+    output	    logic                   we_n_o,
+    output      logic [1:0]	            dqm_o,
+    inout  wire	logic [15:0]	        dq_io,
+    output      logic                   cke_o,
+    output      logic                   sdram_clk_o
 );
 
-    enum { IDLE, WRITE0, WRITE1, WRITE2, READ0, READ1, READ2, READ3, READ4, READ5, READ6, READ7, WAIT_DESELECT } state;
+    logic [15:0] sdram_din;
+    logic [15:0] sdram_dout;
+    logic [23:0] sdram_ad;
+    logic sdram_get;
+    logic sdram_put;
+    logic sdram_rd;
+    logic sdram_wr;
 
-    logic [31:0] address;
-    logic [31:0] data;
-    logic [3:0]  wr_mask;
+    logic mem_write;
+    logic mem_read;
+    logic mem_busy;
 
+    assign mem_read = sel_i & !wr_en_i;
+    assign mem_write = sel_i & wr_en_i;
+    
     always_ff @(posedge clk) begin
-        if (reset_i) begin
-            state <= IDLE;
-            ack_o <= 1'b0;
-            writer_enq_o <= 1'b0;
-            reader_deq_o <= 1'b0;
-        end else begin
-            case (state)
-                IDLE: begin
-                    if (sel_i) begin
-                        address <= address_in_i;
-                        if (wr_en_i) begin
-                            data <= data_in_i;
-                            wr_mask <= wr_mask_i;
-                            //$display("SDRAM write value %x with mask %x", data_in_i, wr_mask_i);
-                            state <= WRITE0;
-                        end else begin
-                            state <= READ0;
-                        end
-                    end
-                end
-
-                WRITE0: begin
-                    if (!writer_full_i) begin
-                        writer_d_o <= {1'b1, wr_mask[3:2], {address[22:0], 1'b0}, data[31:16]};
-                        writer_enq_o <= 1'b1;
-                        state <= WRITE1;
-                    end
-                end
-
-                WRITE1: begin
-                    writer_enq_o <= 1'b0;
-                    state <= WRITE2;
-                end
-
-                WRITE2: begin
-                    if (!writer_full_i) begin
-                        writer_d_o <= {1'b1, wr_mask[1:0], {address[22:0], 1'b1}, data[15:0]};
-                        writer_enq_o <= 1'b1;
-                        ack_o <= 1'b1;
-                        state <= WAIT_DESELECT;
-                    end
-                end
-
-                READ0: begin
-                    if (!writer_full_i) begin
-                        writer_d_o <= {1'b0, 2'b00, {address[22:0], 1'b0}, 16'd0};
-                        writer_enq_o <= 1'b1;
-                        //$display("Enq: %x", {address[22:0], 1'b0});
-                        state <= READ1;
-                    end
-                end
-
-                READ1: begin
-                    writer_enq_o <= 1'b0;
-                    state <= READ2;
-                end
-
-                READ2: begin
-                    if (!writer_full_i) begin
-                        writer_d_o <= {1'b0, 2'b00, {address[22:0], 1'b1}, 16'd0};
-                        writer_enq_o <= 1'b1;
-                        //$display("Enq: %x", {address[22:0], 1'b1});
-                        state <= READ3;
-                    end
-                end
-
-                READ3: begin
-                    writer_enq_o <= 1'b0;
-                    state <= READ4;
-                end
-
-                READ4: begin
-                    if (!reader_empty_i) begin
-                        // read MSW
-                        reader_deq_o <= 1'b1;
-                        state <= READ5;
-                    end
-                end
-
-                READ5: begin
-                    reader_deq_o <= 1'b0;
-                    data_out_o[31:16] <= reader_q_i;
-                    state <= READ6;
-                end
-
-                READ6: begin
-                    if (!reader_empty_i) begin
-                        // read LSW
-                        reader_deq_o <= 1'b1;
-                        state <= READ7;
-                    end
-                end
-
-                READ7: begin
-                    reader_deq_o <= 1'b0;
-                    data_out_o[15:0] <= reader_q_i;
-                    ack_o <= 1'b1;
-                    state <= WAIT_DESELECT;
-                end
-
-                WAIT_DESELECT: begin
-                    writer_enq_o <= 1'b0;
-                    ack_o <= 1'b0;
-                    if (!sel_i)
-                        state <= IDLE;
-                end
-
-            endcase
-        end
+        if (sel_i)
+            ack_o <= ~mem_busy;
     end
+
+    cache_ctrl cache_ctrl(
+        // CPU interface
+        .cpu_clk(clk),
+        .ram_clk(sdram_clk),
+        .rst(reset_i),
+
+        .m_addr(address_in_i),
+        .m_din(data_in_i),
+        .m_dout(data_out_o),
+        .m_ctrl(wr_mask_i),
+        .m_rd(mem_read),
+        .m_wr(mem_write),
+        .m_bsy(mem_busy),
+
+        // RAM interface
+        .ram_din_o(sdram_din),
+        .ram_dout_i(sdram_dout),
+        .ram_addr_o(sdram_ad),
+        .ram_get_i(sdram_get),
+        .ram_put_i(sdram_put),
+        .ram_rd_o(sdram_rd),
+        .ram_wr_o(sdram_wr)
+    );
+
+    sdram_ctrl sdram_ctrl(
+        .clk_in(sdram_clk),
+        .din(sdram_din),
+        .dout(sdram_dout),
+        .ad(sdram_ad),
+        .get(sdram_get),
+        .put(sdram_put),
+        .rd(sdram_rd),
+        .wr(sdram_wr),
+        .rst(reset_i),
+        .calib(),
+
+        // interface to the chip
+        .sd_data(dq_io),
+        .sd_addr(a_o),
+        .sd_dqm(dqm_o),
+        .sd_ba(ba_o),
+        .sd_cs(cs_n_o),
+        .sd_we(we_n_o),
+        .sd_ras(ras_n_o),
+        .sd_cas(cas_n_o),
+        .sd_cke(cke_o),
+        .sd_clk(sdram_clk_o)
+);
+
 
 endmodule

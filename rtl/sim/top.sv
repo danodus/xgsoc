@@ -36,19 +36,22 @@ module top (
     ) xgsoc(
         .clk(clk),
         .clk_sdram(clk_sdram),
+`ifdef XGA
         .clk_pix(clk),
+`endif // XGA
         .reset_i(reset_i),
         
         .display_o(display_o),
 
         .rx_i(),
         .tx_o(),
-
+`ifdef XGA
         .vga_hsync_o(vga_hsync),
         .vga_vsync_o(vga_vsync),
         .vga_r_o(vga_r),
         .vga_g_o(vga_g),
         .vga_b_o(vga_b),
+`endif // XGA
 
         .ps2_kbd_code_i(ps2_kbd_code_i),
         .ps2_kbd_strobe_i(ps2_kbd_strobe_i),
@@ -67,4 +70,10 @@ module top (
         .sdram_dq_io
     );
     
+    initial begin
+        $display("[%0t] Tracing to logs/vlt_dump.vcd...\n", $time);
+        $dumpfile("logs/vlt_dump.vcd");
+        $dumpvars();
+    end
+
 endmodule
