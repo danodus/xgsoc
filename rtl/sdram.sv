@@ -39,12 +39,28 @@ module sdram(
     logic mem_read;
     logic mem_busy;
 
+    logic wait_mem_done;
+
     assign mem_read = sel_i & !wr_en_i;
     assign mem_write = sel_i & wr_en_i;
     
     always_ff @(posedge clk) begin
-        if (sel_i)
-            ack_o <= ~mem_busy;
+        if (reset_i) begin
+            ack_o <= 1'b0;
+            wait_mem_done <= 1'b0;
+        end else begin
+            if (sel_i && !wait_mem_done)
+                wait_mem_done <= 1'b1;
+            if (wait_mem_done) begin
+                if (!mem_busy) begin
+                    ack_o <= 1'b1;
+                end
+            end
+            if (ack_o) begin
+                ack_o <= 1'b0;
+                wait_mem_done <= 1'b0;
+            end
+        end
     end
 
     cache_ctrl cache_ctrl(
@@ -53,7 +69,7 @@ module sdram(
         .ram_clk(sdram_clk),
         .rst(reset_i),
 
-        .m_addr(address_in_i),
+        .m_addr({address_in_i[29:0], 2'd0}),
         .m_din(data_in_i),
         .m_dout(data_out_o),
         .m_ctrl(wr_mask_i),

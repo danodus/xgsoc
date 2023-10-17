@@ -35,7 +35,8 @@ SRC_CORE := ../../external/xglib/rtl/processor.sv \
 		../usb/usbh_crc16.v \
 		../usb/usbh_host_hid.v \
 		../usb/usbh_sie.v \
-		generated_pll.v \
+		generated_pll_main.v \
+		generated_pll_video.v \
 		generated_pll_usb.v \
 		top.sv
 

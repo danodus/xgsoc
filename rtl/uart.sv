@@ -116,6 +116,9 @@ module uart #(
                 send_divcnt  <= 0;
                 send_dummy   <= 0;
             end else if (wr_i && !send_bitcnt) begin
+`ifndef SYNTHESIS
+                $display("UART TX: %x (%c)", tx_data_i, tx_data_i);
+`endif
                 send_pattern <= {1'b1, tx_data_i[7:0], 1'b0};
                 send_bitcnt  <= 10;
                 send_divcnt  <= 0;

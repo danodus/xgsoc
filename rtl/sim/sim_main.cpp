@@ -77,8 +77,10 @@ int main(int argc, char **argv, char **env)
             std::stringstream ss;
             ss << std::hex << str;
             ss >> v;
-            sdram_mem[addr] = v >> 16;
-            sdram_mem[addr + 1] = v & 0xFFFF;
+            //sdram_mem[addr] = v >> 16;
+            //sdram_mem[addr + 1] = v & 0xFFFF;
+            sdram_mem[addr + 1] = v >> 16;
+            sdram_mem[addr] = v & 0xFFFF;
             addr += 2;
         }
 
@@ -135,25 +137,17 @@ int main(int argc, char **argv, char **env)
         top->clk = 0;
         top->clk_sdram = 0;
 
-        int clk_phase = 0;
-
-        bool last_sdram_cke = false;
-
-        const int toggle_sdram_clk_count_value = 1;
-        const int toggle_clk_count_value = 2;
-
-        int clk_sdram_counter = 0, clk_counter = 0;
+        int clk_counter = 0;
         int delay_burst = 0;
         bool write_sdram = false;
         bool read_sdram = false;
 
         while (!contextp->gotFinish() && !quit)
         {
-            bool toggle_clk_sdram = clk_sdram_counter == toggle_sdram_clk_count_value - 1;
-            bool toggle_clk = clk_counter == toggle_clk_count_value - 1;
+            bool toggle_clk = !(clk_counter & 0x1);
+            bool toggle_clk_sdram = true;
 
-            clk_sdram_counter = (clk_sdram_counter + 1) % toggle_sdram_clk_count_value;
-            clk_counter = (clk_counter + 1) % toggle_clk_count_value;
+            clk_counter++;
 
             if (!toggle_clk_sdram && !toggle_clk)
                 continue;
@@ -164,27 +158,19 @@ int main(int argc, char **argv, char **env)
             if (toggle_clk)
                 top->clk = !top->clk;
 
-            contextp->timeInc(1);
-            top->eval();
+            // if negedge clk sdram
+            if (!top->clk_sdram) {
 
-            if (contextp->time() > 10000)
-                quit = true;
-
-            // if posedge clk sdram
-            if (toggle_clk_sdram && top->clk_sdram) {
-                // if not NOP
-                //if (!top->sdram_ras_n_o || !top->sdram_cas_n_o || !top->sdram_we_n_o) {
-                //    printf("a10=%d, ras_n=%d, cas_n=%d, we_n=%d\n", (top->sdram_a_o & 0x400) ? 1 : 0, top->sdram_ras_n_o, top->sdram_cas_n_o, top->sdram_we_n_o);
-                //}
-                // SDRAM
-                if (last_sdram_cke/*top->sdram_cke_o*/ && !top->sdram_cs_n_o) {
+                if (!top->sdram_cs_n_o) {
+                    // activate
                     uint32_t sdram_bank = top->sdram_ba_o;
                     if (!top->sdram_ras_n_o && top->sdram_cas_n_o && top->sdram_we_n_o) {
                         sdram_rows[sdram_bank] = top->sdram_a_o;
-                        printf("ACT bank=%d, row=%d\n", sdram_bank, sdram_rows[sdram_bank]);
+                        //printf("ACT bank=%d, row=%d\n", sdram_bank, sdram_rows[sdram_bank]);
                     }
                     uint32_t sdram_row = sdram_rows[sdram_bank];
                     if (top->sdram_ras_n_o && !top->sdram_cas_n_o) {
+                        // read or write
                         sdram_col = top->sdram_a_o & 0x1FF;
                         sdram_addr = 8192 * 512 * sdram_bank + 512 * sdram_row + sdram_col;
                         assert(sdram_addr < 8192 * 512 * 4);
@@ -196,23 +182,24 @@ int main(int argc, char **argv, char **env)
                             write_sdram = true;
                         } else {
                             // Read
-                            printf("READ bank=%d, row=%d, col=%d (addr=0x%x)\n", sdram_bank, sdram_row, sdram_col, sdram_addr);
+                            //printf("READ bank=%d, row=%d, col=%d (addr=0x%x)\n", sdram_bank, sdram_row, sdram_col, sdram_addr);
                             burst_counter = 0;
                             delay_burst = 3;
                             read_sdram = true;
                         }
+                    }
+
+                    if (top->sdram_ras_n_o && top->sdram_cas_n_o && !top->sdram_we_n_o) {
+                        // end of burst
+                        printf("EOB\n");
+                        write_sdram = false;
+                        read_sdram = false;
                     }
                 }
 
                 uint32_t addr = sdram_addr + burst_counter;
                 assert(addr < 8192 * 512 * 4);
                 uint8_t mask = ~top->sdram_dqm_o & 0x03;
-
-                if ((write_sdram || read_sdram) && (/*(burst_counter >= 8) || */(top->sdram_ras_n_o && top->sdram_cas_n_o))) {
-                    printf("EOB\n");
-                    write_sdram = false;
-                    read_sdram = false;
-                }
 
                 if (write_sdram) {
                     printf("Write %x at addr %x, mask=%x\n", top->sdram_dq_io, addr, mask);
@@ -229,23 +216,22 @@ int main(int argc, char **argv, char **env)
                             sdram_mem[addr] = top->sdram_dq_io;
                             break;
                     } 
-                } else {
-                    printf("Read %x at addr %x, mask=%x\n", top->sdram_dq_io, addr, mask);
-                    top->sdram_dq_io = sdram_mem[sdram_addr + burst_counter];
+                } else if (read_sdram) {
+                    printf("Read at addr %x (%d), mask=%x (%x)\n", addr, burst_counter, mask, sdram_mem[addr]);
+                    top->sdram_dq_io = sdram_mem[addr];
                 }
 
-                if (delay_burst == 0) {
-                    //if (burst_counter < 8)
+                if (read_sdram || write_sdram) {
+                    if (delay_burst == 0) {
                         burst_counter++;
-                } else {
-                    delay_burst--;
+                    } else {
+                        delay_burst--;
+                    }
                 }
-
-                last_sdram_cke = top->sdram_cke_o;
             }
 
             // if posedge clk
-            if (toggle_clk && top->clk) {
+            if (top->clk) {
                 
                 if (top->ps2_kbd_strobe_i) {
                     top->ps2_kbd_strobe_i = 0;
@@ -387,6 +373,12 @@ int main(int argc, char **argv, char **env)
 
                 SDL_RenderPresent(renderer);
             }
+
+            contextp->timeInc(1);
+            top->eval();
+
+            //if (contextp->time() > 20000)
+            //    quit = true;            
 
         }
 

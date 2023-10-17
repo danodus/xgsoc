@@ -58,12 +58,18 @@ module top(
     logic clk_pix, clk_pix_x5, clk_sdram;
     logic clk_locked;
 
-    pll pll_main (
+    generated_pll_main pll_main(
+        .clkin(clk_25mhz),
+        .clkout0(clk_sdram),
+        .clkout2(),
+        .locked(clk_locked)
+    );
+
+    generated_pll_video pll_video(
         .clkin(clk_25mhz),
         .clkout0(clk_pix_x5),
         .clkout2(clk_pix),
-        .clkout3(clk_sdram),
-        .locked(clk_locked)
+        .locked()
     );
 
     logic [3:0] vga_r;                      // vga red (4-bit)
@@ -97,7 +103,7 @@ module top(
     assign flash_holdn = 1'b1;     // disable hold
 
     xgsoc #(
-        .FREQ_HZ(33_750_000),
+        .FREQ_HZ(25_000_000),
         .BAUDS(230400),
         .RAM_SIZE(256*1024),    // must be a power of 2
         .SDRAM_CLK_FREQ_MHZ(75)
