@@ -143,7 +143,7 @@ module xga #(
                 frame <= 1'b1;
         end
     end
-
+/*
     logic sd_stream_ena;
     logic [15:0] sd_stream_data;
 
@@ -243,7 +243,7 @@ module xga #(
         .swap_o(),
         .front_addr_o(front_addr)
     );
-
+*/
     // --------------------------------------------------------------------------------------
     // Xosera
     //

@@ -2,12 +2,16 @@
 #include <stdlib.h>
 #include <string.h>
 
+#define PROGRAM_SIZE 0x10000
+#define CHUNK_SIZE 256*1024
+
 int test_mem(void) {
     char s[16];
-    for (unsigned int addr = 0x10008000; addr < 0x11000000 - 2048; addr+=4) {
+    // Note: stack at the end of RAM so we don't test the last chunk
+    for (unsigned int addr = 0x10000000 + PROGRAM_SIZE; addr < 0x12000000 - CHUNK_SIZE - CHUNK_SIZE; addr+=4) {
         unsigned int expected = rand();
-        if (addr % 2048 == 0) {
-            print("Testing 2K range from address ");
+        if (addr % CHUNK_SIZE == 0) {
+            print("Testing range from address ");
             print(itoa(addr, s, 16));
             print(": ");
         }
@@ -23,7 +27,7 @@ int test_mem(void) {
             print("\r\n");
             return 0;
         } else {
-            if (addr % 2048 == 0)
+            if (addr % CHUNK_SIZE == 0)
                 print("OK\r\n");
         }
     }
@@ -52,7 +56,7 @@ int test_mem2(void)
 void main(void)
 {
     MEM_WRITE(DISPLAY, 0x00);
-    if (!test_mem2()) {
+    if (!test_mem()) {
         // failure
         print("*** FAILURE DETECTED ***\r\n");
     } else {

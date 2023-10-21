@@ -176,13 +176,13 @@ int main(int argc, char **argv, char **env)
                         assert(sdram_addr < 8192 * 512 * 4);
                         if (!top->sdram_we_n_o) {
                             // Write
-                            printf("WRITE bank=%d, row=%d, col=%d (addr=%d), mask=%d\n", sdram_bank, sdram_row, sdram_col, sdram_addr, ~top->sdram_dqm_o & 0x03);
+                            //printf("WRITE bank=%d, row=%d, col=%d (addr=0x%x), mask=%d\n", sdram_bank, sdram_row, sdram_col, sdram_addr*2, ~top->sdram_dqm_o & 0x03);
                             burst_counter = 0;
                             delay_burst = 0;
                             write_sdram = true;
                         } else {
                             // Read
-                            //printf("READ bank=%d, row=%d, col=%d (addr=0x%x)\n", sdram_bank, sdram_row, sdram_col, sdram_addr);
+                            //printf("READ bank=%d, row=%d, col=%d (addr=0x%x)\n", sdram_bank, sdram_row, sdram_col, sdram_addr*2);
                             burst_counter = 0;
                             delay_burst = 3;
                             read_sdram = true;
@@ -191,7 +191,7 @@ int main(int argc, char **argv, char **env)
 
                     if (top->sdram_ras_n_o && top->sdram_cas_n_o && !top->sdram_we_n_o) {
                         // end of burst
-                        printf("EOB\n");
+                        //printf("EOB\n");
                         write_sdram = false;
                         read_sdram = false;
                     }
@@ -202,7 +202,7 @@ int main(int argc, char **argv, char **env)
                 uint8_t mask = ~top->sdram_dqm_o & 0x03;
 
                 if (write_sdram) {
-                    printf("Write %x at addr %x, mask=%x\n", top->sdram_dq_io, addr, mask);
+                    //printf("Write %x at addr %x (%d), mask=%x\n", top->sdram_dq_io, addr*2, burst_counter, mask);
                     switch (mask) {
                         case 0:
                             break;
@@ -217,13 +217,14 @@ int main(int argc, char **argv, char **env)
                             break;
                     } 
                 } else if (read_sdram) {
-                    printf("Read at addr %x (%d), mask=%x (%x)\n", addr, burst_counter, mask, sdram_mem[addr]);
+                    //printf("Read at addr %x (%d), mask=%x (%x)\n", addr*2, burst_counter, mask, sdram_mem[addr]);
                     top->sdram_dq_io = sdram_mem[addr];
                 }
 
                 if (read_sdram || write_sdram) {
                     if (delay_burst == 0) {
-                        burst_counter++;
+                        if (burst_counter < 127)
+                            burst_counter++;
                     } else {
                         delay_burst--;
                     }

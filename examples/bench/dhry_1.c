@@ -21,7 +21,7 @@
 #include <string.h>
 
 #ifndef DHRY_ITERS
-#define DHRY_ITERS 10000
+#define DHRY_ITERS 200000
 #endif
 
 /* Global Variables: */
