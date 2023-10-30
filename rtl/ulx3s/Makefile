@@ -40,13 +40,9 @@ SRC_CORE := ../../external/xglib/rtl/processor.sv \
 		generated_pll_usb.v \
 		top.sv
 
-SRC_GRAPHITE :=  ../../external/graphite/rtl/graphite.sv \
-		../../external/graphite/rtl/div.sv \
-		../../external/graphite/rtl/reciprocal.sv
-
 SRC_XOSERA := $(wildcard ../../external/Xosera/rtl/*.sv)
 
-SRC := $(SRC_CORE) $(SRC_XOSERA) $(SRC_GRAPHITE)
+SRC := $(SRC_CORE) $(SRC_XOSERA)
 
 DEFINES := -DUSB -DPS2 -DSDRAM -DSD_CARD -DFLASH -DXGA -DNO_TESTPATTERN -DEN_PF_B -DEN_PF_B_BLEND -DEN_AUDIO=4 -DMODE_848x480 -DNO_COPPER_INIT
 

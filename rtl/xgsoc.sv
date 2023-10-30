@@ -16,8 +16,6 @@
     0x20003000 - 0x20003FFF: XGA
         0x20003000  // Xosera even byte
         0x20003100  // Xosera odd byte
-        0x20003400  // Graphite
-        0x20003800  // Control
     0x20004000 - 0x20004FFF: USB
         0x20004000: report valid
         0x20004004: 64-bit report MSW (32-bit)
@@ -227,13 +225,6 @@ module xgsoc #(
 `ifdef XGA
 
     logic         xga_we;
-
-    logic         xga_ena_graphite;
-
-    // Graphite
-    logic           xga_axis_tvalid;
-    logic           xga_axis_tready;
-    logic [31:0]    xga_axis_tdata;
 
     // Xosera
     logic         xosera_bus_cs_n, xosera_bus_cs_n_r;           // register select strobe (active low)
@@ -554,36 +545,6 @@ module xgsoc #(
     xga xga(
         .clk(clk_pix),
         .reset_i(reset_i),
-        .ena_graphite_i(xga_ena_graphite),
-
-        .cmd_axis_tvalid_i(xga_axis_tvalid),
-        .cmd_axis_tready_o(xga_axis_tready),
-        .cmd_axis_tdata_i(xga_axis_tdata),
-
-        // Memory interface
-    
-        // Writer (input commands)
-        .writer_d_o(writer_ch2_d),
-        .writer_enq_o(writer_ch2_enq),
-        .writer_full_i(writer_ch2_full),
-        .writer_alm_full_i(writer_ch2_alm_full),
-
-        .writer_burst_d_o(writer_burst_d),
-        .writer_burst_enq_o(writer_burst_enq),
-        .writer_burst_full_i(writer_burst_full),
-        .writer_burst_alm_full_i(writer_burst_alm_full),
-
-        // Reader single word (output)
-        .reader_q_i(reader_ch2_q),
-        .reader_deq_o(reader_ch2_deq),
-        .reader_empty_i(reader_ch2_empty),
-        .reader_alm_empty_i(reader_ch2_alm_empty),
-
-        // Reader burst (output)
-        .reader_burst_q_i(reader_burst_q),
-        .reader_burst_deq_o(reader_burst_deq),
-        .reader_burst_empty_i(reader_burst_empty),
-        .reader_burst_alm_empty_i(reader_burst_alm_empty),
 
         .xosera_bus_cs_n_i(xosera_bus_cs_n_r),
         .xosera_bus_rd_nwr_i(xosera_bus_rd_nwr_r),
@@ -600,9 +561,7 @@ module xgsoc #(
         .vga_r_o(vga_r_o),
         .vga_g_o(vga_g_o),
         .vga_b_o(vga_b_o),
-        .vga_de_o(vga_de_o),
-
-        .stream_err_underflow_o(stream_err_underflow)
+        .vga_de_o(vga_de_o)
     );
 `endif
 
@@ -618,8 +577,6 @@ module xgsoc #(
         uart_req_deq = 1'b0;
 `ifdef XGA
         xga_we = 1'b0;
-        xga_axis_tvalid = 1'b0;
-        xga_axis_tdata = cpu_data_out;
         xosera_bus_cs_n = 1'b1;
         xosera_bus_rd_nwr = 1'b1;
         xosera_bus_data_in = cpu_data_out[7:0];
@@ -668,9 +625,6 @@ module xgsoc #(
                                     // xosera
                                     xosera_bus_rd_nwr = 1'b0;
                                     xosera_bus_cs_n = 1'b0;
-                                end else if (addr[10] == 1'b1) begin
-                                    // graphite
-                                    xga_axis_tvalid = 1'b1;
                                 end
                             end else begin
                                 xga_we = 1'b1;
@@ -739,12 +693,7 @@ module xgsoc #(
                                 // xosera
                                 xosera_bus_cs_n = 1'b0;
                                 cpu_data_in = {24'd0, xosera_bus_data_out};
-                            end else if (addr[10] == 1'b1) begin
-                                // graphite
-                                cpu_data_in = {31'd0, xga_axis_tready};
                             end
-                        end else begin
-                            cpu_data_in = {31'd0, xga_ena_graphite};
                         end
                     end
 `endif                    
@@ -814,18 +763,5 @@ module xgsoc #(
                 display_o <= cpu_data_out[7:0];
         end
     end
-
-    //assign display_o = {6'b0, cpu_halt, stream_err_underflow};
-
-`ifdef XGA
-    always @(posedge clk) begin
-        if (reset_i) begin
-            xga_ena_graphite <= 1'b0;
-        end else begin
-            if (xga_we)
-                xga_ena_graphite <= cpu_data_out[0];
-        end
-    end 
-`endif // XGA
 
 endmodule

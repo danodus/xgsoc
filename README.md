@@ -1,16 +1,16 @@
 # XGSoC 
 
-FPGA based system on chip with audio, video and 3D acceleration.
+FPGA based system on chip with audio and video.
 
 # Features
 
 - RISC-V CPU (RV32IM)
 - UART (230400-N-8-1)
 - SD Card
-- SDRAM (16MB, ULX3S and MMM only)
+- SDRAM (32MB, ULX3S and MMM only)
+- Associative cache (4-way with random replacement policy)
 - XGA (ULX3S and MMM only):
   - Xosera (audio and video, 128kB VRAM)
-  - Graphite (3D acceleration, 16MB frame buffer)
 - PS/2 Keyboard and Mouse (ULX3S and MMM only)
 - Flash Memory (ULX3S and MMM only)
 - USB Gamepad (ULX3S and MMM only)
@@ -119,9 +119,6 @@ The following examples are available:
 | forth          | Forth language                                      | SIM, ULX3S, MMM  |
 | lua            | Lua language                                        | SIM, ULX3S, MMM  |
 | xosera_test    | Video and sound test                                | SIM, ULX3S, MMM  |
-| draw_cube      | Draw 3D accelerated cube                            | SIM, ULX3S, MMM  |
-| draw_teapot    | Draw 3D accelerated teapot                          | SIM, ULX3S, MMM  |
-| draw_img       | Draw image in frame buffer (see README.md)          | ULX3S, MMM       |
 | cpp_test       | C++ test with standard library                      | SIM, ULX3S, MMM  |
 
 # Write Bootable Image

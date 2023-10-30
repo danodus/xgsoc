@@ -232,7 +232,7 @@ int main(int argc, char **argv, char **env)
             }
 
             // if posedge clk
-            if (top->clk) {
+            if (toggle_clk && top->clk) {
                 
                 if (top->ps2_kbd_strobe_i) {
                     top->ps2_kbd_strobe_i = 0;

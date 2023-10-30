@@ -1,9 +1,6 @@
 [submodule "external/xglib"]
 	path = external/xglib
 	url = https://github.com/dcliche/xglib
-[submodule "external/graphite"]
-	path = external/graphite
-	url = https://github.com/dcliche/graphite.git
 [submodule "external/Xosera"]
 	path = external/Xosera
 	url = https://github.com/dcliche/Xosera.git

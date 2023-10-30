@@ -19,12 +19,9 @@ SRC_CORE := ../../external/xglib/rtl/processor.sv \
 		../../external/xglib/rtl/multiplier.v \
 		../../external/xglib/rtl/divider.v \
 		../../external/xglib/rtl/sdram_ctrl.v \
-		../../external/xglib/rtl/async_fifo.sv \
-		../../external/xglib/rtl/async_sdram_ctrl.sv \
-		../../external/xglib/rtl/framebuffer.sv \
-		../../external/xglib/rtl/scan_doubler.sv \
-		../bram.sv \
+		../../external/xglib/rtl/cache_ctrl.v \
 		../sdram.sv \
+		../bram.sv \
 		../uart.sv \
 		../xga.sv \
 		../fifo.sv \
@@ -39,17 +36,14 @@ SRC_CORE := ../../external/xglib/rtl/processor.sv \
 		../usb/usbh_crc16.v \
 		../usb/usbh_host_hid.v \
 		../usb/usbh_sie.v \
-		generated_pll.v \
+		generated_pll_main.v \
+		generated_pll_video.v \
 		generated_pll_usb.v \
 		top.sv
 
-SRC_GRAPHITE :=  ../../external/graphite/rtl/graphite.sv \
-		../../external/graphite/rtl/div.sv \
-		../../external/graphite/rtl/reciprocal.sv
-
 SRC_XOSERA := $(wildcard ../../external/Xosera/rtl/*.sv)
 
-SRC := $(SRC_CORE) $(SRC_XOSERA) $(SRC_GRAPHITE)
+SRC := $(SRC_CORE) $(SRC_XOSERA)
 
 DEFINES := -DUSB -DPS2 -DSDRAM -DSD_CARD -DFLASH -DXGA -DNO_TESTPATTERN -DEN_PF_B -DEN_PF_B_BLEND -DEN_AUDIO=4 -DMODE_848x480 -DNO_COPPER_INIT
 
