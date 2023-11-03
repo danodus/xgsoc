@@ -8,7 +8,7 @@ FPGA based system on chip with audio and video.
 - UART (230400-N-8-1)
 - SD Card
 - SDRAM (32MB, ULX3S and MMM only)
-- Associative cache (4-way with random replacement policy)
+- Set associative cache (4-way with random replacement policy)
 - XGA (ULX3S and MMM only):
   - Xosera (audio and video, 128kB VRAM)
 - PS/2 Keyboard and Mouse (ULX3S and MMM only)
@@ -19,7 +19,7 @@ FPGA based system on chip with audio and video.
 
 - OSS CAD Suite (https://github.com/YosysHQ/oss-cad-suite-build)
 - RISC-V GNU compiler toolchain for RV32IM (https://github.com/riscv-collab/riscv-gnu-toolchain)
-- Python3 with the following PIP3 packages installed: `pyserial`, `pillow`
+- Python3 with the following PIP3 packages installed: `pyserial`
 - SDL2 (for simulation only)
 
 # Getting Started
@@ -29,7 +29,7 @@ FPGA based system on chip with audio and video.
 ### Clone
 
 ```bash
-git clone --recurse-submodules https://github.com/dcliche/xgsoc.git
+git clone --recurse-submodules https://github.com/danodus/xgsoc.git
 cd xgsoc
 ```
 
@@ -57,7 +57,7 @@ make
 ## Simulation
 
 Notes:
-- Only PS/2 keyboard and XGA (video and 3D acceleration) devices are currently simulated
+- Only PS/2 keyboard and XGA (video only) devices are currently simulated
 - Press F12 to restart the simulation
 
 ```
@@ -67,7 +67,7 @@ cd ../../rtl/sim
 make run PROGRAM=../../examples/<example name>/program.hex
 ```
 
-Suggested example for simulation: forth
+Suggested example for simulation: lua
 
 ## ULX3S
 
@@ -115,6 +115,7 @@ The following examples are available:
 | ps2_kbd_test   | Test PS/2 keyboard (output on UART)                 | ULX3S, MMM       |
 | ps2_mouse_test | Test PS/2 mouse (output on UART)                    | ULX3S, MMM       |
 | sd_card_test   | Test SD card (output on UART, card content erased!) | ULX3S, MMM       |
+| bench          | Dhrystone benchmark                                 | ULX3S, MMM       |
 | gamepad_test   | Test USB gamepad                                    | ULX3S, MMM       |
 | forth          | Forth language                                      | SIM, ULX3S, MMM  |
 | lua            | Lua language                                        | SIM, ULX3S, MMM  |
