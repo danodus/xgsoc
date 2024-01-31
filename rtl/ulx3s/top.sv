@@ -109,7 +109,7 @@ module top(
     xgsoc #(
         .FREQ_HZ(33_750_000),
         .BAUDS(230400),
-        .RAM_SIZE(256*1024),    // must be a power of 2
+        .RAM_SIZE(128*1024),    // must be a power of 2
         .SDRAM_CLK_FREQ_MHZ(75)
     ) xgsoc(
         .clk(clk_pix),
