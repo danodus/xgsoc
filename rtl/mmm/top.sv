@@ -56,15 +56,21 @@ module top(
 
     logic [7:0] display;
 
-    logic clk, clk_x5, clk_sdram;
+    logic clk_pix, clk_pix_x5, clk_sdram;
     logic clk_locked;
 
-    pll pll (
+    generated_pll_main pll_main(
         .clkin(clk_100mhz_p),
-        .locked(clk_locked),
-        .clkout0(clk_x5),
-        .clkout2(clk),
-        .clkout3(clk_sdram)
+        .clkout0(clk_sdram),
+        .clkout2(),
+        .locked(clk_locked)
+    );
+
+    generated_pll_video pll_video(
+        .clkin(clk_100mhz_p),
+        .clkout0(clk_pix_x5),
+        .clkout2(clk_pix),
+        .locked()
     );
 
     logic [3:0] vga_r;                      // vga red (4-bit)
@@ -74,9 +80,10 @@ module top(
     logic       vga_vsync;                  // vga vsync
     logic       vga_de;                     // vga data enable
 
+
     hdmi_encoder hdmi(
-        .pixel_clk(clk),
-        .pixel_clk_x5(clk_x5),
+        .pixel_clk(clk_pix),
+        .pixel_clk_x5(clk_pix_x5),
 
         .red({2{vga_r}}),
         .green({2{vga_g}}),
@@ -102,10 +109,10 @@ module top(
         .RAM_SIZE(256*1024),    // must be a power of 2
         .SDRAM_CLK_FREQ_MHZ(75)
     ) xgsoc(
-        .clk(clk),
+        .clk(clk_pix),
         .clk_sdram(clk_sdram),
 `ifdef XGA        
-        .clk_pix(clk),
+        .clk_pix(clk_pix),
 `endif
         .reset_i(reset),
         .display_o(display),
@@ -164,7 +171,7 @@ module top(
     assign auto_reset = auto_reset_counter < 5'b11111;
     assign reset = auto_reset || !BTN;
 
-	always @(posedge clk) begin
+	always @(posedge clk_pix) begin
         if (clk_locked)
 		    auto_reset_counter <= auto_reset_counter + auto_reset;
 	end
@@ -181,7 +188,7 @@ module top(
     logic       ps2_kbd_err;
 
     ps2kbd ps2_kbd(
-        .clk(clk),
+        .clk(clk_pix),
         .ps2_clk(PS2_K_CLK),
         .ps2_data(PS2_K_DATA),
         .ps2_code(ps2_kbd_code),
@@ -207,7 +214,7 @@ module top(
     )
     ps2mouse
     (
-        .clk(clk),
+        .clk(clk_pix),
         .reset(reset),
         .ps2mdati(ps2_mdat_in),
         .ps2mclki(ps2_mclk_in),
