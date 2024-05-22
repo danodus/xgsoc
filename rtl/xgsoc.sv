@@ -1,5 +1,5 @@
 // xgsoc.sv
-// Copyright (c) 2022 Daniel Cliche
+// Copyright (c) 2022-2023 Daniel Cliche
 // SPDX-License-Identifier: MIT
 
 /*
@@ -44,10 +44,18 @@
                 bit 2: sclk
             Read:
                 bit 0: miso
+    0x30000000 - 0x33FFFFFF: VGA (128kB)
 */
 
 `ifdef SDRAM
 `define CPU_SDRAM
+`endif
+
+`ifdef XGA
+`define VIDEO
+`define AUDIO
+`elsif VGA
+`define VIDEO
 `endif
 
 module xgsoc #(
@@ -59,7 +67,7 @@ module xgsoc #(
     ) (
     input  wire logic       clk,
     input  wire logic       clk_sdram,
-`ifdef XGA    
+`ifdef VIDEO    
     input  wire logic       clk_pix,
 `endif
     input  wire logic       reset_i,
@@ -68,13 +76,15 @@ module xgsoc #(
     input  wire logic       rx_i,
     output      logic       tx_o,
 
-`ifdef XGA
+`ifdef VIDEO
     output      logic       vga_hsync_o,
     output      logic       vga_vsync_o,
     output      logic [3:0] vga_r_o,
     output      logic [3:0] vga_g_o,
     output      logic [3:0] vga_b_o,
     output      logic       vga_de_o,
+`endif
+`ifdef AUDIO
     output      logic       audio_l_o,
     output      logic       audio_r_o,
 `endif
@@ -134,8 +144,14 @@ module xgsoc #(
     logic        mem_we, cpu_we;
     logic [31:0] mem_data_in, cpu_data_in;
     logic [31:0] rom_data_out, ram_data_out, mem_data_out, cpu_data_out;
+`ifdef VGA
+    logic [31:0] vga_data_out;
+`endif // VGA
     logic [3:0]  wr_mask;
     logic        rom_ack, ram_ack, device_ack;
+`ifdef VGA
+    logic        vga_ack;
+`endif // VGA
 
     // display
     logic [7:0] display;
@@ -366,7 +382,9 @@ module xgsoc #(
     );
 
 `ifdef SPRAM
-    spram ram(
+    spram #(
+        .SIM_INIT_FILE("program.hex")
+    ) ram(
         .clk(clk),
         .sel_i(sel && (addr[31:28] == 4'h1)),
         .address_in_i(15'(addr[27:0] >> 2)),
@@ -534,12 +552,44 @@ module xgsoc #(
 `ifdef XGA
         || xosera_ack
 `endif
+`ifdef VGA
+        || vga_ack
+`endif
         )
     );
 
     always_comb begin
-        mem_data_out = (addr[31:28] == 4'h1) ? ram_data_out : rom_data_out;
+        case (addr[31:28])
+            4'h1:
+                mem_data_out = ram_data_out;
+`ifdef VGA
+            4'h3:
+                mem_data_out = vga_data_out;
+`endif // VGA
+            default:
+                mem_data_out = rom_data_out;
+        endcase
     end
+
+`ifdef VGA
+    vga vga(
+        .clk(clk_pix),
+        .reset_i(reset_i),
+        .sel_i(sel && (addr[31:28] == 4'h3)),
+        .address_in_i(16'(addr[27:0] >> 2)),
+        .wr_en_i(mem_we),
+        .wr_mask_i(wr_mask),
+        .data_in_i(mem_data_in), 
+        .data_out_o(vga_data_out),
+        .ack_o(vga_ack),
+        .vga_hsync_o(vga_hsync_o),
+        .vga_vsync_o(vga_vsync_o),
+        .vga_r_o(vga_r_o),
+        .vga_g_o(vga_g_o),
+        .vga_b_o(vga_b_o),
+        .vga_de_o(vga_de_o)
+    );
+`endif
 
 `ifdef XGA    
     xga xga(

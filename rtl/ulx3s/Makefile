@@ -19,10 +19,12 @@ SRC_CORE := ../../external/xglib/rtl/processor.sv \
 		../../external/xglib/rtl/divider.v \
 		../../external/xglib/rtl/sdram_ctrl.v \
 		../../external/xglib/rtl/cache_ctrl.v \
+		../../external/xglib/rtl/display_timings.sv \
 		../sdram.sv \
 		../bram.sv \
 		../uart.sv \
 		../xga.sv \
+		../vga.sv \
 		../fifo.sv \
 		../ps2kbd.v \
 		../ps2mouse.v \
@@ -43,8 +45,10 @@ SRC_CORE := ../../external/xglib/rtl/processor.sv \
 SRC_XOSERA := $(wildcard ../../external/Xosera/rtl/*.sv)
 
 SRC := $(SRC_CORE) $(SRC_XOSERA)
+#SRC := $(SRC_CORE)
 
-DEFINES := -DUSB -DPS2 -DSDRAM -DSD_CARD -DFLASH -DXGA -DNO_TESTPATTERN -DEN_PF_B -DEN_PF_B_BLEND -DEN_AUDIO=4 -DMODE_848x480 -DNO_COPPER_INIT
+DEFINES := -DUSB -DPS2 -DSDRAM -DSD_CARD -DFLASH -DXGA -DNO_TESTPATTERN -DEN_PF_B -DEN_PF_B_BLEND -DEN_AUDIO=4 -DMODE_848x480
+#DEFINES := -DUSB -DVGA
 
 all: top.bin
 

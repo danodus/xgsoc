@@ -13,14 +13,17 @@ module bram #(
     input  wire logic [31:0] address_in_i,
     input  wire logic [31:0] data_in_i,
     output      logic [31:0] data_out_o,
+    input  wire logic [31:0] sec_address_in_i,
+    output      logic [31:0] sec_data_out_o,
     output      logic        ack_o
     );
 
     logic [31:0] mem_array[SIZE];
 
-    logic [$clog2(SIZE)-1:0] addr;
+    logic [$clog2(SIZE)-1:0] addr, sec_addr;
 
     assign addr = address_in_i[$clog2(SIZE)-1:0];
+    assign sec_addr = sec_address_in_i[$clog2(SIZE)-1:0];
 
     initial begin
         if (INIT_FILE != "") begin
@@ -49,6 +52,7 @@ module bram #(
             end
             data_out_o <= mem_array[addr];
         end
+        sec_data_out_o <= mem_array[sec_addr];
     end
 
 endmodule
