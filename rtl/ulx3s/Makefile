@@ -19,6 +19,7 @@ SRC_CORE := ../../external/xglib/rtl/processor.sv \
 		../../external/xglib/rtl/divider.v \
 		../../external/xglib/rtl/sdram_ctrl.v \
 		../../external/xglib/rtl/cache_ctrl.v \
+		../../external/xglib/rtl/display_timings.sv \
 		../sdram.sv \
 		../bram.sv \
 		../uart.sv \
