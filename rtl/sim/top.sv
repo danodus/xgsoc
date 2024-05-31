@@ -1,3 +1,9 @@
+`ifdef XGA
+`define VIDEO
+`elsif VGA
+`define VIDEO
+`endif
+
 module top (
     input  wire logic       clk,
     input  wire logic       clk_sdram,
@@ -36,22 +42,22 @@ module top (
     ) xgsoc(
         .clk(clk),
         .clk_sdram(clk_sdram),
-`ifdef XGA
+`ifdef VIDEO
         .clk_pix(clk),
-`endif // XGA
+`endif // VIDEO
         .reset_i(reset_i),
         
         .display_o(display_o),
 
         .rx_i(),
         .tx_o(),
-`ifdef XGA
+`ifdef VIDEO
         .vga_hsync_o(vga_hsync),
         .vga_vsync_o(vga_vsync),
         .vga_r_o(vga_r),
         .vga_g_o(vga_g),
         .vga_b_o(vga_b),
-`endif // XGA
+`endif // VIDEO
 
         .ps2_kbd_code_i(ps2_kbd_code_i),
         .ps2_kbd_strobe_i(ps2_kbd_strobe_i),

@@ -134,10 +134,7 @@ module vga(
     end
 
     bram #(
-        .SIZE(128*1024/4),
-`ifndef SYNTHESIS
-        .INIT_FILE("vga_vram.hex")
-`endif        
+        .SIZE(128*1024/4)
     ) vram(
         .clk(clk),
         .sel_i(sel_i & ~address_in_i[15]),
