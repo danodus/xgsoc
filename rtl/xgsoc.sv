@@ -7,6 +7,7 @@
     0x10000000 - 0x1FFFFFFF: ram (max: 256MB)
     0x20000000 - 0x20000FFF: system
         0x20000000: timer interrupt enable
+        0x20000004: clock value (ms)
     0x20001000 - 0x20001FFF: display
     0x20002000 - 0x20002FFF: UART (BAUDS-N-8-1)
         0x20002000: Data Register (8 bits)
@@ -458,6 +459,7 @@ module xgsoc #(
 
     // timer
     logic [31:0] timer_value;
+    logic [31:0] clock_value;
     logic timer_intr_ena_we;
     logic timer_intr_ena;
     logic timer_irq;
@@ -465,6 +467,7 @@ module xgsoc #(
     always_ff @(posedge clk) begin
         if (reset_i) begin
             timer_value <= FREQ_HZ / TIMER_FREQ_HZ - 1;
+            clock_value <= 32'd0;
             timer_intr_ena <= 1'b0;
             timer_irq <= 1'b0;
             timer_wait_irq_handling <= 1'b0;
@@ -480,6 +483,7 @@ module xgsoc #(
             end
             timer_value <= timer_value - 1;
             if (timer_value == 32'd0) begin
+                clock_value <= clock_value + 1;
                 if (timer_intr_ena) begin
                     if (!timer_wait_irq_handling && eoi[0]) begin
                         //$display("Timer interrupt");
@@ -718,7 +722,11 @@ module xgsoc #(
                 // peripheral
                 case (addr[15:12])
                     4'h0: begin
-                        cpu_data_in = {31'd0, timer_intr_ena};
+                        if (addr[11:0] == 12'd0) begin
+                            cpu_data_in = {31'd0, timer_intr_ena};
+                        end else if (addr[11:0] == 12'd4) begin
+                            cpu_data_in = clock_value;
+                        end
                     end
 
                     4'h1: begin
