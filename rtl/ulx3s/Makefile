@@ -11,12 +11,12 @@ DEVICE := 85k
 PACKAGE := CABGA381
 
 PIN_DEF := ulx3s.lpf
-SRC_CORE := ../../external/xglib/rtl/processor.sv \
-		../../external/xglib/rtl/alu.sv \
-		../../external/xglib/rtl/decoder.sv \
-		../../external/xglib/rtl/register_file.sv \
-		../../external/xglib/rtl/multiplier.v \
-		../../external/xglib/rtl/divider.v \
+SRC_CORE := ../../external/xglib/rtl/riscv/processor.sv \
+		../../external/xglib/rtl/riscv/alu.sv \
+		../../external/xglib/rtl/riscv/decoder.sv \
+		../../external/xglib/rtl/riscv/register_file.sv \
+		../../external/xglib/rtl/riscv/multiplier.v \
+		../../external/xglib/rtl/riscv/divider.v \
 		../../external/xglib/rtl/sdram_ctrl.v \
 		../../external/xglib/rtl/cache_ctrl.v \
 		../../external/xglib/rtl/display_timings.sv \
@@ -48,7 +48,7 @@ SRC := $(SRC_CORE) $(SRC_XOSERA)
 #SRC := $(SRC_CORE)
 
 DEFINES := -DUSB -DPS2 -DSDRAM -DSD_CARD -DFLASH -DXGA -DNO_TESTPATTERN -DEN_PF_B -DEN_PF_B_BLEND -DEN_AUDIO=4 -DMODE_848x480
-#DEFINES := -DUSB -DVGA
+#DEFINES := -DUSB -DPS2 -DSDRAM -DSD_CARD -DVGA
 
 all: top.bin
 

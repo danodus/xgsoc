@@ -12,12 +12,12 @@ PACKAGE := CABGA381
 SPEED := 7
 
 PIN_DEF := mmm.lpf
-SRC_CORE := ../../external/xglib/rtl/processor.sv \
-		../../external/xglib/rtl/alu.sv \
-		../../external/xglib/rtl/decoder.sv \
-		../../external/xglib/rtl/register_file.sv \
-		../../external/xglib/rtl/multiplier.v \
-		../../external/xglib/rtl/divider.v \
+SRC_CORE := ../../external/xglib/rtl/riscv/processor.sv \
+		../../external/xglib/rtl/riscv/alu.sv \
+		../../external/xglib/rtl/riscv/decoder.sv \
+		../../external/xglib/rtl/riscv/register_file.sv \
+		../../external/xglib/rtl/riscv/multiplier.v \
+		../../external/xglib/rtl/riscv/divider.v \
 		../../external/xglib/rtl/sdram_ctrl.v \
 		../../external/xglib/rtl/cache_ctrl.v \
 		../sdram.sv \
