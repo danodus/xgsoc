@@ -262,10 +262,17 @@ int main(int argc, char **argv, char **env)
                     was_vsync = false;
                 }
 
-                pixels[pixel_index] = top->vga_r << 4;
-                pixels[pixel_index + 1] = top->vga_g << 4;
-                pixels[pixel_index + 2] = top->vga_b << 4;
-                pixels[pixel_index + 3] = 255;
+                if (top->vga_de) {
+                    pixels[pixel_index] = top->vga_r << 4;
+                    pixels[pixel_index + 1] = top->vga_g << 4;
+                    pixels[pixel_index + 2] = top->vga_b << 4;
+                    pixels[pixel_index + 3] = 255;
+                } else {
+                    pixels[pixel_index] = 16;
+                    pixels[pixel_index + 1] = 16;
+                    pixels[pixel_index + 2] = 16;
+                    pixels[pixel_index + 3] = 255;
+                }
                 pixel_index = (pixel_index + 4) % (pixels_size);
 
                 if (!top->vga_vsync && !was_vsync)

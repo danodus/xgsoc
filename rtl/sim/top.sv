@@ -17,6 +17,7 @@ module top (
     output logic [3:0] vga_r,
     output logic [3:0] vga_g,
     output logic [3:0] vga_b,
+    output logic       vga_de,
 
     input  wire logic [7:0]  ps2_kbd_code_i,
     input  wire logic        ps2_kbd_strobe_i,
@@ -57,6 +58,7 @@ module top (
         .vga_r_o(vga_r),
         .vga_g_o(vga_g),
         .vga_b_o(vga_b),
+        .vga_de_o(vga_de),
 `endif // VIDEO
 
         .ps2_kbd_code_i(ps2_kbd_code_i),
@@ -75,11 +77,17 @@ module top (
         .sdram_dqm_o,
         .sdram_dq_io
     );
-    
+
+/*
     initial begin
-        //$display("[%0t] Tracing to logs/vlt_dump.vcd...\n", $time);
-        //$dumpfile("logs/vlt_dump.vcd");
-        //$dumpvars();
+        $display("[%0t] Tracing to logs/vlt_dump.vcd...\n", $time);
+        $dumpfile("logs/vlt_dump.vcd");
+        $dumpvars();
     end
 
+    always_ff @(posedge clk) begin
+        if ($time > 2000)
+                $finish;
+    end
+*/
 endmodule

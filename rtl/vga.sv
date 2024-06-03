@@ -88,6 +88,18 @@ module vga(
         end
     end
 
+    always_comb begin
+        if (vga_de_o) begin
+            vga_r_o = palette[data[7:0]][3:0];
+            vga_g_o = palette[data[7:0]][7:4];
+            vga_b_o = palette[data[7:0]][11:8];
+        end else begin
+            vga_r_o = 4'hF;
+            vga_g_o = 4'h0;
+            vga_b_o = 4'h0;
+        end
+    end
+
     // video display
     always_ff @(posedge clk) begin
         if (reset_i) begin
@@ -112,7 +124,7 @@ module vga(
                 end
             end
             if (de) begin
-                if (sx[0]) begin
+                if (!sx[0]) begin
                     byte_counter <= byte_counter + 1;
                     if (byte_counter == 2'd0) begin
                         data <= data_out;
@@ -121,14 +133,8 @@ module vga(
                         data <= data >> 8;
                     end
                 end
-                vga_r_o <= palette[data[7:0]][3:0];
-                vga_g_o <= palette[data[7:0]][7:4];
-                vga_b_o <= palette[data[7:0]][11:8];
             end else begin
                 data <= data_out;   // preload
-                vga_r_o <= 4'h0;
-                vga_g_o <= 4'h0;
-                vga_b_o <= 4'h0;
             end
         end
     end
