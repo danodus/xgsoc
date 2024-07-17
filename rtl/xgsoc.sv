@@ -1,5 +1,5 @@
 // xgsoc.sv
-// Copyright (c) 2022-2023 Daniel Cliche
+// Copyright (c) 2022-2024 Daniel Cliche
 // SPDX-License-Identifier: MIT
 
 /*
@@ -544,6 +544,7 @@ module xgsoc #(
     ) cpu(
         .clk(clk),
         .reset_i(reset_i),
+        .ce_i(1'b1),
         .irq_i(irq),
         .eoi_o(eoi),
         .sel_o(sel),
