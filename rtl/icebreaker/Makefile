@@ -11,12 +11,12 @@ DEVICE := up5k
 PACKAGE := sg48
 
 PIN_DEF := icebreaker.pcf
-SRC := ../../external/xglib/rtl/processor.sv \
-		../../external/xglib/rtl/alu.sv \
-		../../external/xglib/rtl/decoder.sv \
-		../../external/xglib/rtl/register_file.sv \
-		../../external/xglib/rtl/multiplier.v \
-		../../external/xglib/rtl/divider.v \
+SRC := ../../external/xglib/rtl/riscv/processor.sv \
+		../../external/xglib/rtl/riscv/alu.sv \
+		../../external/xglib/rtl/riscv/decoder.sv \
+		../../external/xglib/rtl/riscv/register_file.sv \
+		../../external/xglib/rtl/riscv/multiplier.v \
+		../../external/xglib/rtl/riscv/divider.v \
 		../bram.sv \
 		../spram.sv \
 		../fifo.sv \

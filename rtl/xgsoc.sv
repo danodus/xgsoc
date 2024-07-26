@@ -383,9 +383,7 @@ module xgsoc #(
     );
 
 `ifdef SPRAM
-    spram #(
-        .SIM_INIT_FILE("program.hex")
-    ) ram(
+    spram ram(
         .clk(clk),
         .sel_i(sel && (addr[31:28] == 4'h1)),
         .address_in_i(15'(addr[27:0] >> 2)),
