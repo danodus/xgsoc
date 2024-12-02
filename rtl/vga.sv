@@ -90,9 +90,9 @@ module vga(
 
     always_comb begin
         if (vga_de_o) begin
-            vga_r_o = palette[data[3:0]][3:0];
-            vga_g_o = palette[data[3:0]][7:4];
-            vga_b_o = palette[data[3:0]][11:8];
+            vga_r_o = palette[data[31:28]][3:0];
+            vga_g_o = palette[data[31:28]][7:4];
+            vga_b_o = palette[data[31:28]][11:8];
         end else begin
             vga_r_o = 4'hF;
             vga_g_o = 4'h0;
@@ -130,7 +130,7 @@ module vga(
                         data <= data_out;
                         line_address <= line_address + 1;
                     end else begin
-                        data <= data >> 4;
+                        data <= data << 4;
                     end
                 end
             end else begin
