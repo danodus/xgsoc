@@ -53,7 +53,7 @@ module vga(
     );
 
     // palette
-    logic [11:0] palette[256];
+    logic [11:0] palette[16];
 
     initial begin
         $readmemh("vga_palette.hex", palette);
@@ -61,7 +61,7 @@ module vga(
 
     logic [14:0] base_address, line_address;
     logic [31:0] data_out;
-    logic [1:0] byte_counter;
+    logic [2:0] pixel_counter;
     logic [31:0] data;
     logic vram_ack, regs_ack;
 
@@ -90,9 +90,9 @@ module vga(
 
     always_comb begin
         if (vga_de_o) begin
-            vga_r_o = palette[data[7:0]][3:0];
-            vga_g_o = palette[data[7:0]][7:4];
-            vga_b_o = palette[data[7:0]][11:8];
+            vga_r_o = palette[data[3:0]][3:0];
+            vga_g_o = palette[data[3:0]][7:4];
+            vga_b_o = palette[data[3:0]][11:8];
         end else begin
             vga_r_o = 4'hF;
             vga_g_o = 4'h0;
@@ -105,7 +105,7 @@ module vga(
         if (reset_i) begin
             base_address <= 15'h0;
             line_address <= 15'h0;
-            byte_counter <= 2'd0;
+            pixel_counter <= 3'd0;
             data <= 32'h0;
         end else begin
             vga_hsync_o <= hsync;
@@ -117,7 +117,7 @@ module vga(
             end
             if (line) begin
                 if (sy[0]) begin
-                    base_address <= base_address + 424/4;
+                    base_address <= base_address + 424/8;
                     line_address <= base_address;
                 end else begin
                     base_address <= line_address;
@@ -125,12 +125,12 @@ module vga(
             end
             if (de) begin
                 if (!sx[0]) begin
-                    byte_counter <= byte_counter + 1;
-                    if (byte_counter == 2'd0) begin
+                    pixel_counter <= pixel_counter + 1;
+                    if (pixel_counter == 6'd0) begin
                         data <= data_out;
                         line_address <= line_address + 1;
                     end else begin
-                        data <= data >> 8;
+                        data <= data >> 4;
                     end
                 end
             end else begin
