@@ -5,15 +5,6 @@
 
 #define RAM_START 0x10000000
 
-void start_prog()
-{
-    asm volatile(
-        "lui x15,0x10000\n"
-        "addi x15,x15,0\n"
-        "jalr x0,x15,0\n"
-    );
-}
-
 unsigned int read_word()
 {
     unsigned int word = 0;
@@ -94,29 +85,34 @@ void main(void)
         }
     }
 
-    if (!boot_sd_card) {
-        MEM_WRITE(DISPLAY, 0xFF);
-        print("Ready to receive...\r\n");
+    for (;;) {
+        if (!boot_sd_card) {
+            MEM_WRITE(DISPLAY, 0xFF);
+            print("Ready to receive...\r\n");
 
-        // Read program
-        unsigned int addr = RAM_START;
-        unsigned int size;
-        size = read_word();
+            // Read program
+            unsigned int addr = RAM_START;
+            unsigned int size;
+            size = read_word();
 
-        if (size == 0) {
-            MEM_WRITE(DISPLAY, 0x01);
-            return;
+            if (size == 0) {
+                MEM_WRITE(DISPLAY, 0x01);
+                return;
+            }
+
+            for (unsigned int i = 0; i < size; ++i) {
+                unsigned int word = read_word();
+                MEM_WRITE(addr, word);
+                addr += 4;
+                MEM_WRITE(DISPLAY, i << 1);        
+            }
+            MEM_WRITE(DISPLAY, 0x00);
         }
 
-        for (unsigned int i = 0; i < size; ++i) {
-            unsigned int word = read_word();
-            MEM_WRITE(addr, word);
-            addr += 4;
-            MEM_WRITE(DISPLAY, i << 1);        
-        }
-        MEM_WRITE(DISPLAY, 0x00);
+        // start program
+        void (*program)(void) = (void (*)(void))RAM_START;
+        program();
     }
 
-    start_prog();
 #endif // ECHO_TEST
 }
