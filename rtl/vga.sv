@@ -90,11 +90,11 @@ module vga(
 
     always_comb begin
         if (vga_de_o) begin
-            vga_r_o = palette[data[31:28]][3:0];
+            vga_r_o = palette[data[31:28]][11:8];
             vga_g_o = palette[data[31:28]][7:4];
-            vga_b_o = palette[data[31:28]][11:8];
+            vga_b_o = palette[data[31:28]][3:0];
         end else begin
-            vga_r_o = 4'hF;
+            vga_r_o = 4'h0;
             vga_g_o = 4'h0;
             vga_b_o = 4'h0;
         end
