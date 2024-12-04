@@ -296,6 +296,9 @@ void main(void) {
     lua_pushcfunction(L, fsformat);
     lua_setglobal(L, "fsformat");
 
+    lua_pushcfunction(L, fsunmount);
+    lua_setglobal(L, "fsunmount");
+
     printf("Ready\n");
 
     for(;;) {
