@@ -17,11 +17,8 @@
 
 #include "dhry.h"
 
-#include <stdlib.h>
-#include <string.h>
-
 #ifndef DHRY_ITERS
-#define DHRY_ITERS 50000
+#define DHRY_ITERS 200000
 #endif
 
 /* Global Variables: */
@@ -35,6 +32,7 @@ char            Ch_1_Glob,
 int             Arr_1_Glob [50];
 int             Arr_2_Glob [50] [50];
 
+extern char     *malloc ();
 Enumeration     Func_1 ();
   /* forward declaration necessary since Enumeration may not simply be int */
 
@@ -50,8 +48,9 @@ Enumeration     Func_1 ();
 /* variables for time measurement: */
 
 #ifdef TIMES
+#define HZ 1000
 struct tms      time_info;
-extern  int     times ();
+extern  clock_t     times ();
                 /* see library function "times" */
 #define Too_Small_Time (2*HZ)
                 /* Measurements should last at least about 2 seconds */
@@ -66,10 +65,6 @@ extern long     time();
 extern clock_t	clock();
 #define Too_Small_Time (2*HZ)
 #endif
-#ifdef XOSERA_CLOCK
-extern long xosera_clock();
-#define Too_Small_Time (2*HZ)
-#endif
 
 long            Begin_Time,
                 End_Time,
@@ -80,7 +75,7 @@ float           Microseconds,
 /* end of variables for time measurement */
 
 
-void bench_dhry ()
+main ()
 /*****/
 
   /* main program, corresponds to procedures        */
@@ -156,9 +151,6 @@ void bench_dhry ()
 #ifdef MSC_CLOCK
   Begin_Time = clock();
 #endif
-#ifdef XOSERA_CLOCK
-  Begin_Time = xosera_clock();
-#endif
 
   for (Run_Index = 1; Run_Index <= Number_Of_Runs; ++Run_Index)
   {
@@ -220,12 +212,8 @@ void bench_dhry ()
 #ifdef MSC_CLOCK
   End_Time = clock();
 #endif
-#ifdef XOSERA_CLOCK
-  End_Time = xosera_clock();
-#endif
 
   printf ("Execution ends\n");
-/*  
   printf ("\n");
   printf ("Final values of the variables used in the benchmark:\n");
   printf ("\n");
@@ -276,22 +264,10 @@ void bench_dhry ()
   printf ("        should be:   DHRYSTONE PROGRAM, 1'ST STRING\n");
   printf ("Str_2_Loc:           %s\n", Str_2_Loc);
   printf ("        should be:   DHRYSTONE PROGRAM, 2'ND STRING\n");
-*/
   printf ("\n");
 
-#ifdef XOSERA_CLOCK
-  if (End_Time >= Begin_Time)
-  {
-      User_Time = End_Time - Begin_Time;
-  }
-  else
-  {
-      User_Time = 65535 - Begin_Time + End_Time;
-  }
-#else
   User_Time = End_Time - Begin_Time;
-#endif
-
+  
   if (User_Time < Too_Small_Time)
   {
     printf ("Measured time too small to obtain meaningful results\n");

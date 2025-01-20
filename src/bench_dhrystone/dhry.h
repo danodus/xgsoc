@@ -346,12 +346,12 @@
 
 /* Compiler and system dependent definitions: */
 
+#ifndef TIME
+#undef TIMES
+#define TIMES
+#endif
                 /* Use times(2) time function unless    */
                 /* explicitly defined otherwise         */
-
-
-#define XOSERA_CLOCK
-#define HZ 10000
 
 #ifdef MSC_CLOCK
 #undef HZ

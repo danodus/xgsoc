@@ -92,6 +92,7 @@ The following programs are available:
 | --------------- | --------------------------------------------------- | ---------------- |
 | test_video      | Test video display                                  | ULX3S, MMM       |
 | test_graphite   | Test graphite subsystem                             | ULX3S, MMM       |
+| bench_dhrystone | Benchmark Dhrystone                                 | ULX3S, MMM       |
 | write_sd_image  | Write bootable SD card image (see section below)    | ULX3S, MMM       |
 
 # Write Bootable Image
