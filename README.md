@@ -90,6 +90,7 @@ The following programs are available:
 
 | Name            | Description                                         | Compatibility    |
 | --------------- | --------------------------------------------------- | ---------------- |
+| test_usb        | Test USB host                                       | ULX3S, MMM       |
 | test_video      | Test video display                                  | ULX3S, MMM       |
 | test_graphite   | Test graphite subsystem                             | ULX3S, MMM       |
 | bench_dhrystone | Benchmark Dhrystone                                 | ULX3S, MMM       |
