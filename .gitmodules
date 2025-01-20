@@ -4,3 +4,6 @@
 [submodule "external/Xosera"]
 	path = external/Xosera
 	url = https://github.com/dcliche/Xosera.git
+[submodule "external/graphite"]
+	path = external/graphite
+	url = https://github.com/danodus/graphite

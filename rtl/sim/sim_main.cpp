@@ -1,3 +1,7 @@
+// sim_main.cpp
+// Copyright (c) 2023-2024 Daniel Cliche
+// SPDX-License-Identifier: MIT
+
 #include <SDL.h>
 
 #include <memory>
@@ -16,16 +20,12 @@
 
 #define SDRAM_MEM_SIZE (32*1024*1024/2)
 
-const int screen_width = 1280;
+const int screen_width = 1024;
 const int screen_height = 768;
 
 // 640x480
-//const int vga_width = 800;
-//const int vga_height = 525;
-
-// 848x480
-const int vga_width = 1088;
-const int vga_height = 517;
+const int vga_width = 800;
+const int vga_height = 525;
 
 double sc_time_stamp()
 {
@@ -37,7 +37,7 @@ int main(int argc, char **argv, char **env)
     SDL_Init(SDL_INIT_VIDEO);
 
     SDL_Window *window = SDL_CreateWindow(
-        "XGSoC Simulation",
+        "Graphite SoC Simulation",
         SDL_WINDOWPOS_UNDEFINED_DISPLAY(1),
         SDL_WINDOWPOS_UNDEFINED,
         screen_width,
@@ -65,7 +65,7 @@ int main(int argc, char **argv, char **env)
     do {
 
         for (size_t i = 0; i < SDRAM_MEM_SIZE; ++i) {
-            sdram_mem[i] =  (i >= SDRAM_MEM_SIZE / 2) ? 0xF00F : 0x0000;
+            sdram_mem[i] =  (i >= SDRAM_MEM_SIZE / 2) ? 0x001F : 0x0000;
         }
 
         std::ifstream file("program.hex", std::ifstream::in);
@@ -142,6 +142,8 @@ int main(int argc, char **argv, char **env)
         bool write_sdram = false;
         bool read_sdram = false;
 
+        bool manual_reset = false;
+
         while (!contextp->gotFinish() && !quit)
         {
             bool toggle_clk = !(clk_counter & 0x1);
@@ -193,7 +195,7 @@ int main(int argc, char **argv, char **env)
                         // end of burst
                         //printf("EOB\n");
                         write_sdram = false;
-                        read_sdram = false;
+                        //read_sdram = false;
                     }
                 }
 
@@ -245,15 +247,15 @@ int main(int argc, char **argv, char **env)
                     }
                 }
 
-                if (contextp->time() > 1 && contextp->time() < 10)
-                {
-                    top->reset_i = 1; // Assert reset
+                if (manual_reset) {
+                    top->reset_i = 1;
+                } else {
+                    if (contextp->time() > 1 && contextp->time() < 10) {
+                        top->reset_i = 1; // Assert reset
+                    } else {
+                        top->reset_i = 0; // Deassert reset
+                    }
                 }
-                else
-                {
-                    top->reset_i = 0; // Deassert reset
-                }
-
 
                 // Update video display
                 if (was_vsync && top->vga_vsync)
@@ -262,17 +264,10 @@ int main(int argc, char **argv, char **env)
                     was_vsync = false;
                 }
 
-                if (top->vga_de) {
-                    pixels[pixel_index] = top->vga_r << 4;
-                    pixels[pixel_index + 1] = top->vga_g << 4;
-                    pixels[pixel_index + 2] = top->vga_b << 4;
-                    pixels[pixel_index + 3] = 255;
-                } else {
-                    pixels[pixel_index] = 16;
-                    pixels[pixel_index + 1] = 16;
-                    pixels[pixel_index + 2] = 16;
-                    pixels[pixel_index + 3] = 255;
-                }
+                pixels[pixel_index] = top->vga_r;
+                pixels[pixel_index + 1] = top->vga_g;
+                pixels[pixel_index + 2] = top->vga_b;
+                pixels[pixel_index + 3] = 255;
                 pixel_index = (pixel_index + 4) % (pixels_size);
 
                 if (!top->vga_vsync && !was_vsync)
@@ -308,6 +303,10 @@ int main(int argc, char **argv, char **env)
                     {
                         switch (e.key.keysym.sym)
                         {
+                        case SDLK_F1:
+                            std::cout << "Reset released\n";
+                            manual_reset = false;
+                            break;
                         case SDLK_F12:
                             quit = true;
                             restart_model = true;
@@ -328,6 +327,10 @@ int main(int argc, char **argv, char **env)
                         {
                             switch (e.key.keysym.sym)
                             {
+                            case SDLK_F1:
+                                std::cout << "Reset pressed\n";
+                                manual_reset = true;
+                                break;                                
                             case SDLK_F12:
                                 std::cout << "Reset context\n";
                                 break;

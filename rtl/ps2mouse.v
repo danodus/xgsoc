@@ -1,261 +1,114 @@
-// PS2 mouse controller.
-// This module decodes the standard 3 byte packet of an PS/2 compatible 2 or 3 button mouse.
-// The module also automatically handles power-up initailzation of the mouse.
+`timescale 1ns / 1ps  
+
+/*Project Oberon, Revised Edition 2013
+
+Book copyright (C)2013 Niklaus Wirth and Juerg Gutknecht;
+software copyright (C)2013 Niklaus Wirth (NW), Juerg Gutknecht (JG), Paul
+Reed (PR/PDR).
+
+Permission to use, copy, modify, and/or distribute this software and its
+accompanying documentation (the "Software") for any purpose with or
+without fee is hereby granted, provided that the above copyright notice
+and this permission notice appear in all copies.
+
+THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHORS DISCLAIM ALL WARRANTIES
+WITH REGARD TO THE SOFTWARE, INCLUDING ALL IMPLIED WARRANTIES OF
+MERCHANTABILITY, FITNESS AND NONINFRINGEMENT.  IN NO EVENT SHALL THE
+AUTHORS BE LIABLE FOR ANY CLAIM, SPECIAL, DIRECT, INDIRECT, OR
+CONSEQUENTIAL DAMAGES OR ANY DAMAGES OR LIABILITY WHATSOEVER, WHETHER IN
+AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
+CONNECTION WITH THE DEALINGS IN OR USE OR PERFORMANCE OF THE SOFTWARE.*/
+
+// PS/2 mouse PDR 14.10.2013 / 03.09.2015 / 01.10.2015
+// with Microsoft 3rd (scroll) button init magic
+
+// EMARD added z-axis (wheel) 10.05.2019
+// https://isdaman.com/alsos/hardware/mouse/ps2interface.htm
+
 module ps2mouse
 #(
-        parameter c_x_bits = 8,
-        parameter c_y_bits = 8
+  parameter c_z_ena  = 1    // 1:yes wheel, 0:not wheel
 )
 (
-	input 	clk,                    // bus clock
-	input 	reset,                  // reset 
-	input	ps2mdati,               // mouse PS/2 data
-	input	ps2mclki,               // mouse PS/2 clk
-	output	ps2mdato,               // mouse PS/2 data
-	output	ps2mclko,               // mouse PS/2 clk
-	output	reg [c_x_bits-1:0] xcount, // mouse Y counter
-	output	reg [c_y_bits-1:0] ycount, // mouse X counter
-	output	reg [2:0] btn           // {middle, right, left} mouse buttons
+  input clk,
+  input ps2m_reset,
+  inout ps2m_clk, ps2m_dat,
+  input done,   // "word has been read"
+  output rdy,   // "word is available"
+  output [26:0] data  
 );
+  reg [2:0] sent;
+  localparam c_rx_bits = c_z_ena ? 42 : 31;
+  reg [c_rx_bits-1:0] rx;
+  reg [9:0] tx;
+  reg [14:0] count;
+  reg [5:0] filter;
+  reg req;
+  wire shift, endbit, endcount, donereq, run;
+  wire [8:0] cmd;  //including odd tx parity bit
+  wire [7:0] dx;
+  wire [7:0] dy;
+  wire [7:0] dz;
+  wire [2:0] btn;  
 
-//local signals
-reg	mclkout; 			// mouse clk out
-wire	mdatout;			// mouse data out
-reg	mdatb,mclkb,mclkc;		// input synchronization	
+// 322222222221111111111 (scroll mouse z and rx parity p ignored)
+// 0987654321098765432109876543210   X, Y = overflow
+// -------------------------------   s, t = x, y sign bits
+// yyyyyyyy01pxxxxxxxx01pYXts1MRL0   normal report
+// p--ack---0Ap--cmd---01111111111   cmd + ack bit (A) & byte
 
-reg	[10:0] mreceive;		// mouse receive register	
-reg	[11:0] msend;			// mouse send register
-reg	[15:0] mtimer;			// mouse timer
-reg	[2:0] mstate;			// mouse current state
-reg	[2:0] mnext;			// mouse next state
+  // bytes to be sent
+  parameter [7:0] send0     = 8'hF4;  // 8'hF4 enable reporting
+  parameter [7:0] send2     = 8'd200; //   200
+  parameter [7:0] send4     = 8'd100; //   100
+  parameter [7:0] send6     = 8'd80;  //    80
+  parameter [7:0] send135   = 8'hF3;  // 8'hF3 set sample rate
+  // odd-parity bit prepended to each byte
+  parameter [8:0] psend0    = {~^send0,send0};
+  parameter [8:0] psend2    = {~^send2,send2};
+  parameter [8:0] psend4    = {~^send4,send4};
+  parameter [8:0] psend6    = {~^send6,send6};
+  parameter [8:0] psend135  = {~^send135,send135};
 
-initial
-	mstate = 3'b000;
+  assign cmd = (sent == 0) ? psend0 :   // init sequence
+               (sent == 2) ? psend2 :
+               (sent == 4) ? psend4 :
+               (sent == 6) ? psend6 : 
+                             psend135;
+  assign run = (sent == 7);
+  assign endcount = (count[14:12] == 3'b111);  // more than 11*100uS @25MHz
+  assign shift = ~req & (filter == 6'b100000);  //low for 200nS @25MHz
+  // first bit that enters rx at MSB is 1 and it is shifted to the right
+  // when this bit reaches the position in rx, it indicates end of transmission
+  assign endbit = run ? ~rx[0] : ~rx[$bits(rx)-21];
+  assign donereq = endbit & endcount & ~req;
+  assign dx = {{($bits(dx)-8){rx[5]}}, rx[7] ? 8'b0 : rx[19:12]};  //sign+overfl
+  assign dy = {{($bits(dy)-8){rx[6]}}, rx[8] ? 8'b0 : rx[30:23]};  //sign+overfl
+  generate
+    if(c_z_ena)
+      assign dz = {{($bits(dz)-3){rx[37]}}, rx[37:34]};  //sign,wheel
+  endgenerate
+  assign btn = rx[3:1];
+  assign ps2m_clk = req ? 1'b0 : 1'bz;  //bidir clk/request
+  assign ps2m_dat = ~tx[0] ? 1'b0 : 1'bz;  //bidir data
 
-wire	mclkneg;				// negative edge of mouse clock strobe
-reg	mrreset;				// mouse receive reset
-wire	mrready;				// mouse receive ready;
-reg	msreset;				// mosue send reset
-wire	msready;				// mouse send ready;
-reg	mtreset;				// mouse timer reset
-wire	mtready;				// mouse timer ready	 
-wire	mthalf;					// mouse timer somewhere halfway timeout
-wire	mttest;
-reg	[1:0] mpacket;				// mouse packet byte valid number
+  reg [3:0] inptr, outptr;
+  reg [26:0] fifo [15:0];  // 16 word buffer
 
-// bidirectional open collector IO buffers
-//assign ps2mclk = (mclkout) ? 1'bz : 1'b0;
-//assign ps2mdat = (mdatout) ? 1'bz : 1'b0;
-assign ps2mclko=mclkout;
-assign ps2mdato=mdatout;
+  assign data = fifo[outptr];
+  assign rdy = ~(inptr == outptr);
 
-// input synchronization of external signals
-always @(posedge clk)
-begin
-	mdatb <= ps2mdati;
-	mclkb <= ps2mclki;
-	mclkc <= mclkb;
-end						
+  always @ (posedge clk) begin
+    filter <= {filter[$bits(filter)-2:0], ps2m_clk};
+    count <= (ps2m_reset | shift | endcount) ? 0 : count+1;
+    req <= ~ps2m_reset & ~run & (req ^ endcount);
+    sent <= ps2m_reset ? 0 : (donereq & ~run) ? sent+1 : sent;
+    tx <= (ps2m_reset | run) ? {$bits(tx){1'b1}} : req ? {cmd, 1'b0} : shift ? {1'b1, tx[$bits(tx)-1:1]} : tx;
+    rx <= (ps2m_reset | donereq) ? {$bits(rx){1'b1}} : (shift & ~endbit) ? {ps2m_dat, rx[$bits(rx)-1:1]} : rx;
 
-// detect mouse clock negative edge
-assign mclkneg = mclkc & (~mclkb);
-
-// PS2 mouse input shifter
-always @(posedge clk)
-	if (mrreset)
-		mreceive[10:0]<=11'b11111111111;
-	else if (mclkneg)
-		mreceive[10:0]<={mdatb,mreceive[10:1]};
-assign mrready=~mreceive[0];
-
-// PS2 mouse send shifter
-always @(posedge clk)
-	if (msreset)
-		msend[11:0]<=12'b110111101000;
-	else if (!msready && mclkneg)
-		msend[11:0]<={1'b0,msend[11:1]};
-assign msready=(msend[11:0]==12'b000000000001)?1:0;
-assign mdatout=msend[0];
-
-// PS2 mouse timer
-always @(posedge clk)
-	if (mtreset)
-		mtimer[15:0]<=16'h0000;
-	else
-		mtimer[15:0]<=mtimer[15:0]+1;
-assign mtready=(mtimer[15:0]==16'hffff)?1:0;
-assign mthalf=mtimer[11];
-//assign mttest=mtimer[13];
-assign mttest=mtimer[14];
-
-wire [c_x_bits-1:0] xinc;
-wire [c_y_bits-1:0] yinc;
-generate
-  if(c_x_bits > 8)
-    assign xinc = {{(c_x_bits-8){mreceive[8]}},mreceive[8:1]};
-  else
-    assign xinc = mreceive[c_x_bits:1];
-  if(c_y_bits > 8)
-    assign yinc = {{(c_y_bits-8){mreceive[8]}},mreceive[8:1]};
-  else
-    assign yinc = mreceive[c_y_bits:1];
-endgenerate
-
-// PS2 mouse packet decoding and handling
-always @(posedge clk)
-begin
-	if (reset) // reset
-	begin
-		btn <= 3'b000;
-		xcount <= 0;	
-		ycount <= 0;
-	end
-	else if (mpacket==1) // buttons
-		btn <= mreceive[3:1];
-	else if (mpacket==2) // delta X movement
-		xcount <= xcount + xinc;
-	else if (mpacket==3) // delta Y movement
-		ycount <= ycount - yinc;
-end
-
-//--------------------------------------------------------------------------------------
-//--------------------------------------------------------------------------------------
-
-// PS2 mouse state machine
-always @(posedge clk)
-	if (reset || mtready) // master reset OR timeout
-		mstate<=0;
-	else 
-		mstate<=mnext;
-always @(mstate or mthalf or msready or mrready or mreceive)
-begin
-	case(mstate)
-		0: // initialize mouse phase 0, start timer
-			begin
-				mclkout=1;
-				mrreset=0;
-				mtreset=1;
-				msreset=0;
-				mpacket=0;
-				mnext=1;
-			end
-
-		1: // initialize mouse phase 1, hold clk low and reset send logic
-			begin
-				mclkout=0;
-				mrreset=0;
-				mtreset=0;
-				msreset=1;
-				mpacket=0;
-				if (mthalf) // clk was low long enough, go to next state
-					mnext=2;
-				else
-					mnext=1;
-			end
-
-		2: // initialize mouse phase 2, send 'enable data reporting' command to mouse
-			begin
-				mclkout=1;
-				mrreset=1;
-				mtreset=0;
-				msreset=0;
-				mpacket=0;
-				if (msready) // command set, go get 'ack' byte
-					mnext=5;
-				else
-					mnext=2;
-			end
-
-		3: // get first packet byte
-			begin
-				mclkout=1;
-				mtreset=1;
-				msreset=0;
-				if (mrready) // we got our first packet byte
-				begin
-					mpacket=1;
-					mrreset=1;
-					mnext=4;
- 				end
-				else // we are still waiting				
- 				begin
-					mpacket=0;
-					mrreset=0;
-					mnext=3;
-				end
-			end
-
-		4: // get second packet byte
-			begin
-				mclkout=1;
-				mtreset=0;
-				msreset=0;
-				if (mrready) // we got our second packet byte
-				begin
-					mpacket=2;
-					mrreset=1;
-					mnext=5;
-
-				end
-				else // we are still waiting				
- 				begin
-					mpacket=0;
-					mrreset=0;
-					mnext=4;
-				end
-			end
-
-		5: // get third packet byte (or get 'ACK' byte..)
-			begin
-				mclkout=1;
-				mtreset=1;
-				msreset=0;
-				if (mrready) // we got our third packet byte
-				begin
-					mpacket=3;
-					mrreset=1;
-					mnext=6;
-
-				end
-				else // we are still waiting				
- 				begin
-					mpacket=0;
-					mrreset=0;
-					mnext=5;
-				end
-			end
- 
-		6: // get Z packet byte if weel is aktive
-			begin
-				mclkout=1;
-				mtreset=0;
-				msreset=0;
-				if (mrready||mttest) // we got our ford packet byte or timeout
-				begin
-					mpacket=0;
-					mrreset=1;
-					mnext=3;
-
-				end
-				else // we are still waiting				
- 				begin
-					mpacket=0;
-					mrreset=0;
-					mnext=6;
-				end
-			end
- 
-		default: // we should never come here
-			begin
-				mclkout=1'bx;
-				mrreset=1'bx;
-				mtreset=1'bx;
-				msreset=1'bx;
-				mpacket=2'bxx;
-				mnext=0;
-			end
-
-	endcase
-end
+    outptr <= ps2m_reset ? 0 : rdy & done ? outptr+1 : outptr;
+    inptr <= ps2m_reset ? 0 : run & donereq ? inptr+1 : inptr;
+    if (donereq) fifo[inptr] <= {btn, dx, dy, dz};
+  end
 
 endmodule

@@ -1,5 +1,0 @@
-RISCV_TOOLCHAIN_PATH = /opt/riscv32im/bin/
-RISCV_TOOLCHAIN_PREFIX = riscv32-unknown-elf-
-RISCV_CC_OPT = -march=rv32im -mabi=ilp32
-
-OSS_CAD_SUITE_PATH = /path/to/oss-cad-suite/bin/

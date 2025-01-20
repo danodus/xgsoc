@@ -50,25 +50,11 @@ module fifo #(
         end
     end
 
-    always_ff @(posedge clk) begin
-        if (reader_deq_i && !reader_empty_o) begin
-            reader_empty_o     <= (tail == ADDR_LEN'(head + 1));
-            reader_alm_empty_o <= (tail == ADDR_LEN'(head + 2)) || (tail == ADDR_LEN'(head + 1));
-        end else begin
-            reader_empty_o     <= (tail == head);
-            reader_alm_empty_o <= (tail == ADDR_LEN'(head + 1)) || (tail == head);
-        end
-    end
+    assign reader_empty_o     = (tail == head);
+    assign reader_alm_empty_o = (tail == head + 1) || (tail == head);
 
-    always_ff @(posedge clk) begin
-        if (writer_enq_i && !writer_full_o) begin
-            writer_full_o     <= (head == ADDR_LEN'(tail + 2));
-            writer_alm_full_o <= (head == ADDR_LEN'(tail + 3)) || (head == ADDR_LEN'(tail + 2));
-        end else begin
-            writer_full_o     <= (head == ADDR_LEN'(tail + 1));
-            writer_alm_full_o <= (head == ADDR_LEN'(tail + 2)) || (head == ADDR_LEN'(tail + 1));
-        end
-    end
+    assign writer_full_o      = (head == tail + 1);
+    assign writer_alm_full_o  = (head == tail + 2) || (head == tail + 1);
 
     logic ram_we;
     assign ram_we = writer_enq_i && !writer_full_o;
