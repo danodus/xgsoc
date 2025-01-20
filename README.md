@@ -117,6 +117,7 @@ The following programs are available:
 | test_mem        | Test memory                                         | `b`           |
 | test_fs         | Test filesystem (SD card content erased)            | `b`           |
 | bench_dhrystone | Benchmark Dhrystone                                 | `b`           |
+| bench_coremark  | Benchmark Coremark                                  | `b`           |
 | write_sd_image  | Write bootable SD card image (see section below)    | `b`           |
 | hello           | Hello world example                                 | `b`           |
 | factorial       | Factorial example                                   | `b`           |
