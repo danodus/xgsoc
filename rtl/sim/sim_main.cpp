@@ -37,7 +37,7 @@ int main(int argc, char **argv, char **env)
     SDL_Init(SDL_INIT_VIDEO);
 
     SDL_Window *window = SDL_CreateWindow(
-        "Graphite SoC Simulation",
+        "XGSoC Simulation",
         SDL_WINDOWPOS_UNDEFINED_DISPLAY(1),
         SDL_WINDOWPOS_UNDEFINED,
         screen_width,
