@@ -36,7 +36,7 @@ SRC = \
 	../../external/xglib/rtl/riscv/multiplier.v \
   ../video.v \
   ../rgb565_to_rgb888.sv \
-  ../lattice/bram32bit.v \
+  ../bram32bit.v \
   ../lattice/ecp5pll.sv \
   ../bram_true2p_2clk.v \
   ../vqueue.v \
