@@ -28,12 +28,12 @@ SRC = \
   ../uart_tx.v \
   ../fifo.sv \
   ../spi.v \
-  ../../external/xglib/rtl/riscv/processor.sv \
-	../../external/xglib/rtl/riscv/alu.sv \
-	../../external/xglib/rtl/riscv/register_file.sv \
-	../../external/xglib/rtl/riscv/decoder.sv \
-	../../external/xglib/rtl/riscv/divider.v \
-	../../external/xglib/rtl/riscv/multiplier.v \
+  ../riscv/processor.sv \
+	../riscv/alu.sv \
+	../riscv/register_file.sv \
+	../riscv/decoder.sv \
+	../riscv/divider.v \
+	../riscv/multiplier.v \
   ../video.v \
   ../rgb565_to_rgb888.sv \
   ../bram32bit.v \
