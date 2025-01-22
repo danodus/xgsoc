@@ -5,7 +5,6 @@
 #include <io.h>
 #include <sys.h>
 #include <fs.h>
-#include <xga.h>
 
 #include <stdio.h>
 #include <string.h>

@@ -100,6 +100,7 @@ The following programs are available:
 | test_graphite   | Test graphite subsystem                             | ULX3S            |
 | bench_dhrystone | Benchmark Dhrystone                                 | ULX3S            |
 | write_sd_image  | Write bootable SD card image (see section below)    | ULX3S            |
+| lua             | Lua language                                        | ULX3S            |
 
 # Write Bootable Image
 

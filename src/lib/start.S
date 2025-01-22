@@ -1,5 +1,6 @@
     .section .init
     .global _start
+    .global counter    
 
 _start:
     j start
@@ -28,6 +29,9 @@ ecall:
 
 ebreak:
     sret
+
+counter:
+    .word 0x00000000    
 
 start:
     add x1,x0,x0

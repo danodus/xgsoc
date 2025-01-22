@@ -1,2 +1,2 @@
-EXTRA_SOURCE = program.c ../lib/sd_card.c
+EXTRA_SOURCE = program.c
 include ../program.mk

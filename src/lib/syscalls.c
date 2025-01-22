@@ -18,7 +18,15 @@
 #include <fcntl.h>
 #include <stdbool.h>
 
+#include "sys.h"
+
+#ifdef XIO
+#include "xio.h"
+#endif
+
 #include "io.h"
+
+#include "fs.h"
 
 #ifndef STDIN_FILENO
 #define STDIN_FILENO	0
@@ -39,8 +47,16 @@
 // Ref.: https://lists.debian.org/debian-gcc/2003/07/msg00070.html
 void* __dso_handle = (void*) &__dso_handle;
 
+extern volatile unsigned int counter;
+
 extern int errno;
 static void sys_print(const char *s);
+
+static sd_context_t g_sd_ctx;
+static fs_context_t g_fs_ctx;
+static char g_filename[FS_MAX_FILENAME_LEN + 1];
+static size_t g_current_pos;
+static unsigned int g_tty_mode = 0x0;
 
 void ebreak()
 {
@@ -59,14 +75,62 @@ void unimplemented_syscall(const char *fn)
 	__builtin_unreachable();
 }
 
+void sysinit()
+{
+	// enable timer interrupts
+	MEM_WRITE(TIMER_INTR_ENA, 0x1);
+	
+#ifdef XIO
+	xinit();
+#endif
+}
+
+void sys_set_tty_mode(unsigned int mode)
+{
+	g_tty_mode = mode;
+}
+
+unsigned int sys_get_tty_mode()
+{
+	return g_tty_mode;
+}
+
 static char sys_read_char(bool force_serial)
 {
-	return get_chr();
+	bool is_serial = true;
+#ifdef XIO
+	// keyboard
+	if (!force_serial)
+		is_serial = false;
+#endif
+	char c;
+	if (is_serial) {
+		// serial port
+		c = get_chr();
+	} else {
+#ifdef XIO
+		c = xget_chr();
+#endif
+	}
+	return c;
 }
 
 static void sys_write_char(bool force_serial, char c)
 {
-	print_chr(c);
+	bool is_serial = true;
+#ifdef XIO
+	if (!force_serial)
+		is_serial = false;
+#endif
+	if (is_serial) {
+		// serial port
+		print_chr(c);
+	} else {
+#ifdef XIO
+		// Xosera
+		xprint_chr(c);
+#endif
+	}
 }
 
 static void sys_print(const char *s)
@@ -103,7 +167,7 @@ static size_t sys_read_line(bool force_serial, char *s, size_t buffer_len, bool 
 				len++;
 			}
 			break;
-		} else {
+		} else if (c != '\n') {
 			if (len < buffer_len) {
 				sys_write_char(force_serial, c);
 				*s = c;
@@ -116,14 +180,48 @@ static size_t sys_read_line(bool force_serial, char *s, size_t buffer_len, bool 
 	return len;
 }
 
+static bool file_exists(fs_context_t *ctx, const char *filename)
+{
+	uint16_t nb_files = fs_get_nb_files(ctx);
+	for (uint16_t i = 0; i < nb_files; ++i) {
+		fs_file_info_t file_info;
+		fs_get_file_info(ctx, i, &file_info);
+		if (strcmp(file_info.name, filename) == 0)
+			return true;
+	}
+	return false;
+}
+
 int _open(const char *pathname, int flags, mode_t mode)
 {
 	if (strcmp(pathname, "/dev/ttyS0") == 0) {
 		// open serial IO
 		return TTYS0_FILENO;
+	} else {
+		// open file
+		if (!sd_init(&g_sd_ctx)) {
+			errno = EIO;
+			return -1;
+		}
+
+		if (!fs_init(&g_sd_ctx, &g_fs_ctx)) {
+			errno = EIO;
+			return -1;
+		}
+
+		// if read-only and file does not exist, return error
+		if (flags == O_RDONLY) {
+			if (!file_exists(&g_fs_ctx, pathname)) {
+				errno = ENOENT;
+				return -1;
+			}
+		}
+
+		strncpy(g_filename, pathname, sizeof(g_filename));
+		g_current_pos = 0;
+
+		return SDFILE0_FILENO;
 	}
-	errno = ENOTSUP;
-	return -1;
 }
 
 ssize_t _read(int file, void *ptr, size_t len)
@@ -131,6 +229,11 @@ ssize_t _read(int file, void *ptr, size_t len)
 	if (file == STDIN_FILENO || file == TTYS0_FILENO) {
 		if (len == 0)
 			return 0;
+
+		if (g_tty_mode & SYS_TTY_MODE_RAW) {
+			((char *)ptr)[0] = sys_read_char(file == TTYS0_FILENO);
+			return 1;
+		}
 
 		char buf[256];
 		static bool eof = false;
@@ -146,6 +249,17 @@ ssize_t _read(int file, void *ptr, size_t len)
 		for (size_t i = 0; i < c; ++i)
 			p[i] = buf[i];
 		return c;
+	} else if (file == SDFILE0_FILENO) {
+		if (len == 0)
+			return 0;		
+
+		size_t nb_read_bytes;
+		if (!fs_read(&g_fs_ctx, g_filename, (uint8_t *)ptr, g_current_pos, len, &nb_read_bytes)) {
+			errno = EIO;
+			return -1;
+		}
+		g_current_pos += len;
+		return nb_read_bytes;
 	}
 	errno = EBADF;
     return -1;
@@ -154,9 +268,30 @@ ssize_t _read(int file, void *ptr, size_t len)
 ssize_t _write(int file, const void *ptr, size_t len)
 {
 	if (file == STDOUT_FILENO || file == STDERR_FILENO || file == TTYS0_FILENO) {
-		// serial port
-		print_buf(ptr, len);
+		bool is_serial = true;
+
+#ifdef XIO
+		if (file != TTYS0_FILENO)
+			is_serial = false;
+#endif		
+
+		if (is_serial) {
+			// serial port
+			print_buf(ptr, len);
+		} else {
+#ifdef XIO
+			// Xosera
+			xprint_buf(ptr, len);
+#endif
+		}
     	return len;
+	} else if (file == SDFILE0_FILENO) {
+		if (!fs_write(&g_fs_ctx, g_filename, (uint8_t *)ptr, g_current_pos, len)) {
+			errno = EIO;
+			return -1;
+		}
+		g_current_pos += len;
+		return len;
 	}
 	errno = EBADF;
 	return -1;
@@ -194,7 +329,6 @@ void *_sbrk(ptrdiff_t incr)
 		heap_end = (unsigned long)_end;
 
     if (heap_end + incr > (unsigned long)__stacktop) {
-		sys_print("*** Out of memory! ***\r\n");
         errno = ENOMEM;
         return (void *)0;
     }
@@ -294,6 +428,33 @@ int _link(const char *oldpath, const char *newpath)
 
 off_t _lseek(int fd, off_t offset, int whence)
 {
+	if (fd == SDFILE0_FILENO) {
+		switch (whence) {
+			case SEEK_SET:
+				g_current_pos = (size_t)offset;
+				return (off_t)g_current_pos;
+			case SEEK_CUR:
+				g_current_pos = (size_t)((off_t)g_current_pos + offset);
+				return (off_t)g_current_pos;
+			case SEEK_END:
+				{
+					uint16_t nb_files = fs_get_nb_files(&g_fs_ctx);
+					for (uint16_t i = 0; i < nb_files; ++i) {
+						fs_file_info_t fi;
+						fs_get_file_info(&g_fs_ctx, i, &fi);
+						if (strcmp(fi.name, g_filename) == 0) {
+							g_current_pos = (size_t)((off_t)fi.size + offset);
+							return (off_t)g_current_pos;
+						}
+					}
+					errno = EBADF;
+					return -1;
+				}
+			default:
+				errno = EINVAL;
+				return -1;
+		}
+	}
 	errno = EBADF;
 	return -1;
 }
@@ -330,7 +491,7 @@ pid_t _wait(int *wstatus)
 
 clock_t _times(struct tms *buf)
 {
-	clock_t c = MEM_READ(TIMER);
+	clock_t c = (unsigned long long)(counter) * CLK_TCK / 1000;
 	if (buf) {
 		buf->tms_utime = c;
 		buf->tms_stime = 0;
