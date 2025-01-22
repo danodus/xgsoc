@@ -93,13 +93,19 @@ The following programs are available:
 
 | Name            | Description                                         | Compatibility    |
 | --------------- | --------------------------------------------------- | ---------------- |
+| test_mem        | Test memory                                         | ULX3S            |
 | test_ps2_kbd    | Test PS/2 keyboard                                  | ULX3S            |
 | test_ps2_mouse  | Test PS/2 mouse                                     | ULX3S            |
 | test_usb        | Test USB host                                       | ULX3S            |
 | test_video      | Test video display                                  | ULX3S            |
 | test_graphite   | Test graphite subsystem                             | ULX3S            |
+| test_fs         | Test filesystem (SD card content erased)            | ULX3S            |
 | bench_dhrystone | Benchmark Dhrystone                                 | ULX3S            |
 | write_sd_image  | Write bootable SD card image (see section below)    | ULX3S            |
+| hello           | Hello world example                                 | ULX3S            |
+| factorial       | Factorial example                                   | ULX3S            |
+| sinus           | Sinus example                                       | ULX3S            |
+| forth           | Forth language                                      | ULX3S            |
 | lua             | Lua language                                        | ULX3S            |
 
 # Write Bootable Image

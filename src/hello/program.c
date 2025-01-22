@@ -6,7 +6,7 @@ void main(void)
 
     for (;;) {
         print("Hello, world!\r\n");
-        MEM_WRITE(DISPLAY, counter >> 6);
+        MEM_WRITE(LED, counter >> 6);
         counter++;
     }
 }

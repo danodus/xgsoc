@@ -7,8 +7,8 @@
 
 int test_mem(void) {
     char s[16];
-    // Note: stack at the end of RAM so we don't test the last chunk
-    for (unsigned int addr = 0x10000000 + PROGRAM_SIZE; addr < 0x12000000 - CHUNK_SIZE - CHUNK_SIZE; addr+=4) {
+    // Note: stack at the end of RAM so we don't test the last chunks
+    for (unsigned int addr = 0x00000000 + PROGRAM_SIZE; addr < 0x02000000 - CHUNK_SIZE - CHUNK_SIZE; addr+=4) {
         unsigned int expected = rand();
         if (addr % CHUNK_SIZE == 0) {
             print("Testing range from address ");
@@ -55,7 +55,7 @@ int test_mem2(void)
 
 void main(void)
 {
-    MEM_WRITE(DISPLAY, 0x00);
+    MEM_WRITE(LED, 0x00);
     if (!test_mem()) {
         // failure
         print("*** FAILURE DETECTED ***\r\n");

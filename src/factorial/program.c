@@ -10,7 +10,7 @@ unsigned int fact(unsigned int i) {
 
 void main(void)
 {
-    MEM_WRITE(DISPLAY, 0x01);
+    MEM_WRITE(LED, 0x01);
     unsigned int f = fact(5);
     print("\r\nThe factorial of 5 is ");
     char s[16];
@@ -18,5 +18,5 @@ void main(void)
     print(s);
     print(".\r\n");
 
-    MEM_WRITE(DISPLAY, 0x00);
+    MEM_WRITE(LED, 0x00);
 }
