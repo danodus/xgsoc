@@ -2,6 +2,8 @@
 
 FPGA based system on chip.
 
+The documentation is available here: https://danodus.github.io/xgsoc/
+
 # Features
 
 - RISC-V (RV32IM)
@@ -53,7 +55,7 @@ git submodule update --recursive
 ```bash
 cd rtl/ulx3s
 make clean;make VIDEO=<video mode> prog
-cd ../../src/examples/test_graphite
+cd ../../src/test_graphite
 make run SERIAL=<serial device>
 picocom -b 2000000 <serial device>
 ```
@@ -79,11 +81,12 @@ make run PROGRAM=../../src/test_video/program.hex
 
 ## Programs
 
-To upload the program to the FPGA platform:
+To upload and run the program to the FPGA platform:
 
 ```bash
 cd src/<program name>
 make run SERIAL=<serial device>
+picocom -b 2000000 <serial device>
 ```
 
 The following programs are available:
@@ -113,3 +116,8 @@ cd ../<program name>
 make write SERIAL=<serial device>
 ```
 Press a key when completed. The SD card image will automatically be read and executed unless a key is sent via UART during the first seconds of the boot process.
+
+## Acknowledgements
+
+- The SoC is based on the Oberon project for the ULX3S available here: https://github.com/emard/oberon
+- The USB host is based on usb_host available here: https://gitlab.com/pnru/usb_host

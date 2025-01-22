@@ -1,5 +1,5 @@
 .vscode
-site.mk
+doc/_build
 rtl/tb/*.out
 rtl/tb/*.vcd
 lib/*.o
