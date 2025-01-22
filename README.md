@@ -90,6 +90,8 @@ The following programs are available:
 
 | Name            | Description                                         | Compatibility    |
 | --------------- | --------------------------------------------------- | ---------------- |
+| test_ps2_kbd    | Test PS/2 keyboard                                  | ULX3S            |
+| test_ps2_mouse  | Test PS/2 mouse                                     | ULX3S            |
 | test_usb        | Test USB host                                       | ULX3S            |
 | test_video      | Test video display                                  | ULX3S            |
 | test_graphite   | Test graphite subsystem                             | ULX3S            |

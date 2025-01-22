@@ -62,15 +62,3 @@ void print(const char *s)
         s++;
     }
 }
-
-int key_avail()
-{
-    unsigned int ks = MEM_READ(KEYBOARD_STATUS);
-    return (ks & (1 << 28));
-}
-
-int get_key()
-{
-    while (!key_avail());
-    return MEM_READ(KEYBOARD_DATA) & 0xFF;
-}

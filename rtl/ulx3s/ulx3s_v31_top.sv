@@ -12,6 +12,9 @@ module ulx3s_v31_top(
     input  wire logic [6:0] btn,
     output      logic [7:0] led,
 
+    // User GPIO (56 I/O pins) Header
+    inout       logic [27:0] gp, gn,  // GPIO Header pins available as one data block
+
     // USB Slave (FT231x) interface 
     output      logic ftdi_rxd,
     input  wire logic ftdi_txd,
@@ -124,6 +127,12 @@ module ulx3s_v31_top(
         .vga_r_o(vga_r),
         .vga_g_o(vga_g),
         .vga_b_o(vga_b),
+        // PS/2 keyboard
+        .ps2clka_i(gn[1]),  // keyboard clock
+        .ps2data_i(gn[3]),  // keyboard data
+        // PS/2 mouse
+        .ps2clkb_io(gn[0]), // mouse clock
+        .ps2datb_io(gn[2]), // mouse data
         // USB
         .usb_fpga_dp(usb_fpga_dp),
         .usb_fpga_bd_dp(usb_fpga_bd_dp),

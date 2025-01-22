@@ -54,6 +54,12 @@ module soc_top #(
     output      logic [7:0]  vga_r_o,
     output      logic [7:0]  vga_g_o,
     output      logic [7:0]  vga_b_o,
+    // PS/2 keyboard
+    input  wire logic        ps2clka_i,
+    input  wire logic        ps2data_i,
+    // PS/2 mouse
+    inout       logic        ps2clkb_io,
+    inout       logic        ps2datb_io,
     // USB
     input  wire logic        usb_fpga_dp,     // D differential in
     inout  wire logic        usb_fpga_bd_dp,  // D+
@@ -71,17 +77,21 @@ module soc_top #(
     output wire logic [1:0]  sdram_dqm_o
 );
 
-    // IO addresses for input / output
+    // IO addresses for read / write
     // 0  milliseconds / --
-    // 1  LEDs
+    // 1  -- / LEDs
     // 2  RS-232 data / RS-232 data (start)
     // 3  RS-232 status / RS-232 control
     // 4  SPI data / SPI data (start)
     // 5  SPI status / SPI control
-    // 6  reserved
-    // 7  reserved
+    // 6  PS2 keyboard data / --
+    // 7  PS2 keyboard status / --
     // 8  graphite
     // 9  -- / H resolution, V resolution
+    // 10
+    // 11
+    // 12 PS2 mouse data / --
+    // 13 PS2 mouse status / --
     
 `ifdef VIDEO_480P
     localparam H_RES = 848;
@@ -148,6 +158,12 @@ module soc_top #(
     logic rdyTx, rdyRx;
     logic startTx;
     logic doneRx;
+    logic [7:0] dataKbd;
+    logic rdyKbd;
+    logic doneKbd;
+    logic rdyMs;
+    logic doneMs;
+    logic [26:0] dataMs;
     logic limit;  // of cnt0
 
     logic [16:0] cnt0 = 0;
@@ -237,6 +253,16 @@ module soc_top #(
 `endif
     )video(.clk(clk_cpu), .ce(qready), .pclk(clk_pixel), .req(dspreq),
     .viddata(inbusvid), .de(de), .RGB(RGB565), .hsync(vga_hsync), .vsync(vga_vsync));
+
+    ps2kbd ps2kbd(.clk(clk_cpu), .rst(rst_n), .done(doneKbd), .rdy(rdyKbd), .shift(),
+    .data(dataKbd), .PS2C(ps2clka_i), .PS2D(ps2data_i));
+    ps2mouse
+    #(.c_z_ena(1))
+    ps2mouse
+    (
+    .clk(clk_cpu), .ps2m_reset(~rst_n), .ps2m_clk(ps2clkb_io), .ps2m_dat(ps2datb_io),
+    .done(doneMs), .rdy(rdyMs), .data(dataMs)   
+    );    
 
     // USB host PHY + SIE hardware
     logic [31:0] sie_di;
@@ -355,12 +381,14 @@ module soc_top #(
         (iowadr == 3) ? {30'b0, rdyTx, rdyRx} :
         (iowadr == 4) ? spiRx :
         (iowadr == 5) ? {31'b0, spiRdy} :
-        (iowadr == 6) ? {32'b0} :
-        (iowadr == 7) ? {32'b0} :
+        (iowadr == 6) ? {24'b0, dataKbd} :
+        (iowadr == 7) ? {31'b0, rdyKbd} :
         (iowadr == 8) ? {31'b0, graphite_cmd_axis_tready} :
         (iowadr == 9) ? {16'(H_RES), 16'(V_RES)} :
         (iowadr == 10) ? fb_addr :
         (iowadr == 11) ? {31'b0, vga_vsync} :
+        (iowadr == 12) ? {5'b0, dataMs} :
+        (iowadr == 13) ? {31'b0, rdyMs} :
         (iowadr >= 16 && iowadr < 32) ? sie_di : 32'd0);
 
     assign dataTx = outbus[7:0];
@@ -375,6 +403,18 @@ module soc_top #(
         if (rd & ioenb & (iowadr == 2))
             doneRx <= 1'b1;
     end    
+
+    always @(posedge clk_cpu) begin
+        doneKbd <= 1'b0;
+        if (rd & ioenb & (iowadr == 6))
+            doneKbd <= 1'b1;
+    end
+
+    always @(posedge clk_cpu) begin
+        doneMs <= 1'b0;
+        if (rd & ioenb & (iowadr == 12))
+            doneMs <= 1'b1;
+    end
 
     // Auto reset and counter
     always_ff @(posedge clk_cpu) begin

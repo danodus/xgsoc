@@ -4,9 +4,6 @@
 
 #include "io.h"
 
-#define PS2_KBD_STATUS  0x20005000
-#define PS2_KBD_CODE    0x20005004
-
 #define KEYMAP_SIZE 132
 static const char g_keymap[] = 
 // Without shift or control
@@ -31,11 +28,8 @@ uint16_t kbd_get_char(bool is_blocking)
         // if character available
         unsigned int status = MEM_READ(PS2_KBD_STATUS);
         if (status & 0x1) {
-            // dequeue from FIFO
-            MEM_WRITE(PS2_KBD_STATUS, 0x1);
-
             // read character
-            unsigned int code = MEM_READ(PS2_KBD_CODE);
+            unsigned int code = MEM_READ(PS2_KBD_DATA);
 
             if (code == 0xAA) { // BAT completion code
                 continue; 

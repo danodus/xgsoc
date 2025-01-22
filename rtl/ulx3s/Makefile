@@ -21,6 +21,8 @@ SRC = \
   ../prom.v \
   ../cache_controller.v \
   ../sdram.v \
+  ../ps2kbd.v \
+  ../ps2mouse.v \
   ../usb/phy.v \
   ../usb/regs.v \
   ../usb/sie.v \
