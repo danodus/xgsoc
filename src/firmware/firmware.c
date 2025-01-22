@@ -18,8 +18,6 @@ unsigned int read_word()
     for (int i = 0; i < 4; ++i) {
         word <<= 8;
         while(!(MEM_READ(UART_STATUS) & 1));
-        // dequeue
-        MEM_WRITE(UART_STATUS, 0x1);        
         unsigned int c = MEM_READ(UART_DATA);
         word |= c;
     }
@@ -30,7 +28,6 @@ void echo()
 {
     for (;;) {
         while(!(MEM_READ(UART_STATUS) & 1));
-        MEM_WRITE(UART_STATUS, 1);  // Dequeue
         unsigned int c = MEM_READ(UART_DATA);
         while(!(MEM_READ(UART_STATUS) & 2));
         MEM_WRITE(UART_DATA, c);
@@ -78,8 +75,6 @@ void main(void)
     print("Press a key to bypass the SD card image boot process...\r\n");
     for (int i = 0; i < 1000000; ++i) {
         if (MEM_READ(UART_STATUS) & 1) {
-            // dequeue
-            MEM_WRITE(UART_STATUS, 0x1);            
             MEM_READ(UART_DATA);
             bypass_sd_card = true;
             break;

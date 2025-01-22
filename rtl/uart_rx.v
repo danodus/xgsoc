@@ -41,21 +41,26 @@ reg Q0, Q1;  // synchronizer and edge detector
 reg [11:0] tick;
 reg [3:0] bitcnt;
 reg [7:0] shreg;
+reg [3:0] inptr, outptr;
+reg [7:0] fifo [15:0];  // 16 byte buffer
 
 assign limit = fsel ? FREQ_HZ / (BAUD_RATE * 2) : FREQ_HZ / BAUD_RATE;
 assign endtick = tick == limit;
 assign midtick = tick == {1'b0, limit[11:1]};  // limit/2
 assign endbit = bitcnt == 8;
-assign data = shreg;
-assign rdy = stat;
+assign data = fifo[outptr];
+assign rdy = ~(inptr == outptr);
 
 always @ (posedge clk) begin
   Q0 <= RxD; Q1 <= Q0;
   run <= (Q1 & ~Q0) | ~(~rst | endtick & endbit) & run;
   tick <= (run & ~endtick) ? tick+1 : 0;
   bitcnt <= (endtick & ~endbit) ? bitcnt + 1 :
-    (endtick & endbit) ? 0 : bitcnt;
+  (endtick & endbit) ? 0 : bitcnt;
   shreg <= midtick ? {Q1, shreg[7:1]} : shreg;
-  stat <= (endtick & endbit) | ~(~rst | done) & stat;
+  stat <= ~(inptr == outptr) | ~(~rst | done) & stat;
+  outptr <= ~rst ? 0 : rdy & done ? outptr+1 : outptr;
+  inptr <= ~rst ? 0 : (endtick & endbit) ? inptr+1 : inptr;
+  if (endtick & endbit) fifo[inptr] <= shreg;  
 end
 endmodule

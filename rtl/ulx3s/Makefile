@@ -26,7 +26,6 @@ SRC = \
   ../usb/sie.v \
   ../uart_rx.v \
   ../uart_tx.v \
-  ../fifo.sv \
   ../spi.v \
   ../riscv/processor.sv \
 	../riscv/alu.sv \
