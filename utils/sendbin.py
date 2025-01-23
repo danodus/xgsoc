@@ -27,7 +27,7 @@ def main(argv):
         exit(0)
     else:
         try:
-            ser = serial.Serial(argv[0], baudrate=230400)
+            ser = serial.Serial(argv[0], baudrate=1000000)
         except serial.serialutil.SerialException:
             print("Unable to open the serial device {0}".format(argv[0]))
             exit(1)

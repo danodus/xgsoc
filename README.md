@@ -7,7 +7,7 @@ The documentation is available here: https://danodus.github.io/xgsoc/
 # Features
 
 - RISC-V (RV32IM)
-- UART (2000000-N-8-1)
+- UART (1000000-N-8-1)
 - SDRAM (32MiB shared between CPU and video)
 - Set associative cache (4-way with LRU replacement policy)
 - VGA (60 Hz), 480p (60Hz), 720p (60Hz) or 1080p (30Hz) HDMI video output with framebuffer (RGB565)
@@ -57,7 +57,7 @@ cd rtl/ulx3s
 make clean;make VIDEO=<video mode> prog
 cd ../../src/test_graphite
 make run SERIAL=<serial device>
-picocom -b 2000000 <serial device>
+picocom -b 1000000 <serial device>
 ```
 
 and press 'h' for help.
@@ -86,7 +86,7 @@ To upload and run the program to the FPGA platform:
 ```bash
 cd src/<program name>
 make run SERIAL=<serial device>
-picocom -b 2000000 <serial device>
+picocom -b 1000000 <serial device>
 ```
 
 The following programs are available:

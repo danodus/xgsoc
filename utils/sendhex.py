@@ -23,7 +23,7 @@ def main(argv):
             delay_block = float(argv[3])
 
         try:
-            ser = serial.Serial(argv[0], baudrate=2000000)
+            ser = serial.Serial(argv[0], baudrate=1000000)
         except serial.serialutil.SerialException:
             print("Unable to open the serial device {0}".format(argv[0]))
             exit(1)

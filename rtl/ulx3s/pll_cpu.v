@@ -5,12 +5,11 @@
 module pll_cpu
 (
     input clkin, // 25 MHz, 0 deg
-    output clkout0, // 48 MHz, 0 deg
+    output clkout0, // 30 MHz, 0 deg
     output locked
 );
-wire clkfb;
 (* FREQUENCY_PIN_CLKI="25" *)
-(* FREQUENCY_PIN_CLKOS="48" *)
+(* FREQUENCY_PIN_CLKOP="30" *)
 (* ICP_CURRENT="12" *) (* LPF_RESISTOR="8" *) (* MFG_ENABLE_FILTEROPAMP="1" *) (* MFG_GMCREF_SEL="2" *)
 EHXPLLL #(
         .PLLRST_ENA("DISABLED"),
@@ -23,22 +22,17 @@ EHXPLLL #(
         .OUTDIVIDER_MUXD("DIVD"),
         .CLKI_DIV(5),
         .CLKOP_ENABLE("ENABLED"),
-        .CLKOP_DIV(48),
+        .CLKOP_DIV(20),
         .CLKOP_CPHASE(9),
         .CLKOP_FPHASE(0),
-        .CLKOS_ENABLE("ENABLED"),
-        .CLKOS_DIV(10),
-        .CLKOS_CPHASE(0),
-        .CLKOS_FPHASE(0),
         .FEEDBK_PATH("CLKOP"),
-        .CLKFB_DIV(2)
+        .CLKFB_DIV(6)
     ) pll_i (
         .RST(1'b0),
         .STDBY(1'b0),
         .CLKI(clkin),
-        .CLKOP(clkfb),
-        .CLKOS(clkout0),
-        .CLKFB(clkfb),
+        .CLKOP(clkout0),
+        .CLKFB(clkout0),
         .CLKINTFB(),
         .PHASESEL0(1'b0),
         .PHASESEL1(1'b0),
