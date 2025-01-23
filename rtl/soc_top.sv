@@ -35,7 +35,9 @@ module soc_top #(
 ) (
     input  wire logic        clk_cpu,
     input  wire logic        clk_sdram,
+`ifdef VIDEO
     input  wire logic        clk_pixel,
+`endif // VIDEO
     input  wire logic        reset_i,
     // UART
     input  wire logic        rx_i,
@@ -47,6 +49,7 @@ module soc_top #(
     output      logic        sd_di_o,
     output      logic        sd_ck_o,
     output      logic        sd_cs_n_o,
+`ifdef VIDEO
     // VGA video
     output      logic        vga_hsync_o,
     output      logic        vga_vsync_o,
@@ -54,18 +57,25 @@ module soc_top #(
     output      logic [7:0]  vga_r_o,
     output      logic [7:0]  vga_g_o,
     output      logic [7:0]  vga_b_o,
+`endif
+`ifdef PS2_KBD
     // PS/2 keyboard
     input  wire logic        ps2clka_i,
     input  wire logic        ps2data_i,
+`endif // PS2_KBD
+`ifdef PS2_MOUSE
     // PS/2 mouse
     inout       logic        ps2clkb_io,
     inout       logic        ps2datb_io,
+`endif // PS/2 mouse
+`ifdef USB
     // USB
     input  wire logic        usb_fpga_dp,     // D differential in
     inout  wire logic        usb_fpga_bd_dp,  // D+
     inout  wire logic        usb_fpga_bd_dn,  // D-
     inout  wire logic        usb_fpga_pu_dp,  // 1 = 1.5K up, 0 = 15K down, z = float
     inout  wire logic        usb_fpga_pu_dn,  // 1 = 1.5K up, 0 = 15K down, z = float
+`endif // USB
     // SDRAM
     output      logic        sdram_cas_n_o,
     output      logic        sdram_ras_n_o,
@@ -92,7 +102,8 @@ module soc_top #(
     // 11
     // 12 PS2 mouse data / --
     // 13 PS2 mouse status / --
-    
+
+`ifdef VIDEO    
 `ifdef VIDEO_480P
     localparam H_RES = 848;
     localparam V_RES = 480;
@@ -114,24 +125,15 @@ module soc_top #(
     localparam H_POL = 0;
     localparam V_POL = 0;
 `endif
+`endif // VIDEO
 
     logic rst_n = 1'b0;
+
+`ifdef VIDEO
     logic vga_hsync, vga_vsync;
     logic de;
-
-    logic [1:0]  MISO = {1'b1, sd_do_i};
-    logic [1:0]  SCLK, MOSI;
-    logic [1:0]  SS;
     logic [15:0] RGB565;
     logic [23:0] RGB888;
-    logic CE; 
-    logic empty;
-    logic qready = 1'b0;
-    logic req_flush_cache;
-
-    assign sd_di_o   = MOSI[0];
-    assign sd_ck_o   = SCLK[0];
-    assign sd_cs_n_o = SS[0];
 
     assign vga_r_o = RGB888[23:16];
     assign vga_g_o = RGB888[15:8];
@@ -145,6 +147,19 @@ module soc_top #(
         .rgb565_i(RGB565),
         .rgb888_o(RGB888)
     );
+`endif // VIDEO
+
+    logic [1:0]  MISO = {1'b1, sd_do_i};
+    logic [1:0]  SCLK, MOSI;
+    logic [1:0]  SS;
+    logic CE; 
+    logic empty;
+    logic qready = 1'b0;
+    logic req_flush_cache;
+
+    assign sd_di_o   = MOSI[0];
+    assign sd_ck_o   = SCLK[0];
+    assign sd_cs_n_o = SS[0];
 
     logic [31:0] adr;
     logic [4:0]  iowadr; // word address
@@ -158,12 +173,16 @@ module soc_top #(
     logic rdyTx, rdyRx;
     logic startTx;
     logic doneRx;
+`ifdef PS2_KBD
     logic [7:0] dataKbd;
     logic rdyKbd;
     logic doneKbd;
+`endif // PS2_KBD
+`ifdef PS2_MOUSE
     logic rdyMs;
     logic doneMs;
     logic [26:0] dataMs;
+`endif // PS2_MOUSE
     logic limit;  // of cnt0
 
     logic [16:0] cnt0 = 0;
@@ -192,7 +211,11 @@ module soc_top #(
     ) cpu(
         .clk(clk_cpu),
         .reset_i(~rst_n),
+`ifdef VIDEO
         .ce_i(CE && !process_graphite),
+`else // VIDEO
+        .ce_i(CE),
+`endif // VIDEO
 
         // interrupts (2)
         .irq_i(2'b00),
@@ -215,6 +238,9 @@ module soc_top #(
     spi #(.FREQ_HZ(FREQ_HZ)) spi(.clk(clk_cpu), .rst(rst_n), .start(spiStart), .dataTx(outbus),
     .fast(spiCtrl[2]), .dataRx(spiRx), .rdy(spiRdy),
         .SCLK(SCLK[0]), .MOSI(MOSI[0]), .MISO(MISO[0] & MISO[1]));
+
+
+`ifdef VIDEO
     video #(
         .H_RES(H_RES),  // horizontal resolution (pixels)
         .V_RES(V_RES),  // vertical resolution (lines)
@@ -253,17 +279,24 @@ module soc_top #(
 `endif
     )video(.clk(clk_cpu), .ce(qready), .pclk(clk_pixel), .req(dspreq),
     .viddata(inbusvid), .de(de), .RGB(RGB565), .hsync(vga_hsync), .vsync(vga_vsync));
+`endif // VIDEO
 
+`ifdef PS2_KBD
     ps2kbd ps2kbd(.clk(clk_cpu), .rst(rst_n), .done(doneKbd), .rdy(rdyKbd), .shift(),
     .data(dataKbd), .PS2C(ps2clka_i), .PS2D(ps2data_i));
+`endif // PS2_KBD
+
+`ifdef PS2_MOUSE
     ps2mouse
     #(.c_z_ena(1))
     ps2mouse
     (
     .clk(clk_cpu), .ps2m_reset(~rst_n), .ps2m_clk(ps2clkb_io), .ps2m_dat(ps2datb_io),
     .done(doneMs), .rdy(rdyMs), .data(dataMs)   
-    );    
+    );
+`endif // PS2_MOUSE
 
+`ifdef USB
     // USB host PHY + SIE hardware
     logic [31:0] sie_di;
 
@@ -327,8 +360,10 @@ module soc_top #(
         .utmi_termselect_o(utmi_termselect),
         .utmi_dppulldown_o(utmi_dppulldown),
         .utmi_dmpulldown_o(utmi_dmpulldown)
-    );   
+    );
+`endif // USB
 
+`ifdef VIDEO
     logic [31:0]    fb_addr;     
 
     // Graphite
@@ -373,6 +408,7 @@ module soc_top #(
         .front_addr_o(graphite_front_addr),
         .clear_o(graphite_clear)
     );
+`endif
 
     assign inbus = ~ioenb ? inbus0 :
     ((iowadr == 0) ? cnt1 :
@@ -381,15 +417,35 @@ module soc_top #(
         (iowadr == 3) ? {30'b0, rdyTx, rdyRx} :
         (iowadr == 4) ? spiRx :
         (iowadr == 5) ? {31'b0, spiRdy} :
+`ifdef PS2_KBD
         (iowadr == 6) ? {24'b0, dataKbd} :
         (iowadr == 7) ? {31'b0, rdyKbd} :
+`else // PS2_KBD
+        (iowadr == 6) ? {32'b0} :
+        (iowadr == 7) ? {32'b0} :
+`endif // PS2_KBD
+`ifdef VIDEO
         (iowadr == 8) ? {31'b0, graphite_cmd_axis_tready} :
         (iowadr == 9) ? {16'(H_RES), 16'(V_RES)} :
         (iowadr == 10) ? fb_addr :
         (iowadr == 11) ? {31'b0, vga_vsync} :
+`else // VIDEO
+        (iowadr == 8) ? {32'b0} :
+        (iowadr == 9) ? {32'b0} :
+        (iowadr == 10) ? {32'b0} :
+        (iowadr == 11) ? {32'b0} :
+`endif // VIDEO
+`ifdef PS2_MOUSE
         (iowadr == 12) ? {5'b0, dataMs} :
         (iowadr == 13) ? {31'b0, rdyMs} :
-        (iowadr >= 16 && iowadr < 32) ? sie_di : 32'd0);
+`else // PS2_MOUSE
+        (iowadr == 12) ? {32'b0} :
+        (iowadr == 13) ? {32'b0} :
+`endif // PS2_MOUSE
+`ifdef USB
+        (iowadr >= 16 && iowadr < 32) ? sie_di :
+`endif // USB
+        32'd0);
 
     assign dataTx = outbus[7:0];
     assign startTx = wr & ioenb & (iowadr == 2);
@@ -404,17 +460,21 @@ module soc_top #(
             doneRx <= 1'b1;
     end    
 
+`ifdef PS2_KBD
     always @(posedge clk_cpu) begin
         doneKbd <= 1'b0;
         if (rd & ioenb & (iowadr == 6))
             doneKbd <= 1'b1;
     end
+`endif // PS2_KBD
 
+`ifdef PS2_MOUSE
     always @(posedge clk_cpu) begin
         doneMs <= 1'b0;
         if (rd & ioenb & (iowadr == 12))
             doneMs <= 1'b1;
     end
+`endif // PS2_MOUSE
 
     // Auto reset and counter
     always_ff @(posedge clk_cpu) begin
@@ -432,29 +492,39 @@ module soc_top #(
         if (~rst_n) begin
             led_o <= 8'd0;
             spiCtrl <= 4'd0;
+`ifdef VIDEO
             graphite_cmd_axis_tvalid <= 1'b0;
-            req_flush_cache <= 1'b0;
             fb_addr <= DEFAULT_FB_ADDRESS;
             use_graphite_front_addr <= 1'b0;
+`endif // VIDEO
+            req_flush_cache <= 1'b0;
         end else begin
+`ifdef VIDEO
             graphite_cmd_axis_tvalid <= 1'b0;
+`endif // VIDEO
             req_flush_cache <= 1'b0;
             if(CE && wr && ioenb) begin
                 if (iowadr == 1)
                     led_o <= outbus[7:0];
                 else if (iowadr == 5)
                     spiCtrl <= outbus[3:0];
+`ifdef VIDEO
                 else if (iowadr == 8) begin
                     graphite_cmd_axis_tdata  <= outbus[31:0];
                     graphite_cmd_axis_tvalid <= 1'b1;
                     use_graphite_front_addr <= 1'b1;    // Graphite will handle the fb address
-                end else if (iowadr == 9) begin
+                end
+`endif // VIDEO
+                else if (iowadr == 9) begin
                     if (outbus[0])
                         req_flush_cache <= 1'b1;
-                end else if (iowadr == 10) begin
+                end
+`ifdef VIDEO
+                else if (iowadr == 10) begin
                     fb_addr <= outbus[31:0];
                     use_graphite_front_addr <= 1'b0;
                 end
+`endif // VIDEO
             end
         end
     end
@@ -469,13 +539,17 @@ module soc_top #(
     logic [17:0] waddr;
 
     logic [22:0] sys_addr;
+`ifdef VIDEO
     logic [19:0] front_vidadr;
     assign front_vidadr = (use_graphite_front_addr ? graphite_front_addr[23:4] : fb_addr[24:5]) + vidadr;
+`endif // VIDEO
     always_comb begin
         sys_addr = 23'hxxxxx;
         case(cntrl0_user_command_register)
             2'b01: sys_addr = {waddr[16:0], 6'b000000}; // write 256bytes
+`ifdef VIDEO
             2'b10: sys_addr = {front_vidadr, 3'b000}; // read 32bytes video
+`endif // VIDEO
             2'b11: sys_addr = {cache_ctrl_adr[24:8], 6'b000000}; // read 256bytes	
         endcase
     end
@@ -506,10 +580,13 @@ module soc_top #(
     logic cache_ctrl_mreq;
     logic [3:0] cache_ctrl_wmask;
 
+`ifdef VIDEO
     logic process_graphite;
     assign process_graphite = !cpu_sel && !graphite_cmd_axis_tready;
+`endif // VIDEO
 
     always_comb begin
+`ifdef VIDEO
         if (process_graphite) begin
             cache_ctrl_adr = {graphite_vram_addr[31:1], 2'b0};
             cache_ctrl_din = {graphite_vram_data_out, graphite_vram_data_out};
@@ -517,7 +594,9 @@ module soc_top #(
             cache_ctrl_mreq = graphite_vram_sel;
             cache_ctrl_wmask = graphite_vram_addr[0] ? {{2{graphite_vram_wr}}, 2'b0} : {2'b0, {2{graphite_vram_wr}}};
             //cache_ctrl_wmask = {4{graphite_vram_wr}};
-        end else begin
+        end else
+    `endif // VIDEO
+        begin
             cache_ctrl_adr = adr;
             cache_ctrl_din = outbus;
             cache_ctrl_mreq = mreq;
@@ -542,10 +621,16 @@ module soc_top #(
          .waddr(waddr),
          .cache_write_data(crw && sys_rd_data_valid), // read DDR, write to cache
          .cache_read_data(crw && sys_wr_data_valid),
+`ifdef VIDEO
          .flush(graphite_swap | req_flush_cache),
          .clear(graphite_clear)
+`else
+         .flush(req_flush_cache),
+         .clear(1'b0)
+`endif
     );
-    
+
+`ifdef VIDEO
     logic [15:0] video_din;
     logic        vd1 = 1'b0;
     logic        almost_empty, almost_empty2;
@@ -568,30 +653,39 @@ module soc_top #(
       .Reset(),
       .RPReset()
     );
+`endif // VIDEO
     
     logic nop;
     always_ff @(posedge clk_sdram) begin
         nop <= sys_cmd_ack == 2'b00;
+`ifdef VIDEO
         if(almost_empty2) cntrl0_user_command_register <= 2'b10;		// read 32 bytes VGA
-        else if(ddr_wr) cntrl0_user_command_register <= 2'b01;		// write 256 bytes cache
+        else
+`endif // VIDEO
+        if(ddr_wr) cntrl0_user_command_register <= 2'b01;		// write 256 bytes cache
         else if(ddr_rd) cntrl0_user_command_register <= 2'b11;		// read 256 bytes cache
         else cntrl0_user_command_register <= 2'b00;
         
         if(nop) case(sys_cmd_ack)
+`ifdef VIDEO
             2'b10: begin
                 crw <= 1'b0;	// VGA read
                 if(vidadr == 20'(H_RES*V_RES*2/32-1)) vidadr <= 20'd0;
                 else vidadr <= vidadr + 20'b1;
             end
+`endif // VIDEO
             2'b01, 2'b11: crw <= 1'b1;	// cache read/write			
         endcase
-        
+
+`ifdef VIDEO        
         if(!crw && sys_rd_data_valid) begin
             vd1 <= !vd1;
             video_din <= sys_DOUT;
         end
+`endif // VIDEO
     end
     
+`ifdef VIDEO
     logic video_ready = 1'b0;
 
     always_ff @(posedge clk_pixel) begin
@@ -599,5 +693,6 @@ module soc_top #(
             video_ready <= 1'b1;
         qready <= video_ready && !almost_empty;
     end
+`endif
 
 endmodule

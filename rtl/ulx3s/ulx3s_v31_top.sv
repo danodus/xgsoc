@@ -30,22 +30,27 @@ module ulx3s_v31_top(
     output      logic [1:0]  sdram_ba,	 // SDRAM bank-address
     output      logic [1:0]  sdram_dqm,
     inout       logic [15:0] sdram_d,	 // data bus to/from SDRAM	
-      
+
+`ifdef VIDEO
     // DVI interface
     output      logic [3:0] gpdi_dp,
+`endif // VIDEO
      
     // SD/MMC Interface (Support either SPI or nibble-mode)
     inout logic       sd_clk, sd_cmd,
     inout logic [3:0] sd_d,
 
+`ifdef USB
     // USB
     input  wire logic        usb_fpga_dp,     // D differential in
     inout  wire logic        usb_fpga_bd_dp,  // D+
     inout  wire logic        usb_fpga_bd_dn,  // D-
     inout  wire logic        usb_fpga_pu_dp,  // 1 = 1.5K up, 0 = 15K down, z = float
     inout  wire logic        usb_fpga_pu_dn   // 1 = 1.5K up, 0 = 15K down, z = float
+`endif // USB
 );
 
+`ifdef VIDEO
 `ifdef VIDEO_480P
     localparam pixel_clock_hz = 34_000_000; // DMT: 33.75MHz
 `elsif VIDEO_720P
@@ -55,9 +60,10 @@ module ulx3s_v31_top(
 `else // VGA
     localparam pixel_clock_hz = 25_000_000; // DMT: 25MHz
 `endif
+`endif // VIDEO
 
     assign sdram_cke = 1'b1; // SDRAM clock enable
-
+`ifdef VIDEO
     logic pll_video_locked;
     logic [3:0] clocks_video;
     ecp5pll
@@ -75,6 +81,7 @@ module ulx3s_v31_top(
     logic clk_pixel, clk_shift;
     assign clk_shift = clocks_video[0]; // 125 MHz
     assign clk_pixel = clocks_video[1]; // 25 MHz
+`endif // VIDEO
 
     logic clk_sdram;
     logic pll_sdram_locked;
@@ -95,11 +102,17 @@ module ulx3s_v31_top(
         .locked(pll_cpu_locked)
     );
 
+`ifdef VIDEO
     logic vga_hsync, vga_vsync, vga_blank;
     logic [7:0] vga_r, vga_g, vga_b;
+`endif // VIDEO
 
     logic pll_locked;
+`ifdef VIDEO
     assign pll_locked = pll_cpu_locked & pll_sdram_locked & pll_video_locked;
+`else // VIDEO
+    assign pll_locked = pll_cpu_locked & pll_sdram_locked;
+`endif // VIDEO
 
     soc_top #(
         .FREQ_HZ(30_000_000),
@@ -107,7 +120,9 @@ module ulx3s_v31_top(
     ) soc_top(
         .clk_cpu(clk_cpu),
         .clk_sdram(clk_sdram),
+`ifdef VIDEO
         .clk_pixel(clk_pixel),
+`endif // VIDEO
         .reset_i(!pll_locked | ~btn[0]), // reset
 
         // UART
@@ -120,6 +135,7 @@ module ulx3s_v31_top(
         .sd_di_o(sd_cmd),
         .sd_ck_o(sd_clk),
         .sd_cs_n_o(sd_d[3]),
+`ifdef VIDEO
         // VGA video
         .vga_hsync_o(vga_hsync),
         .vga_vsync_o(vga_vsync),
@@ -127,18 +143,25 @@ module ulx3s_v31_top(
         .vga_r_o(vga_r),
         .vga_g_o(vga_g),
         .vga_b_o(vga_b),
+`endif // VIDEO
+`ifdef PS2_KBD
         // PS/2 keyboard
         .ps2clka_i(gn[1]),  // keyboard clock
         .ps2data_i(gn[3]),  // keyboard data
+`endif // PS2_KBD
+`ifdef PS2_MOUSE
         // PS/2 mouse
         .ps2clkb_io(gn[0]), // mouse clock
         .ps2datb_io(gn[2]), // mouse data
+`endif // PS2_MOUSE
+`ifdef USB
         // USB
         .usb_fpga_dp(usb_fpga_dp),
         .usb_fpga_bd_dp(usb_fpga_bd_dp),
         .usb_fpga_bd_dn(usb_fpga_bd_dn),
         .usb_fpga_pu_dp(usb_fpga_pu_dp),
         .usb_fpga_pu_dn(usb_fpga_pu_dn),
+`endif // USB
         // SDRAM
         .sdram_cas_n_o(sdram_casn),
         .sdram_ras_n_o(sdram_rasn),
@@ -150,6 +173,7 @@ module ulx3s_v31_top(
         .sdram_dqm_o(sdram_dqm)
     );
 
+`ifdef VIDEO
     // VGA to digital video converter
     hdmi_interface hdmi_interface_instance(
       .pixel_clk(clk_pixel),
@@ -163,5 +187,6 @@ module ulx3s_v31_top(
       .gpdi_dp(gpdi_dp),
       .gpdi_dn()
     );
+`endif // VIDEO
 
 endmodule
