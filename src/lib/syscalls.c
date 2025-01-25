@@ -47,8 +47,6 @@
 // Ref.: https://lists.debian.org/debian-gcc/2003/07/msg00070.html
 void* __dso_handle = (void*) &__dso_handle;
 
-extern volatile unsigned int counter;
-
 extern int errno;
 static void sys_print(const char *s);
 
@@ -77,9 +75,6 @@ void unimplemented_syscall(const char *fn)
 
 void sysinit()
 {
-	// enable timer interrupts
-	MEM_WRITE(TIMER_INTR_ENA, 0x1);
-	
 #ifdef XIO
 	xinit();
 #endif
@@ -491,7 +486,7 @@ pid_t _wait(int *wstatus)
 
 clock_t _times(struct tms *buf)
 {
-	clock_t c = (unsigned long long)(counter) * CLK_TCK / 1000;
+	clock_t c = MEM_READ(TIMER);
 	if (buf) {
 		buf->tms_utime = c;
 		buf->tms_stime = 0;
