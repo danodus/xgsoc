@@ -64,7 +64,7 @@ ifeq ($(CPU_SPEED),fast)
 DEFINES += -DFAST_CPU
 endif
 
-DEFINES += -DVIDEO -DPS2_KBD -DPS2_MOUSE
+DEFINES += -DVIDEO -DPS2_KBD -DPS2_MOUSE -DUSB
 
 all: bios top.bin
 
