@@ -9,8 +9,8 @@ Registers
 =============== =============
 Register        Address
 =============== =============
-KEYBOARD_STATUS BASE_IO + 24
-KEYBOARD_DATA   BASE_IO + 28
+KEYBOARD_DATA   BASE_IO + 24
+KEYBOARD_STATUS BASE_IO + 28
 =============== =============
 
 KEYBOARD_STATUS
@@ -21,7 +21,7 @@ Read:
 ===== ============================
 Field Description
 ===== ============================
-[28]  Key available? 
+[0]   Key available? 
 ===== ============================
 
 Write: -

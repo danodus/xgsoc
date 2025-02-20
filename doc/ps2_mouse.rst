@@ -9,8 +9,8 @@ Registers
 =============== =============
 Register        Address
 =============== =============
-MOUSE_STATUS    BASE_IO + 40
-MOUSE_DATA      BASE_IO + 44
+MOUSE_DATA      BASE_IO + 48
+MOUSE_STATUS    BASE_IO + 52
 =============== =============
 
 MOUSE_STATUS
@@ -21,7 +21,7 @@ Read:
 ===== ============================
 Field Description
 ===== ============================
-[28]  Mouse event available? 
+[0]  Mouse event available? 
 ===== ============================
 
 Write: -
