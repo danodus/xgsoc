@@ -83,24 +83,17 @@ module ulx3s_v31_top(
     assign clk_pixel = clocks_video[1]; // 25 MHz
 `endif // VIDEO
 
-    logic clk_sdram;
-    logic pll_sdram_locked;
+    logic clk_cpu, clk_sdram;
+    logic pll_main_locked;
 
-    pll_sdram pll_sdram(
+    pll_main pll_main(
         .clkin(clk_25mhz),
         .clkout0(clk_sdram),
-        .locked(pll_sdram_locked)
+        .clkout1(clk_cpu),
+        .locked(pll_main_locked)
     );
 
     assign sdram_clk = ~clk_sdram;
-
-    logic clk_cpu;
-    logic pll_cpu_locked;
-    pll_cpu pll_cpu(
-        .clkin(clk_25mhz),
-        .clkout0(clk_cpu),
-        .locked(pll_cpu_locked)
-    );
 
 `ifdef VIDEO
     logic vga_hsync, vga_vsync, vga_blank;
@@ -109,9 +102,9 @@ module ulx3s_v31_top(
 
     logic pll_locked;
 `ifdef VIDEO
-    assign pll_locked = pll_cpu_locked & pll_sdram_locked & pll_video_locked;
+    assign pll_locked = pll_main_locked & pll_video_locked;
 `else // VIDEO
-    assign pll_locked = pll_cpu_locked & pll_sdram_locked;
+    assign pll_locked = pll_main_locked;
 `endif // VIDEO
 
     soc_top #(
