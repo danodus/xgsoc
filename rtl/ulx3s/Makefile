@@ -3,6 +3,9 @@ ECPPACK := $(OSS_CAD_SUITE_PATH)ecppack
 NEXTPNR := $(OSS_CAD_SUITE_PATH)nextpnr-ecp5
 FUJPROG := $(OSS_CAD_SUITE_PATH)fujprog
 
+VIDEO = vga
+CONF = bvkmu
+
 # ******* project, board and chip name *******
 BOARD = ulx3s
 # 12 25 45 85
@@ -47,23 +50,33 @@ SRC = \
 
 DEFINES =
 
-ifeq ($(VIDEO),480p)
-DEFINES += -DVIDEO_480P
+ifneq (,$(findstring v,$(CONF)))
+  DEFINES += -DVIDEO
+
+  ifeq ($(VIDEO),480p)
+  DEFINES += -DVIDEO_480P
+  endif
+
+  ifeq ($(VIDEO),720p)
+  DEFINES += -DVIDEO_720P
+  endif
+
+  ifeq ($(VIDEO),1080p)
+  DEFINES += -DVIDEO_1080P
+  endif
 endif
 
-ifeq ($(VIDEO),720p)
-DEFINES += -DVIDEO_720P
+ifneq (,$(findstring k,$(CONF)))
+  DEFINES += -DPS2_KBD
 endif
 
-ifeq ($(VIDEO),1080p)
-DEFINES += -DVIDEO_1080P
+ifneq (,$(findstring m,$(CONF)))
+  DEFINES += -DPS2_MOUSE
 endif
 
-ifeq ($(CPU_SPEED),fast)
-DEFINES += -DFAST_CPU
+ifneq (,$(findstring u,$(CONF)))
+  DEFINES += -DUSB
 endif
-
-DEFINES += -DVIDEO -DPS2_KBD -DPS2_MOUSE -DUSB
 
 all: bios top.bin
 

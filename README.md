@@ -54,21 +54,33 @@ git submodule update --recursive
 
 ```bash
 cd rtl/ulx3s
-make clean;make VIDEO=<video mode> prog
-cd ../../src/test_graphite
+make clean;make CONF=<conf> VIDEO=<video mode> prog # for example, CONF=bvu VIDEO=480p (see below)
+cd ../../src/hello
 make run SERIAL=<serial device>
 picocom -b 1000000 <serial device>
 ```
 
-and press 'h' for help.
+### Configurations
+
+| Identifier | Description           |
+| ---------- | --------------------- |
+| b          | Base (UART, SD Card)  |
+| v          | Video                 |
+| k          | PS/2 Keyboard         |
+| m          | PS/2 Mouse            |
+| u          | USB Host              |
+
+By default, the configuration is `bvkmu`.
 
 The following video modes are available:
 | Video Mode     | Description    |
 | -------------- | ---------------|
-| vga (default)  | 640x480 60Hz   |
+| vga            | 640x480 60Hz   |
 | 480p           | 848x480 60Hz   |
 | 720p           | 1280x720 60Hz  |
 | 1080p          | 1920x1080 30Hz |
+
+By default, the video mode is `vga`.
 
 ## System Simulation
 
@@ -91,22 +103,22 @@ picocom -b 1000000 <serial device>
 
 The following programs are available:
 
-| Name            | Description                                         | Compatibility    |
-| --------------- | --------------------------------------------------- | ---------------- |
-| test_mem        | Test memory                                         | ULX3S            |
-| test_ps2_kbd    | Test PS/2 keyboard                                  | ULX3S            |
-| test_ps2_mouse  | Test PS/2 mouse                                     | ULX3S            |
-| test_usb        | Test USB host                                       | ULX3S            |
-| test_video      | Test video display                                  | ULX3S            |
-| test_graphite   | Test graphite subsystem                             | ULX3S            |
-| test_fs         | Test filesystem (SD card content erased)            | ULX3S            |
-| bench_dhrystone | Benchmark Dhrystone                                 | ULX3S            |
-| write_sd_image  | Write bootable SD card image (see section below)    | ULX3S            |
-| hello           | Hello world example                                 | ULX3S            |
-| factorial       | Factorial example                                   | ULX3S            |
-| sinus           | Sinus example                                       | ULX3S            |
-| forth           | Forth language                                      | ULX3S            |
-| lua             | Lua language                                        | ULX3S            |
+| Name            | Description                                         | Min. Config.  |
+| --------------- | --------------------------------------------------- | ------------- |
+| test_mem        | Test memory                                         | `b`           |
+| test_fs         | Test filesystem (SD card content erased)            | `b`           |
+| bench_dhrystone | Benchmark Dhrystone                                 | `b`           |
+| write_sd_image  | Write bootable SD card image (see section below)    | `b`           |
+| hello           | Hello world example                                 | `b`           |
+| factorial       | Factorial example                                   | `b`           |
+| sinus           | Sinus example                                       | `b`           |
+| forth           | Forth language                                      | `b`           |
+| lua             | Lua language                                        | `b`           |
+| test_ps2_kbd    | Test PS/2 keyboard                                  | `bk`          |
+| test_ps2_mouse  | Test PS/2 mouse                                     | `bm`          |
+| test_usb        | Test USB host                                       | `bu`          |
+| test_video      | Test video display                                  | `bv`          |
+| test_graphite   | Test graphite subsystem                             | `bv`          |
 
 # Write Bootable Image
 

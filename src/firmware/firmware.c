@@ -61,7 +61,23 @@ void main(void)
 {
     print("XGSoC\r\nCopyright (c) 2022-2025 Daniel Cliche\r\n\r\n");
 
-    clear(0x8410);  // Gray
+    unsigned int hw_conf = MEM_READ(CONFIG4);
+
+    print("Configuration: ");
+    print("b");
+    if (hw_conf & 0x1)
+        print("v");
+    if (hw_conf & 0x2)
+        print("k");
+    if (hw_conf & 0x4)
+        print("m");
+    if (hw_conf & 0x8)
+        print("u");
+
+    print("\r\n\r\n");
+
+    if (hw_conf & 0x1)
+        clear(0x8410);  // Gray
 
 #if ECHO_TEST
     

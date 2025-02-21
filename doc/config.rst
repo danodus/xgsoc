@@ -12,6 +12,7 @@ Register        Address
 CONFIG          BASE_IO + 36
 FB_ADDR         BASE_IO + 40
 VSYNC           BASE_IO + 44
+HW_CONFIG       BASE_IO + 56
 =============== =============
 
 CONFIG
@@ -63,6 +64,22 @@ Read:
 Field   Description
 ======= ============================
 [0]     VSYNC?
+======= ============================
+
+Write: -
+
+HW_CONFIG
+^^^^^^^^^
+
+Read:
+
+======= ============================
+Field   Description
+======= ============================
+[0]     Is video available?
+[1]     Is PS/2 keyboard available?
+[2]     Is PS/2 mouse available?
+[3]     Is USB host available?
 ======= ============================
 
 Write: -
