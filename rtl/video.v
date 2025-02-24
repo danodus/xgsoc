@@ -60,7 +60,11 @@ assign hend = (hcnt == H_TOTAL-1), vend = (vcnt == V_TOTAL-1);
 assign vblank = (vcnt >= V_RES);
 assign hsync = (hcnt >= H_RES+H_FP) & (hcnt < H_RES+H_FP+H_BP);
 assign vsync = (vcnt >= V_RES+V_FP) & (vcnt < V_RES+V_FP+V_BP);
-assign xfer = hcnt[0];  // data delay > hcnt cycle + req cycle
+`ifdef ZOOM
+assign xfer = hcnt[1:0] == 2'b11;
+`else
+assign xfer = hcnt[0];
+`endif
 assign vid = (~hblank & ~vblank) ? pixbuf[15:0] : 16'd0;
 assign RGB = vid;
 
@@ -68,12 +72,16 @@ always @(posedge pclk) if(ce && init_req_counter == 2'd0) begin  // pixel clock 
   hcnt <= hend ? 0 : hcnt+1;
   vcnt <= hend ? (vend ? 0 : (vcnt+1)) : vcnt;
   hblank <= xfer ? (hcnt >= H_RES) : hblank;
+`ifdef ZOOM
+  pixbuf <= hcnt[1] ? vidbuf : {pixbuf[31:16], pixbuf[31:16]};
+`else
   pixbuf <= xfer ? vidbuf : {16'd0, pixbuf[31:16]};
+`endif
 end
 
 always @(posedge pclk) if(ce) begin  // CPU (SRAM) clock domain
   if (init_req_counter == 2'd0) begin
-    hword <= hcnt[0];
+    hword <= xfer;
     req <= ~vblank & (hcnt < H_RES) & hword;  // i.e. adr changed
     vidbuf <= req ? viddata : vidbuf;
   end else begin
