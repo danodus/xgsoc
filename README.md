@@ -87,6 +87,8 @@ The following video modes are available:
 
 By default, the video mode is `vga`.
 
+For a 2x zoom, add `2x` at the end of the video mode (for example: `480p2x`).
+
 ## System Simulation
 
 ```bash
