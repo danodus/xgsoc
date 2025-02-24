@@ -54,16 +54,20 @@ ifneq (,$(findstring v,$(CONF)))
     DEFINES += -DVIDEO_GRAPHITE
   endif
 
-  ifeq ($(VIDEO),480p)
+  ifneq (,$(findstring 480p,$(VIDEO)))
   DEFINES += -DVIDEO_480P
   endif
 
-  ifeq ($(VIDEO),720p)
+  ifneq (,$(findstring 720p,$(VIDEO)))
   DEFINES += -DVIDEO_720P
   endif
 
-  ifeq ($(VIDEO),1080p)
+  ifneq (,$(findstring 1080p,$(VIDEO)))
   DEFINES += -DVIDEO_1080P
+  endif
+
+  ifneq (,$(findstring 2x,$(VIDEO)))
+    DEFINES += -DZOOM
   endif
 endif
 

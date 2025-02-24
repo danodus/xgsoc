@@ -415,8 +415,13 @@ module soc_top #(
 
     graphite #(
         .FB_ADDRESS(DEFAULT_FB_ADDRESS >> 'd1),
+    `ifdef ZOOM
+        .FB_WIDTH(H_RES/2),
+        .FB_HEIGHT(V_RES/2)
+    `else
         .FB_WIDTH(H_RES),
         .FB_HEIGHT(V_RES)
+    `endif
     ) graphite(
         .clk(clk_cpu),
         .reset_i(~rst_n),
@@ -464,7 +469,11 @@ module soc_top #(
 `else
         (iowadr == 8) ? {32'b0} :
 `endif
+`ifdef ZOOM
+        (iowadr == 9) ? {16'(H_RES/2), 16'(V_RES/2)} :
+`else // ZOOM
         (iowadr == 9) ? {16'(H_RES), 16'(V_RES)} :
+`endif // ZOOM
         (iowadr == 10) ? fb_addr :
         (iowadr == 11) ? {31'b0, vga_vsync} :
 `else // VIDEO
@@ -700,6 +709,19 @@ module soc_top #(
       .Reset(),
       .RPReset()
     );
+
+`ifdef ZOOM
+    logic [10:0] col_counter = 11'd0;
+    logic [10:0] line_counter = 11'd0;
+    logic [19:0] line_vidadr = 20'd0;
+    logic        line_dup;
+
+    logic end_of_frame, end_of_line;
+    assign end_of_frame = line_counter == V_RES - 1;
+    assign end_of_line = col_counter == 11'(H_RES / 32 - 1);
+    assign line_dup = end_of_line && !line_counter[0];
+`endif
+
 `endif // VIDEO
     
     logic nop;
@@ -717,8 +739,27 @@ module soc_top #(
 `ifdef VIDEO
             2'b10: begin
                 crw <= 1'b0;	// VGA read
+`ifdef ZOOM
+                if (col_counter == 11'd0)
+                    line_vidadr <= vidadr;
+
+                if (end_of_line) begin
+                    col_counter <= 11'd0;
+                    line_counter <= line_counter + 11'd1;
+                end else begin
+                    col_counter <= col_counter + 11'd1;
+                end
+                if (end_of_frame && end_of_line) begin
+                    vidadr <= 20'd0;
+                    col_counter <= 11'd0;
+                    line_counter <= 11'd0;
+                end else begin
+                    vidadr <= line_dup ? line_vidadr : vidadr + 20'd1;
+                end
+`else // ZOOM
                 if(vidadr == 20'(H_RES*V_RES*2/32-1)) vidadr <= 20'd0;
                 else vidadr <= vidadr + 20'b1;
+`endif // ZOOM
             end
 `endif // VIDEO
             2'b01, 2'b11: crw <= 1'b1;	// cache read/write			
