@@ -234,11 +234,11 @@ module soc_top #(
     ) cpu(
         .clk(clk_cpu),
         .reset_i(~rst_n),
-`ifdef VIDEO
+`ifdef VIDEO_GRAPHITE
         .ce_i(CE && !process_graphite),
-`else // VIDEO
+`else // VIDEO_GRAPHITE
         .ce_i(CE),
-`endif // VIDEO
+`endif // VIDEO_GRAPHITE
 
         // interrupts (2)
         .irq_i(2'b00),
@@ -389,6 +389,7 @@ module soc_top #(
 `ifdef VIDEO
     logic [31:0]    fb_addr;     
 
+`ifdef VIDEO_GRAPHITE
     // Graphite
     logic           graphite_cmd_axis_tvalid;
     logic           graphite_cmd_axis_tready;
@@ -433,6 +434,8 @@ module soc_top #(
     );
 `endif
 
+`endif
+
     assign inbus = ~ioenb ? inbus0 :
     ((iowadr == 0) ? cnt1 :
         (iowadr == 1) ? {32'b0 } :
@@ -448,7 +451,11 @@ module soc_top #(
         (iowadr == 7) ? {32'b0} :
 `endif // PS2_KBD
 `ifdef VIDEO
+`ifdef VIDEO_GRAPHITE
         (iowadr == 8) ? {31'b0, graphite_cmd_axis_tready} :
+`else
+        (iowadr == 8) ? {32'b0} :
+`endif
         (iowadr == 9) ? {16'(H_RES), 16'(V_RES)} :
         (iowadr == 10) ? fb_addr :
         (iowadr == 11) ? {31'b0, vga_vsync} :
@@ -517,28 +524,30 @@ module soc_top #(
             led_o <= 8'd0;
             spiCtrl <= 4'd0;
 `ifdef VIDEO
-            graphite_cmd_axis_tvalid <= 1'b0;
             fb_addr <= DEFAULT_FB_ADDRESS;
+`ifdef VIDEO_GRAPHITE
+            graphite_cmd_axis_tvalid <= 1'b0;
             use_graphite_front_addr <= 1'b0;
+`endif // VIDEO_GRAPHITE
 `endif // VIDEO
             req_flush_cache <= 1'b0;
         end else begin
-`ifdef VIDEO
+`ifdef VIDEO_GRAPHITE
             graphite_cmd_axis_tvalid <= 1'b0;
-`endif // VIDEO
+`endif // VIDEO_GRAPHITE
             req_flush_cache <= 1'b0;
             if(CE && wr && ioenb) begin
                 if (iowadr == 1)
                     led_o <= outbus[7:0];
                 else if (iowadr == 5)
                     spiCtrl <= outbus[3:0];
-`ifdef VIDEO
+`ifdef VIDEO_GRAPHITE
                 else if (iowadr == 8) begin
                     graphite_cmd_axis_tdata  <= outbus[31:0];
                     graphite_cmd_axis_tvalid <= 1'b1;
                     use_graphite_front_addr <= 1'b1;    // Graphite will handle the fb address
                 end
-`endif // VIDEO
+`endif // VIDEO_GRAPHITE
                 else if (iowadr == 9) begin
                     if (outbus[0])
                         req_flush_cache <= 1'b1;
@@ -546,7 +555,9 @@ module soc_top #(
 `ifdef VIDEO
                 else if (iowadr == 10) begin
                     fb_addr <= outbus[31:0];
+`ifdef VIDEO_GRAPHITE
                     use_graphite_front_addr <= 1'b0;
+`endif // VIDEO_GRAPHITE
                 end
 `endif // VIDEO
             end
@@ -565,7 +576,11 @@ module soc_top #(
     logic [22:0] sys_addr;
 `ifdef VIDEO
     logic [19:0] front_vidadr;
+`ifdef VIDEO_GRAPHITE
     assign front_vidadr = (use_graphite_front_addr ? graphite_front_addr[23:4] : fb_addr[24:5]) + vidadr;
+`else // VIDEO_GRAPHITE
+    assign front_vidadr = fb_addr[24:5] + vidadr;
+`endif // VIDEO_GRAPHITE
 `endif // VIDEO
     always_comb begin
         sys_addr = 23'hxxxxx;
@@ -604,13 +619,13 @@ module soc_top #(
     logic cache_ctrl_mreq;
     logic [3:0] cache_ctrl_wmask;
 
-`ifdef VIDEO
+`ifdef VIDEO_GRAPHITE
     logic process_graphite;
     assign process_graphite = !cpu_sel && !graphite_cmd_axis_tready;
-`endif // VIDEO
+`endif // VIDEO_GRAPHITE
 
     always_comb begin
-`ifdef VIDEO
+`ifdef VIDEO_GRAPHITE
         if (process_graphite) begin
             cache_ctrl_adr = {graphite_vram_addr[31:1], 2'b0};
             cache_ctrl_din = {graphite_vram_data_out, graphite_vram_data_out};
@@ -619,7 +634,7 @@ module soc_top #(
             cache_ctrl_wmask = graphite_vram_addr[0] ? {{2{graphite_vram_wr}}, 2'b0} : {2'b0, {2{graphite_vram_wr}}};
             //cache_ctrl_wmask = {4{graphite_vram_wr}};
         end else
-    `endif // VIDEO
+`endif // VIDEO_GRAPHITE
         begin
             cache_ctrl_adr = adr;
             cache_ctrl_din = outbus;
@@ -645,7 +660,7 @@ module soc_top #(
          .waddr(waddr),
          .cache_write_data(crw && sys_rd_data_valid), // read DDR, write to cache
          .cache_read_data(crw && sys_wr_data_valid),
-`ifdef VIDEO
+`ifdef VIDEO_GRAPHITE
          .flush(graphite_swap | req_flush_cache),
          .clear(graphite_clear)
 `else

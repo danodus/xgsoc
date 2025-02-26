@@ -4,7 +4,7 @@ NEXTPNR := $(OSS_CAD_SUITE_PATH)nextpnr-ecp5
 FUJPROG := $(OSS_CAD_SUITE_PATH)fujprog
 
 VIDEO = vga
-CONF = bvkmu
+CONF = bvgkm
 
 # ******* project, board and chip name *******
 BOARD = ulx3s
@@ -52,6 +52,10 @@ DEFINES =
 
 ifneq (,$(findstring v,$(CONF)))
   DEFINES += -DVIDEO
+
+  ifneq (,$(findstring g,$(CONF)))
+    DEFINES += -DVIDEO_GRAPHITE
+  endif
 
   ifeq ($(VIDEO),480p)
   DEFINES += -DVIDEO_480P

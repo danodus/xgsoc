@@ -11,8 +11,10 @@ The documentation is available here: https://danodus.github.io/xgsoc/
 - SDRAM (32MiB shared between CPU and video)
 - Set associative cache (4-way with LRU replacement policy)
 - VGA (60 Hz), 480p (60Hz), 720p (60Hz) or 1080p (30Hz) HDMI video output with framebuffer (RGB565)
-- 2D/3D graphics accelerator (textured triangles)
-- USB host for keyboard and mouse
+- Graphite 2D/3D graphics accelerator (textured triangles)
+- PS/2 Keyboard
+- PS/2 Mouse
+- USB host for keyboard and mouse (experimental)
 - SD Card with hardware SPI
 
 # Requirements
@@ -54,7 +56,7 @@ git submodule update --recursive
 
 ```bash
 cd rtl/ulx3s
-make clean;make CONF=<conf> VIDEO=<video mode> prog # for example, CONF=bvu VIDEO=480p (see below)
+make clean;make CONF=<conf> VIDEO=<video mode> prog # for example, CONF=bvkm VIDEO=vga (see below)
 cd ../../src/hello
 make run SERIAL=<serial device>
 picocom -b 1000000 <serial device>
@@ -66,11 +68,14 @@ picocom -b 1000000 <serial device>
 | ---------- | --------------------- |
 | b          | Base (UART, SD Card)  |
 | v          | Video                 |
+| g          | Graphite              |
 | k          | PS/2 Keyboard         |
 | m          | PS/2 Mouse            |
-| u          | USB Host              |
+| u          | USB Host (*)          |
 
-By default, the configuration is `bvkmu`.
+(*) USB host requires a CPU clock of 48 MHz instead of the default 50 MHz.
+
+By default, the configuration is `bvgkm`.
 
 The following video modes are available:
 | Video Mode     | Description    |
@@ -118,7 +123,7 @@ The following programs are available:
 | test_ps2_mouse  | Test PS/2 mouse                                     | `bm`          |
 | test_usb        | Test USB host                                       | `bu`          |
 | test_video      | Test video display                                  | `bv`          |
-| test_graphite   | Test graphite subsystem                             | `bv`          |
+| test_graphite   | Test graphite subsystem                             | `bvg`         |
 
 # Write Bootable Image
 
