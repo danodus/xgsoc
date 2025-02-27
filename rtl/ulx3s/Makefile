@@ -102,4 +102,7 @@ top.bin: top.asc
 prog: bios top.bin
 	$(FUJPROG) -T bit top.bin
 
-.PHONY: all prog bios
+flash: bios top.bin
+	$(FUJPROG) -T bit -j FLASH top.bin
+
+.PHONY: all prog flash bios
