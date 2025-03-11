@@ -59,21 +59,26 @@ ifneq (,$(findstring v,$(CONF)))
     DEFINES += -DVIDEO_GRAPHITE
   endif
 
-  ifneq (,$(findstring 480p,$(VIDEO)))
+  ifeq ($(VIDEO),qvga)
+  DEFINES += -DVIDEO_QVGA
+  endif
+
+  ifeq ($(VIDEO),vga)
+  DEFINES += -DVIDEO_VGA
+  endif
+
+  ifeq ($(VIDEO),480p)
   DEFINES += -DVIDEO_480P
   endif
 
-  ifneq (,$(findstring 720p,$(VIDEO)))
+  ifeq ($(VIDEO),720p)
   DEFINES += -DVIDEO_720P
   endif
 
-  ifneq (,$(findstring 1080p,$(VIDEO)))
+  ifeq ($(VIDEO),1080p)
   DEFINES += -DVIDEO_1080P
   endif
 
-  ifneq (,$(findstring 2x,$(VIDEO)))
-    DEFINES += -DZOOM
-  endif
 endif
 
 ifneq (,$(findstring k,$(CONF)))
