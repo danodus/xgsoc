@@ -10,7 +10,7 @@ The documentation is available here: https://danodus.github.io/xgsoc/
 - UART (1000000-N-8-1)
 - SDRAM (32MiB shared between CPU and video)
 - Set associative cache (4-way with LRU replacement policy)
-- VGA (60 Hz), 480p (60Hz), 720p (60Hz) or 1080p (30Hz) HDMI video output with framebuffer (RGB565)
+- QVGA (60 Hz), VGA (60 Hz), 480p (60Hz), 720p (60Hz) or 1080p (30Hz) HDMI video output with framebuffer (RGB565)
 - Graphite 2D/3D graphics accelerator (textured triangles)
 - PS/2 Keyboard
 - PS/2 Mouse
@@ -80,14 +80,13 @@ By default, the configuration is `bvgkm`.
 The following video modes are available:
 | Video Mode     | Description    |
 | -------------- | ---------------|
+| qvga           | 320x240 60Hz   |
 | vga            | 640x480 60Hz   |
 | 480p           | 848x480 60Hz   |
 | 720p           | 1280x720 60Hz  |
 | 1080p          | 1920x1080 30Hz |
 
 By default, the video mode is `vga`.
-
-For a 2x zoom, add `2x` at the end of the video mode (for example: `480p2x`).
 
 ## System Simulation
 

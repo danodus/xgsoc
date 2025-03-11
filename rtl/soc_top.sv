@@ -152,11 +152,15 @@ module soc_top #(
     localparam V_RES = 1080;
     localparam H_POL = 1;
     localparam V_POL = 1;
-`else // VGA
+`else // VGA/QVGA
     localparam H_RES = 640;
     localparam V_RES = 480;
     localparam H_POL = 0;
     localparam V_POL = 0;
+`ifdef VIDEO_QVGA
+`define ZOOM
+`endif // VIDEO_QVGA
+
 `endif
 `endif // VIDEO
 
