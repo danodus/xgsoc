@@ -27,7 +27,7 @@ module prom (input clk,
   output reg [31:0] data);
   
 reg [31:0] mem [1023: 0];
-initial $readmemh("prom.mem", mem);
+initial $readmemh("firmware.hex", mem);
 always @(posedge clk)
   if(ce) begin
     data <= mem[adr];

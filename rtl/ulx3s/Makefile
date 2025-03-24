@@ -16,6 +16,8 @@ PIN_DEF := ulx3s_v31.lpf
 TOP_MODULE = ulx3s_v31_top
 TOP_MODULE_FILE = $(TOP_MODULE).sv
 
+FIRMWARE_DIR ?= ../../src/firmware
+
 SRC = \
   $(TOP_MODULE_FILE) \
   pll_main.v \
@@ -82,13 +84,14 @@ ifneq (,$(findstring u,$(CONF)))
   DEFINES += -DUSB
 endif
 
-all: bios top.bin
+all: firmware top.bin
 
 clean:
 	rm -f *.hex *.asc *.json *.bin *.log
 
-bios:
-	make -C ../../src/firmware
+firmware:
+	make -C $(FIRMWARE_DIR)
+	cp $(FIRMWARE_DIR)/firmware.hex .
 
 top.json: $(SRC)
 	$(YOSYS) -ql top.log -p 'verilog_defines $(DEFINES) ; read_verilog -sv $(SRC); synth_ecp5 -top $(TOP_MODULE) -json top.json -abc9'
@@ -99,10 +102,10 @@ top.asc: top.json $(PIN_DEF)
 top.bin: top.asc
 	$(ECPPACK) --compress --input top.asc --bit top.bin
 
-prog: bios top.bin
+prog: firmware top.bin
 	$(FUJPROG) -T bit top.bin
 
-flash: bios top.bin
+flash: firmware top.bin
 	$(FUJPROG) -T bit -j FLASH top.bin
 
-.PHONY: all prog flash bios
+.PHONY: all prog flash firmware
