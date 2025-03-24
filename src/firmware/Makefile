@@ -23,7 +23,7 @@ firmware.lst: firmware.elf
 	${OBJDUMP} --disassemble firmware.elf > firmware.lst
 
 firmware.hex: firmware.bin
-	$(PYTHON) ../../utils/makehex.py firmware.bin 4096 > firmware.hex
+	$(PYTHON) ../../utils/makehex.py firmware.bin 1024 > firmware.hex
 
 firmware.bin: firmware.elf firmware.lst
 	${OBJCOPY} -O binary firmware.elf firmware.bin

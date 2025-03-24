@@ -64,9 +64,8 @@ int main(int argc, char **argv, char **env)
     bool restart_model;
     do {
 
-        for (size_t i = 0; i < SDRAM_MEM_SIZE; ++i) {
-            sdram_mem[i] =  (i >= SDRAM_MEM_SIZE / 2) ? 0x001F : 0x0000;
-        }
+        for (size_t i = 0; i < SDRAM_MEM_SIZE; ++i)
+            sdram_mem[i] = 0x0000;
 
         std::ifstream file("program.hex", std::ifstream::in);
         size_t addr = 0;

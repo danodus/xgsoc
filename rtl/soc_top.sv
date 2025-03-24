@@ -104,7 +104,17 @@ module soc_top #(
     // 13 PS2 mouse status / --
     // 14 hw configuration / --
 
-    logic is_usb_avail, is_ps2_mouse_avail, is_ps2_kbd_avail, is_video_avail;
+    logic is_simulation, is_graphite_avail, is_usb_avail, is_ps2_mouse_avail, is_ps2_kbd_avail, is_video_avail;
+`ifndef SYNTHESIS
+    assign is_simulation = 1;
+`else
+    assign is_simulation = 0;
+`endif
+`ifdef VIDEO_GRAPHITE
+    assign is_graphite_avail = 1;
+`else
+    assign is_graphite_avail = 0;
+`endif
 `ifdef USB
     assign is_usb_avail = 1;
 `else
@@ -472,7 +482,7 @@ module soc_top #(
         (iowadr == 12) ? {32'b0} :
         (iowadr == 13) ? {32'b0} :
 `endif // PS2_MOUSE
-        (iowadr == 14) ? {28'b0, is_usb_avail, is_ps2_mouse_avail, is_ps2_kbd_avail, is_video_avail} :
+        (iowadr == 14) ? {is_simulation, 26'b0, is_graphite_avail, is_usb_avail, is_ps2_mouse_avail, is_ps2_kbd_avail, is_video_avail} :
 `ifdef USB
         (iowadr >= 16 && iowadr < 32) ? sie_di :
 `endif // USB

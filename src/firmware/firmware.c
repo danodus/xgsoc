@@ -67,6 +67,8 @@ void main(void)
     print("b");
     if (hw_conf & 0x1)
         print("v");
+    if (hw_conf & 0x10)
+        print("g");        
     if (hw_conf & 0x2)
         print("k");
     if (hw_conf & 0x4)
@@ -78,6 +80,13 @@ void main(void)
 
     if (hw_conf & 0x1)
         clear(0x8410);  // Gray
+
+    // If running under the simulator, the program has already been loaded
+    if (hw_conf & 0x80000000) {
+        void (*program)(void) = (void (*)(void))RAM_START;
+        program();
+        for(;;);
+    }
 
 #if ECHO_TEST
     

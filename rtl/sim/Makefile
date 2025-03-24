@@ -5,6 +5,8 @@ VERILATOR = verilator
 LDFLAGS := -LDFLAGS "$(shell sdl2-config --libs)"
 CFLAGS := -CFLAGS "-std=c++14 $(shell sdl2-config --cflags)"
 
+FIRMWARE_DIR ?= ../../src/firmware
+
 SRC = bram32bit.v \
 	prom.v \
 	uart_tx.v \
@@ -36,13 +38,19 @@ all: sim
 
 clean:
 	rm -rf obj_dir
+	rm -f firmware.hex
+	rm -f program.hex
+
+firmware:
+	make -C $(FIRMWARE_DIR)
+	ln -f -s $(FIRMWARE_DIR)/firmware.hex .
 
 sim: top.sv sim_main.cpp $(PROGRAM)
 	$(VERILATOR) -cc --exe $(CFLAGS) $(LDFLAGS) --trace --top-module top -DVIDEO -DVIDEO_GRAPHITE top.sv sdl_ps2.cpp sim_main.cpp -I.. -I../riscv -I../usb -I../../external/graphite/rtl $(SRC) -Wno-PINMISSING -Wno-WIDTH -Wno-CASEINCOMPLETE -Wno-TIMESCALEMOD -Wno-NULLPORT -Wno-MULTIDRIVEN -Wno-UNOPTFLAT
 	$(MAKE) -j 4 -C obj_dir -f Vtop.mk
 
-run: sim
+run: firmware sim
 	ln -f -s $(PROGRAM) .
 	obj_dir/Vtop
 
-.PHONY: all clean
+.PHONY: all clean firmware
