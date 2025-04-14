@@ -169,13 +169,12 @@ int setttymode(lua_State *L) {
 }
 
 int fsdir(lua_State *L) {
-    sd_context_t sd_ctx;
-    if (!sd_init(&sd_ctx)) {
+    if (!sd_init()) {
         lua_pushnil(L);
         return 1;
     }
     fs_context_t fs_ctx;
-    if (!fs_init(&sd_ctx, &fs_ctx)) {
+    if (!fs_init(&fs_ctx)) {
         lua_pushnil(L);
         return 1;
     }
@@ -205,13 +204,12 @@ int fsdir(lua_State *L) {
 int fsdelete(lua_State *L) {
     const char *filename = luaL_checkstring(L, 1);
 
-    sd_context_t sd_ctx;
-    if (!sd_init(&sd_ctx)) {
+    if (!sd_init()) {
         lua_pushboolean(L, 0);
         return 1;
     }
     fs_context_t fs_ctx;
-    if (!fs_init(&sd_ctx, &fs_ctx)) {
+    if (!fs_init(&fs_ctx)) {
         lua_pushboolean(L, 0);
         return 1;
     }
@@ -227,13 +225,12 @@ int fsrename(lua_State *L) {
     const char *filename = luaL_checkstring(L, 1);
     const char *new_filename = luaL_checkstring(L, 2);
 
-    sd_context_t sd_ctx;
-    if (!sd_init(&sd_ctx)) {
+    if (!sd_init()) {
         lua_pushboolean(L, 0);
         return 1;
     }
     fs_context_t fs_ctx;
-    if (!fs_init(&sd_ctx, &fs_ctx)) {
+    if (!fs_init(&fs_ctx)) {
         lua_pushboolean(L, 0);
         return 1;
     }
@@ -249,12 +246,11 @@ int fsformat(lua_State *L) {
     luaL_checkany(L, 1);
     bool quick = lua_toboolean(L, 1) ? true : false;
 
-    sd_context_t sd_ctx;
-    if (!sd_init(&sd_ctx)) {
+    if (!sd_init()) {
         lua_pushboolean(L, 0);
         return 1;
     }
-    if (!fs_format(&sd_ctx, quick)) {
+    if (!fs_format(quick)) {
         lua_pushboolean(L, 0);
         return 1;
     }

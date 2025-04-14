@@ -50,7 +50,6 @@ void* __dso_handle = (void*) &__dso_handle;
 extern int errno;
 static void sys_print(const char *s);
 
-static sd_context_t g_sd_ctx;
 static fs_context_t g_fs_ctx;
 static char g_filename[FS_MAX_FILENAME_LEN + 1];
 static size_t g_current_pos;
@@ -194,12 +193,12 @@ int _open(const char *pathname, int flags, mode_t mode)
 		return TTYS0_FILENO;
 	} else {
 		// open file
-		if (!sd_init(&g_sd_ctx)) {
+		if (!sd_init()) {
 			errno = EIO;
 			return -1;
 		}
 
-		if (!fs_init(&g_sd_ctx, &g_fs_ctx)) {
+		if (!fs_init(&g_fs_ctx)) {
 			errno = EIO;
 			return -1;
 		}

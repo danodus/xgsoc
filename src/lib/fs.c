@@ -19,7 +19,7 @@
 #define FS_PARTITION_BLOCK_ADDR     (64*1024*1024 / SD_BLOCK_LEN)
 #define FAT_NB_BLOCKS               ((sizeof(fs_fat_t) + SD_BLOCK_LEN - 1) / SD_BLOCK_LEN)
 
-static bool sd_write(sd_context_t *sd_ctx, uint32_t first_block_addr, const uint8_t *buf, size_t nb_bytes)
+static bool sd_write(uint32_t first_block_addr, const uint8_t *buf, size_t nb_bytes)
 {
     size_t remaining_bytes = nb_bytes;
     uint32_t block_addr = first_block_addr;
@@ -29,7 +29,7 @@ static bool sd_write(sd_context_t *sd_ctx, uint32_t first_block_addr, const uint
         size_t s = remaining_bytes > SD_BLOCK_LEN ? SD_BLOCK_LEN : remaining_bytes;
         for (size_t i = 0; i < SD_BLOCK_LEN; ++i)
             b[i] = i < s ? buf[i] : 0xFF;
-        if (!sd_write_single_block(sd_ctx, block_addr, b))
+        if (!sd_write_single_block(block_addr, b))
             return false;
         remaining_bytes -= s;
         block_addr++;
@@ -38,7 +38,7 @@ static bool sd_write(sd_context_t *sd_ctx, uint32_t first_block_addr, const uint
     return true;
 }
 
-static bool sd_read(sd_context_t *sd_ctx, uint32_t first_block_addr, uint8_t *buf, size_t nb_bytes)
+static bool sd_read(uint32_t first_block_addr, uint8_t *buf, size_t nb_bytes)
 {
     size_t remaining_bytes = nb_bytes;
     uint32_t block_addr = first_block_addr;
@@ -46,7 +46,7 @@ static bool sd_read(sd_context_t *sd_ctx, uint32_t first_block_addr, uint8_t *bu
     while (remaining_bytes > 0) {
         PRINT_DBG(".");
         size_t s = remaining_bytes > SD_BLOCK_LEN ? SD_BLOCK_LEN : remaining_bytes;
-        if (!sd_read_single_block(sd_ctx, block_addr, b))
+        if (!sd_read_single_block(block_addr, b))
             return false;
         for (size_t i = 0; i < s; ++i)
             buf[i] = b[i];
@@ -57,18 +57,18 @@ static bool sd_read(sd_context_t *sd_ctx, uint32_t first_block_addr, uint8_t *bu
     return true;
 }
 
-static bool read_fat(sd_context_t *sd_ctx, fs_fat_t *fat)
+static bool read_fat(fs_fat_t *fat)
 {
-    if (!sd_read(sd_ctx, FS_PARTITION_BLOCK_ADDR, (uint8_t *)fat, sizeof(fs_fat_t)))
+    if (!sd_read(FS_PARTITION_BLOCK_ADDR, (uint8_t *)fat, sizeof(fs_fat_t)))
         return false;
     if (fat->magic[0] != 'F' || fat->magic[1] != 'S')
         return false;
     return true;
 }
 
-static bool write_fat(sd_context_t *sd_ctx, const fs_fat_t *fat)
+static bool write_fat(const fs_fat_t *fat)
 {
-    if (!sd_write(sd_ctx, FS_PARTITION_BLOCK_ADDR, (uint8_t *)fat, sizeof(fs_fat_t)))
+    if (!sd_write(FS_PARTITION_BLOCK_ADDR, (uint8_t *)fat, sizeof(fs_fat_t)))
         return false;
     return true;
 }
@@ -126,7 +126,7 @@ static void remove_file_blocks(fs_fat_t *fat, fs_file_info_t *file_info) {
     file_info->size = 0;
 }
 
-bool fs_format(sd_context_t *sd_ctx, bool quick)
+bool fs_format(bool quick)
 {
     if (!quick) {
         //
@@ -140,7 +140,7 @@ bool fs_format(sd_context_t *sd_ctx, bool quick)
         
         for (uint32_t i = 0; i < nb_partition_blocks; ++i) {
             PRINT_DBG(".");
-            if (!sd_write_single_block(sd_ctx, FS_PARTITION_BLOCK_ADDR + i, buf)) {
+            if (!sd_write_single_block(FS_PARTITION_BLOCK_ADDR + i, buf)) {
                 PRINT_DBG("Unable to write single block\r\n");
                 return false;
             }
@@ -164,7 +164,7 @@ bool fs_format(sd_context_t *sd_ctx, bool quick)
 
     memset(&fat.blocks, 0xFF, sizeof(fat.blocks));
 
-    if (!write_fat(sd_ctx, &fat)) {
+    if (!write_fat(&fat)) {
         PRINT_DBG("Unable to write FAT\r\n");
         return false;
     }
@@ -172,10 +172,9 @@ bool fs_format(sd_context_t *sd_ctx, bool quick)
     return true;
 }
 
-bool fs_init(sd_context_t *sd_ctx, fs_context_t *fs_ctx)
+bool fs_init(fs_context_t *fs_ctx)
 {
-    fs_ctx->sd_ctx = sd_ctx;
-    if (!read_fat(sd_ctx, &fs_ctx->fat))
+    if (!read_fat(&fs_ctx->fat))
         return false;
 
     return true;
@@ -222,7 +221,7 @@ bool fs_delete(fs_context_t *ctx, const char *filename)
     file_info->name[0] = '\0'; 
 
     // write FAT
-    if (!write_fat(ctx->sd_ctx, &tmp_fat)) {
+    if (!write_fat(&tmp_fat)) {
         // unable to write FAT
         return false;
     }
@@ -245,7 +244,7 @@ bool fs_rename(fs_context_t *ctx, const char *filename, const char *new_filename
     file_info->name[FS_MAX_FILENAME_LEN] = '\0';
 
     // write FAT
-    if (!write_fat(ctx->sd_ctx, &tmp_fat)) {
+    if (!write_fat(&tmp_fat)) {
         // unable to write FAT
         return false;
     }
@@ -300,7 +299,7 @@ bool fs_read(fs_context_t *ctx, const char *filename, uint8_t *buf, size_t curre
         if (remaining_bytes <= nb_bytes) {
             uint32_t block_addr = (uint32_t)block_table_index;
             //PRINTV_DBG("-- RD: ", block_addr);
-            if (!sd_read_single_block(ctx->sd_ctx, first_block_addr + block_addr, b)) {
+            if (!sd_read_single_block(first_block_addr + block_addr, b)) {
                 PRINT_DBG("Unable to read block\r\n");
                 return false;
             }
@@ -418,7 +417,7 @@ bool fs_write(fs_context_t *ctx, const char *filename, const uint8_t *buf, size_
     
         uint32_t block_addr = (uint32_t)block_table_index;
         //PRINTV_DBG("-- WR: ", block_addr);
-        if (!sd_write_single_block(ctx->sd_ctx, first_block_addr + block_addr, b)) {
+        if (!sd_write_single_block(first_block_addr + block_addr, b)) {
             PRINT_DBG("Unable to write block\r\n");
             return false;
         }
@@ -432,7 +431,7 @@ bool fs_write(fs_context_t *ctx, const char *filename, const uint8_t *buf, size_
     if (last_block_table_index != 0xFFFF)
         tmp_fat.blocks[last_block_table_index] = 0;
 
-    if (!write_fat(ctx->sd_ctx, &tmp_fat)) {
+    if (!write_fat(&tmp_fat)) {
         PRINT_DBG("Unable to write FAT\r\n");
         return false;
     }

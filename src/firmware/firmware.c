@@ -106,13 +106,12 @@ void main(void)
         }
     }
 
-    sd_context_t sd_ctx;
-    if (!bypass_sd_card && sd_init(&sd_ctx)) {
+    if (!bypass_sd_card && sd_init()) {
         print("SD card available\r\n");
 
         uint8_t buf[SD_BLOCK_LEN];
         sd_image_info_t *image_info = (sd_image_info_t *)buf;
-        if (sd_read_single_block(&sd_ctx, 0, buf)) {
+        if (sd_read_single_block(0, buf)) {
             if (image_info->magic[0] == 'X' && image_info->magic[1] == 'G') {
                 size_t remaining_bytes = (size_t)image_info->len;
                 uint32_t sd_addr = 1;
@@ -120,7 +119,7 @@ void main(void)
                 while(remaining_bytes > 0) {
                     print(".");
                     size_t s = remaining_bytes > SD_BLOCK_LEN ? SD_BLOCK_LEN : remaining_bytes;
-                    if (!sd_read_single_block(&sd_ctx, sd_addr, mem)) {
+                    if (!sd_read_single_block(sd_addr, mem)) {
                         print("\r\nFailed to read SD card image\r\n");
                         break;
                     }

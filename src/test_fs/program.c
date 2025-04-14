@@ -62,12 +62,12 @@ void dump_fat(fs_context_t *ctx)
     print("**** END OF FAT DUMP ****\r\n");
 }
 
-bool low_level_tests(sd_context_t *sd_ctx)
+bool low_level_tests(void)
 {
     print("\r\n--- Low Level Tests ---\r\n");
 
     fs_context_t fs_ctx;
-    if (!fs_init(sd_ctx, &fs_ctx)) {
+    if (!fs_init(&fs_ctx)) {
         print("Unable to initialize the FS\r\n");
         return false;
     }
@@ -308,18 +308,17 @@ bool stdio_tests()
 void main(void)
 {
     print("************** FILE SYSTEM TEST **************\r\n");
-    sd_context_t sd_ctx;
-    if (!sd_init(&sd_ctx)) {
+    if (!sd_init()) {
         print("Unable to initialize SD card\r\n");
         for(;;);
     }
     print("Formatting...\r\n");
-    if (!fs_format(&sd_ctx, true)) {
+    if (!fs_format(true)) {
         print("Unable to format SD card\r\n");
         for(;;);
     }
 
-    if (!low_level_tests(&sd_ctx)) {
+    if (!low_level_tests()) {
         printf("Low level tests failed\r\n");
         for(;;);
     }
@@ -327,14 +326,14 @@ void main(void)
     if (!stdio_tests()) {
         printf("Standard IO tests failed\r\n");
         fs_context_t fs_ctx;
-        if (fs_init(&sd_ctx, &fs_ctx))
+        if (fs_init(&fs_ctx))
             dump_fat(&fs_ctx);
         for(;;);
     }
 
     print("Success!\r\n");
     fs_context_t fs_ctx;
-    if (fs_init(&sd_ctx, &fs_ctx))
+    if (fs_init(&fs_ctx))
         dump_fat(&fs_ctx);
     for(;;);
 }

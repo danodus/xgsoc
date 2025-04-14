@@ -27,12 +27,11 @@ typedef struct {
 
 typedef struct {
     fs_fat_t fat;
-    sd_context_t *sd_ctx;
 } fs_context_t;
 
-bool fs_format(sd_context_t *sd_ctx, bool quick);
+bool fs_format(bool quick);
 
-bool fs_init(sd_context_t *sd_ctx, fs_context_t *fs_ctx);
+bool fs_init(fs_context_t *fs_ctx);
 uint16_t fs_get_nb_files(fs_context_t *ctx);
 bool fs_get_file_info(fs_context_t *ctx, uint16_t file_index, fs_file_info_t *file_info);
 bool fs_read(fs_context_t *ctx, const char *filename, uint8_t *buf, size_t current_pos, size_t nb_bytes, size_t *nb_read_bytes);
