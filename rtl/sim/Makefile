@@ -21,12 +21,7 @@ SRC = bram32bit.v \
 	video.v \
 	vqueue.v \
 	rgb565_to_rgb888.sv \
-	processor.sv \
-	alu.sv \
-	register_file.sv \
-	decoder.sv \
-	divider.v \
-	multiplier.v \
+	processor.v \
 	graphite.sv \
 	reciprocal.sv \
 	div.sv \
