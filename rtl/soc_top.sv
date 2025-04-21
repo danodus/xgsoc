@@ -239,29 +239,27 @@ module soc_top #(
 
     logic pm_sel = adr[31:28] == 4'hF;
 
-    processor  #(
-        .RESET_VEC_ADDR(32'hF0000000)
-    ) cpu(
+    logic cpu_rstrb;
+    assign cpu_we = |wmask;
+    assign cpu_sel = cpu_we | cpu_rstrb;
+    processor processor(
         .clk(clk_cpu),
-        .reset_i(~rst_n),
 `ifdef VIDEO_GRAPHITE
-        .ce_i(CE && !process_graphite),
+        .ce(CE && !process_graphite),
 `else // VIDEO_GRAPHITE
-        .ce_i(CE),
+        .ce(CE),
 `endif // VIDEO_GRAPHITE
+        .mem_addr(adr),
+        .mem_wdata(outbus),
+        .mem_wmask(wmask),
+        .mem_rdata(pm_sel ? pmout : inbus),
+        .mem_rstrb(cpu_rstrb),
+        .mem_rbusy(1'b0),
+        .mem_wbusy(1'b0),
 
-        // interrupts (2)
-        .irq_i(2'b00),
-        .eoi_o(),
+        .interrupt_request(),
 
-        // memory
-        .sel_o(cpu_sel),
-        .addr_o(adr),
-        .we_o(cpu_we),
-        .wr_mask_o(wmask),
-        .data_in_i(pm_sel ? pmout : inbus),
-        .data_out_o(outbus),
-        .ack_i(1'b1)
+        .reset(rst_n)
     );
 
     uart_rx #(.FREQ_HZ(FREQ_HZ), .BAUD_RATE(BAUD_RATE)) uart_rx(.clk(clk_cpu), .rst(rst_n), .RxD(rx_i), .fsel(1'b0), .done(doneRx),

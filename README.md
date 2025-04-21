@@ -6,7 +6,7 @@ The documentation is available here: https://danodus.github.io/xgsoc/
 
 # Features
 
-- RISC-V (RV32IM)
+- RISC-V (RV32IMC)
 - UART (1000000-N-8-1)
 - SDRAM (32MiB shared between CPU and video)
 - Set associative cache (4-way with LRU replacement policy)
