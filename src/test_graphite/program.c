@@ -48,7 +48,11 @@
 #define MEM_WRITE(_addr_, _value_) (*((volatile unsigned int *)(_addr_)) = _value_)
 #define MEM_READ(_addr_) *((volatile unsigned int *)(_addr_))
 
+#if FIXED_POINT
 #define PARAM(x) (x)
+#else
+#define PARAM(x) (_FLOAT_TO_FIXED(x, 14))
+#endif
 
 struct Command {
     uint32_t opcode : 8;
@@ -299,7 +303,7 @@ void main(void)
 
     bool quit = false;
     bool print_stats = false;
-    bool is_rotating = true;
+    bool is_rotating = false;
     bool is_textured = true;
     size_t nb_lights = 4;
     bool is_wireframe = false;

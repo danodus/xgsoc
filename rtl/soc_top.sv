@@ -257,7 +257,7 @@ module soc_top #(
         .mem_rbusy(1'b0),
         .mem_wbusy(1'b0),
 
-        .interrupt_request(),
+        .interrupt_request(1'b0),
 
         .reset(rst_n)
     );
