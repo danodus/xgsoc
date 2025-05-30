@@ -33,7 +33,9 @@ SRC = \
   ../uart_rx.v \
   ../uart_tx.v \
   ../spi.v \
-  ../riscv/processor.v \
+  ../riscv/processor.sv \
+  ../riscv/bus_arbiter.sv \
+  ../riscv/rv32.sv \
   ../video.v \
   ../rgb565_to_rgb888.sv \
   ../bram32bit.v \
