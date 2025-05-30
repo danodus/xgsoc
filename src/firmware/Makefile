@@ -29,6 +29,6 @@ firmware.bin: firmware.elf firmware.lst
 	${OBJCOPY} -O binary firmware.elf firmware.bin
 
 firmware.elf: $(FIRMWARE_SOURCE) firmware.ld
-	${CC} $(RISCV_CC_OPT) -nostartfiles -nostdlib -Os -T firmware.ld -I ../lib $(FIRMWARE_SOURCE) -o firmware.elf
+	${CC} $(RISCV_CC_OPT) -nostartfiles -Os -T firmware.ld -I ../lib $(FIRMWARE_SOURCE) -o firmware.elf
 
 .PHONY: all clean firmware
