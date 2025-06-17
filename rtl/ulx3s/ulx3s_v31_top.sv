@@ -11,6 +11,7 @@ module ulx3s_v31_top(
     // On-board user buttons and status LEDs
     input  wire logic [6:0] btn,
     output      logic [7:0] led,
+    output      logic       wifi_en,
 
     // User GPIO (56 I/O pins) Header
     inout       logic [27:0] gp, gn,  // GPIO Header pins available as one data block
@@ -49,6 +50,7 @@ module ulx3s_v31_top(
     inout  wire logic        usb_fpga_pu_dn   // 1 = 1.5K up, 0 = 15K down, z = float
 `endif // USB
 );
+    assign wifi_en = 1'b1;
 
 `ifdef VIDEO
 `ifdef VIDEO_480P
