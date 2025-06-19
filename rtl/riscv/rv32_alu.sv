@@ -9,7 +9,11 @@
 `define RV32_ALU_OP_SRL_SRA 4'b0101
 `define RV32_ALU_OP_SLT     4'b0110
 `define RV32_ALU_OP_SLTU    4'b0111
-`define RV32_ALU_OP_FXMUL   4'b1000
+`define RV32_ALU_OP_MUL     4'b1000
+`define RV32_ALU_OP_MULH    4'b1001
+`define RV32_ALU_OP_MULHSU  4'b1010
+`define RV32_ALU_OP_MULHU   4'b1011
+`define RV32_ALU_OP_FXMUL   4'b1100
 
 `define RV32_ALU_SRC1_REG  2'b00
 `define RV32_ALU_SRC1_PC   2'b01
@@ -94,6 +98,17 @@ module rv32_alu (
     assign lt  = sign != ovf;
     assign ltu = carry;
 
+    logic mul_sign1, mul_sign2;
+    assign mul_sign1 = src1_sign && (op_in == `RV32_ALU_OP_MULH);
+    assign mul_sign2 = src2_sign && ((op_in == `RV32_ALU_OP_MULH) || (op_in == `RV32_ALU_OP_MULHSU));
+
+    logic signed [32:0] mul_signed1, mul_signed2;
+    assign mul_signed1 = {mul_sign1, src1};
+    assign mul_signed2 = {mul_sign2, src2};
+
+    logic signed [63:0] multiply;
+    assign multiply = mul_signed1 * mul_signed2;     
+
     always_comb begin
         result_out = 32'b0;
         case (op_in)
@@ -105,6 +120,10 @@ module rv32_alu (
             `RV32_ALU_OP_SRL_SRA: result_out = srl_sra;
             `RV32_ALU_OP_SLT:     result_out = {31'b0, lt};
             `RV32_ALU_OP_SLTU:    result_out = {31'b0, ltu};
+            `RV32_ALU_OP_MUL:     result_out = multiply[31:0];
+            `RV32_ALU_OP_MULH,
+            `RV32_ALU_OP_MULHSU,
+            `RV32_ALU_OP_MULHU:   result_out = multiply[63:32];
             `RV32_ALU_OP_FXMUL:   result_out = fix_mul(src1, src2);
         endcase
     end
