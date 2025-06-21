@@ -39,7 +39,7 @@
  `define ASSERT_NOT_REACHED(msg)
 `endif
 
-module processor(
+module femtorv32(
    input          clk,
    input          ce,
 
