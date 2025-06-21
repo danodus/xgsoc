@@ -40,6 +40,9 @@ SRC = \
   ../lattice/ecp5pll.sv \
   ../bram_true2p_2clk.v \
   ../vqueue.v \
+  ../vdu/vdu.sv \
+  ../vdu/vdu_vram.sv \
+  ../vdu/vdu_display_timings.sv \
   ../dvi/hdmi_interface.v \
   ../../external/graphite/rtl/graphite.sv \
   ../../external/graphite/rtl/reciprocal.sv \
@@ -49,6 +52,12 @@ DEFINES =
 
 ifneq (,$(findstring v,$(CONF)))
   DEFINES += -DVIDEO
+
+  ifneq (,$(findstring d,$(CONF)))
+    DEFINES += -DVIDEO_VDU
+  else
+    DEFINES += -DVIDEO_FB
+  endif
 
   ifneq (,$(findstring g,$(CONF)))
     DEFINES += -DVIDEO_GRAPHITE

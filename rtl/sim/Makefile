@@ -27,7 +27,10 @@ SRC = bram32bit.v \
 	div.sv \
 	usb/phy.v \
 	usb/regs.v \
-	usb/sie.v
+	usb/sie.v \
+	vdu/vdu.sv \
+	vdu/vdu_vram.sv \
+	vdu/vdu_display_timings.sv
 
 all: sim
 
@@ -41,7 +44,7 @@ firmware:
 	ln -f -s $(FIRMWARE_DIR)/firmware.hex .
 
 sim: top.sv sim_main.cpp $(PROGRAM)
-	$(VERILATOR) -cc --exe $(CFLAGS) $(LDFLAGS) --trace --top-module top -DVIDEO -DVIDEO_GRAPHITE -DVIDEO_QVGA top.sv sdl_ps2.cpp sim_main.cpp -I.. -I../riscv -I../usb -I../../external/graphite/rtl $(SRC) -Wno-PINMISSING -Wno-WIDTH -Wno-CASEINCOMPLETE -Wno-TIMESCALEMOD -Wno-NULLPORT -Wno-MULTIDRIVEN -Wno-UNOPTFLAT
+	$(VERILATOR) -cc --exe $(CFLAGS) $(LDFLAGS) --trace --top-module top -DVIDEO -DVIDEO_FB -DVIDEO_GRAPHITE -DVIDEO_QVGA top.sv sdl_ps2.cpp sim_main.cpp -I.. -I../riscv -I../usb -I../vdu -I../../external/graphite/rtl $(SRC) -Wno-PINMISSING -Wno-WIDTH -Wno-CASEINCOMPLETE -Wno-TIMESCALEMOD -Wno-NULLPORT -Wno-MULTIDRIVEN -Wno-UNOPTFLAT
 	$(MAKE) -j 4 -C obj_dir -f Vtop.mk
 
 run: firmware sim
