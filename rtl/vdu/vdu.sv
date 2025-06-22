@@ -16,9 +16,9 @@ module vdu(
 
     output      logic        vga_hsync_o,
     output      logic        vga_vsync_o,
-    output      logic [3:0]  vga_r_o,
-    output      logic [3:0]  vga_g_o,
-    output      logic [3:0]  vga_b_o,
+    output      logic [7:0]  vga_r_o,
+    output      logic [7:0]  vga_g_o,
+    output      logic [7:0]  vga_b_o,
     output      logic        vga_de_o
 );
 
@@ -40,7 +40,7 @@ module vdu(
     );
 
     // palette
-    logic [11:0] palette[256];
+    logic [23:0] palette[256];
 
     initial begin
         $readmemh("vdu_palette.hex", palette);
@@ -77,9 +77,9 @@ module vdu(
 
     always_comb begin
         if (vga_de_o) begin
-            vga_r_o = palette[data[7:0]][11:8];
-            vga_g_o = palette[data[7:0]][7:4];
-            vga_b_o = palette[data[7:0]][3:0];
+            vga_r_o = palette[data[7:0]][23:16];
+            vga_g_o = palette[data[7:0]][15:8];
+            vga_b_o = palette[data[7:0]][7:0];
         end else begin
             vga_r_o = 4'h0;
             vga_g_o = 4'h0;

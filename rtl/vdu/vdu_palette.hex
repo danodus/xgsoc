@@ -1,16 +1,16 @@
-000    //   0 (0x00) black
-00a    //   1 (0x01) blue
-0a0    //   2 (0x02) green
-0aa    //   3 (0x03) cyan
-a00    //   4 (0x04) red
-a0a    //   5 (0x05) magenta
-a50    //   6 (0x06) brown
-aaa    //   7 (0x07) white
-555    //   8 (0x08) gray
-55f    //   9 (0x09) light blue
-5f5    //  10 (0x0a) light green
-5ff    //  11 (0x0b) light cyan
-f55    //  12 (0x0c) light red
-f5f    //  13 (0x0d) light magenta
-ff5    //  14 (0x0e) yellow
-fff    //  15 (0x0f) bright white
+000000    //   0 (0x00) black
+0000aa    //   1 (0x01) blue
+00aa00    //   2 (0x02) green
+00aaaa    //   3 (0x03) cyan
+aa0000    //   4 (0x04) red
+aa00aa    //   5 (0x05) magenta
+aa5500    //   6 (0x06) brown
+aaaaaa    //   7 (0x07) white
+555555    //   8 (0x08) gray
+5555ff    //   9 (0x09) light blue
+55ff55    //  10 (0x0a) light green
+55ffff    //  11 (0x0b) light cyan
+ff5555    //  12 (0x0c) light red
+ff55ff    //  13 (0x0d) light magenta
+ffff55    //  14 (0x0e) yellow
+ffffff    //  15 (0x0f) bright white

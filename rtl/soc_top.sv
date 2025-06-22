@@ -459,7 +459,6 @@ module soc_top #(
 
 
 `ifdef VIDEO_VDU
-    logic [3:0] vdu_r, vdu_g, vdu_b;
 
     logic vdu_de;
 
@@ -477,15 +476,12 @@ module soc_top #(
 
         .vga_hsync_o(vga_hsync_o),
         .vga_vsync_o(vga_vsync_o),
-        .vga_r_o(vdu_r),
-        .vga_g_o(vdu_g),
-        .vga_b_o(vdu_b),
+        .vga_r_o(vga_r_o),
+        .vga_g_o(vga_g_o),
+        .vga_b_o(vga_b_o),
         .vga_de_o(vdu_de)
     );
 
-    assign vga_r_o = {vdu_r, vdu_r};
-    assign vga_g_o = {vdu_g, vdu_g};
-    assign vga_b_o = {vdu_b, vdu_b};
     assign vga_blank_o = ~vdu_de;
 
 `endif // VIDEO_VDU
