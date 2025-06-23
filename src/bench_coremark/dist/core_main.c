@@ -146,7 +146,7 @@ main(int argc, char *argv[])
     /* put in some default values based on one seed only for easy testing */
     if ((results[0].seed1 == 0) && (results[0].seed2 == 0)
         && (results[0].seed3 == 0))
-    { /* perfromance run */
+    { /* performance run */
         results[0].seed1 = 0;
         results[0].seed2 = 0;
         results[0].seed3 = 0x66;
@@ -261,11 +261,6 @@ for (i = 0; i < MULTITHREAD; i++)
             divisor = 1;
         results[0].iterations *= 1 + 10 / divisor;
     }
-
-
-    ee_printf("Total time (secs): %f\n", 12.2123f);
-    return 0;
-
     /* perform actual benchmark */
     start_time();
 #if (MULTITHREAD > 1)
@@ -362,7 +357,6 @@ for (i = 0; i < MULTITHREAD; i++)
     /* and report results */
     ee_printf("CoreMark Size    : %lu\n", (long unsigned)results[0].size);
     ee_printf("Total ticks      : %lu\n", (long unsigned)total_time);
-
 #if HAS_FLOAT
     ee_printf("Total time (secs): %f\n", time_in_secs(total_time));
     if (time_in_secs(total_time) > 0)
@@ -376,7 +370,6 @@ for (i = 0; i < MULTITHREAD; i++)
                   default_num_contexts * results[0].iterations
                       / time_in_secs(total_time));
 #endif
-
     if (time_in_secs(total_time) < 10)
     {
         ee_printf(

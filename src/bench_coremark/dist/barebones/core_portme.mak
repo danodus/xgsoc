@@ -23,7 +23,8 @@ OUTFLAG= -o
 # by eliminating alignment nops. This is really a toolchain issue because
 # most 2-byte alignment nops could also be eliminated by selectively
 # expanding 16-bit instructions to 32-bit.
-MARCH        = rv32i
+MARCH        = rv32imaf_zicsr
+MABI         = ilp32f
 CROSS_PREFIX = riscv-none-elf-
 
 CC           =  $(CROSS_PREFIX)gcc
@@ -31,8 +32,8 @@ LD           =  $(CROSS_PREFIX)gcc
 AS           =  $(CROSS_PREFIX)gcc
 
 # Slightly shorter alternative when compressed instructions are not used:
-# PORT_CFLAGS = -O3 -g -march=$(MARCH) -mbranch-cost=1 -funroll-all-loops --param max-inline-insns-auto=200 -finline-limit=10000 -fno-code-hoisting -fno-if-conversion2
-PORT_CFLAGS = -O3 -g -march=$(MARCH) -mbranch-cost=1 -funroll-all-loops --param max-inline-insns-auto=200 -finline-limit=10000 -fno-code-hoisting -fno-if-conversion2 -falign-functions=4 -falign-jumps=4 -falign-loops=4
+# PORT_CFLAGS = -O3 -g -march=$(MARCH) -mabi=$(MABI) -mbranch-cost=1 -funroll-all-loops --param max-inline-insns-auto=200 -finline-limit=10000 -fno-code-hoisting -fno-if-conversion2
+PORT_CFLAGS = -O3 -g -march=$(MARCH) -mabi=$(MABI) -mbranch-cost=1 -funroll-all-loops --param max-inline-insns-auto=200 -finline-limit=10000 -fno-code-hoisting -fno-if-conversion2 -falign-functions=4 -falign-jumps=4 -falign-loops=4
 
 FLAGS_STR = "$(PORT_CFLAGS) $(XCFLAGS) $(XLFLAGS) $(LFLAGS_END)"
 CFLAGS = $(PORT_CFLAGS) -I$(PORT_DIR) -I. -DFLAGS_STR=\"$(FLAGS_STR)\" 
@@ -45,8 +46,8 @@ SEPARATE_COMPILE=1
 # You must also define below how to create an object file, and how to link.
 
 OBJOUT 	= -o
-LFLAGS 	= -T ../../lib/program.ld -Wl,--noinhibit-exec -march=$(MARCH) -nostartfiles
-ASFLAGS = -c -march=$(MARCH)
+LFLAGS 	= -T ../../lib/program.ld -Wl,--noinhibit-exec -march=$(MARCH) -mabi=$(MABI) -nostartfiles
+ASFLAGS = -c -march=$(MARCH) -mabi=$(MABI)
 OFLAG 	= -o
 COUT 	= -c
 
@@ -54,7 +55,7 @@ LFLAGS_END =
 # Flag : PORT_SRCS
 # 	Port specific source files can be added here
 #	You may also need cvt.c if the fcvt functions are not provided as intrinsics by your compiler!
-PORT_SRCS = $(PORT_DIR)/core_portme.c $(PORT_DIR)/io.c $(PORT_DIR)/ee_printf.c $(PORT_DIR)/start.S
+PORT_SRCS = $(PORT_DIR)/core_portme.c $(PORT_DIR)/io.c $(PORT_DIR)/ee_printf.c $(PORT_DIR)/cvt.c $(PORT_DIR)/start.S
 PORT_OBJS = $(addsuffix $(OEXT),$(patsubst %.c,%,$(patsubst %.S,%,$(PORT_SRCS))))
 vpath %.c $(PORT_DIR)
 vpath %.s $(PORT_DIR)

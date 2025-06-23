@@ -13,10 +13,8 @@ SERIAL ?= /dev/tty.usbserial-D00039
 
 all: $(APP).hex
 
-$(APP).hex: $(APP).bin
+$(APP).hex: bin
 	${PYTHON} ../../utils/makehex.py $(APP).bin > $(APP).hex
-
-bin: $(APP).bin
 
 clean:
 	rm -f $(APP).elf $(APP).bin $(APP).lst $(APP).hex
@@ -33,10 +31,8 @@ write: program.hex
 
 ###############################################################################
 
-$(APP).bin: $(APP).elf
-	$(CROSS_PREFIX)objcopy -O binary $^ $@
-	$(CROSS_PREFIX)objdump -d $(APP).elf > $(APP).lst
-
-$(APP).elf:
+bin:
 	make -C dist
 	cp dist/build/coremark.elf $(APP).elf
+	$(CROSS_PREFIX)objcopy -O binary $(APP).elf $(APP).bin
+	$(CROSS_PREFIX)objdump -d $(APP).elf > $(APP).lst
