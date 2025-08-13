@@ -21,10 +21,12 @@ SRC := ../../external/xglib/rtl/riscv/processor.sv \
 		../spram.sv \
 		../fifo.sv \
 		../uart.sv \
+		../ps2kbd.v \
+		../ps2mouse.v \
 		../xgsoc.sv \
 		top.sv
 
-DEFINES := -DSPRAM -DSD_CARD
+DEFINES := -DSPRAM -DSD_CARD -DPS2
 
 all: top.bin
 
