@@ -645,10 +645,12 @@ module soc_top #(
             2'b10: sys_addr = {front_vidadr, 3'b000}; // read 32bytes video
 `endif // VIDEO
             2'b11: sys_addr = {cache_ctrl_adr[24:8], 6'b000000}; // read 256bytes	
+            default: begin
+            end
         endcase
     end
 
-    SDRAM_16bit SDR
+    sdram sdram
     (
         .sys_CLK(clk_sdram),				// clock
         .sys_CMD(cntrl0_user_command_register),					// 00=nop, 01 = write 256 bytes, 10=read 32 bytes, 11=read 256 bytes
@@ -801,6 +803,8 @@ module soc_top #(
             end
 `endif // VIDEO_FB
             2'b01, 2'b11: crw <= 1'b1;	// cache read/write			
+            default: begin
+            end
         endcase
 
 `ifdef VIDEO_FB

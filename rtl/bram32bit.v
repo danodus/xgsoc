@@ -1,4 +1,5 @@
-// byte addressable BRAM
+// Copyright (c) 2025 Daniel Cliche
+// SPDX-License-Identifier: MIT
 
 module bram32bit
 #(

@@ -42,7 +42,6 @@
 // adapted for Lattice Diamond, which does not support array initialization
 //////////////////////////////////////////////////////////////////////////////////
 
-`timescale 1ns / 1ps
 `define WAYS	2	// 2^ways
 `define SETS	4	// 2^sets
 
@@ -90,15 +89,15 @@ module cache_controller(
     integer i;
     initial begin
         for(i = 0; i < 1 << `SETS; i = i + 1) begin
-            cache_dirty[i] = `WAYS'd0;
-            cache_lru0[i]  = `WAYS'd0;
-            cache_lru1[i]  = `WAYS'd1;
-            cache_lru2[i]  = `WAYS'd2;
-            cache_lru3[i]  = `WAYS'd3;
-            cache_addr0[i] = 19-`SETS'd0;
-            cache_addr1[i] = 19-`SETS'd1;
-            cache_addr2[i] = 19-`SETS'd2;
-            cache_addr3[i] = 19-`SETS'd3;
+            cache_dirty[i] = 'd0;
+            cache_lru0[i]  = 'd0;
+            cache_lru1[i]  = 'd1;
+            cache_lru2[i]  = 'd2;
+            cache_lru3[i]  = 'd3;
+            cache_addr0[i] = 'd0;
+            cache_addr1[i] = 'd1;
+            cache_addr2[i] = 'd2;
+            cache_addr3[i] = 'd3;
         end
     end
     
@@ -182,10 +181,10 @@ module cache_controller(
             3'b000: begin
                 if(mreq && !hit) begin	// cache miss
                     case(fblk)
-                        0: begin waddr <= {cache_addr0[index], index}; if(!r_flush) cache_addr0[index] <= {1'b1, addr[25:8+`SETS]}; end
-                        1: begin waddr <= {cache_addr1[index], index}; if(!r_flush) cache_addr1[index] <= {1'b1, addr[25:8+`SETS]}; end
-                        2: begin waddr <= {cache_addr2[index], index}; if(!r_flush) cache_addr2[index] <= {1'b1, addr[25:8+`SETS]}; end
-                        3: begin waddr <= {cache_addr3[index], index}; if(!r_flush) cache_addr3[index] <= {1'b1, addr[25:8+`SETS]}; end
+                        0: begin waddr <= {cache_addr0[index][17-`SETS:0], index}; if(!r_flush) cache_addr0[index] <= {1'b1, addr[25:8+`SETS]}; end
+                        1: begin waddr <= {cache_addr1[index][17-`SETS:0], index}; if(!r_flush) cache_addr1[index] <= {1'b1, addr[25:8+`SETS]}; end
+                        2: begin waddr <= {cache_addr2[index][17-`SETS:0], index}; if(!r_flush) cache_addr2[index] <= {1'b1, addr[25:8+`SETS]}; end
+                        3: begin waddr <= {cache_addr3[index][17-`SETS:0], index}; if(!r_flush) cache_addr3[index] <= {1'b1, addr[25:8+`SETS]}; end
                     endcase
                     ddr_rd <= ~dirty & ~r_flush;
                     ddr_wr <= dirty;
@@ -215,6 +214,8 @@ module cache_controller(
             3'b101: begin
                 ddr_rd <= 1'b0;
                 if(~s_lowaddr5) STATE <= 3'b000;
+            end
+            default: begin
             end
         endcase
     end

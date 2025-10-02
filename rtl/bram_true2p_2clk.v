@@ -1,7 +1,5 @@
-// Quartus Prime Verilog Template
-// True Dual Port RAM with dual clocks
-// File->New File->VHDL File
-// Edit->Insert Template->VHDL->Full designs->RAMs and ROMs->True dual port RAM (dual clock)
+// Copyright (c) 2025 Daniel Cliche
+// SPDX-License-Identifier: MIT
 
 module bram_true2p_2clk
 #(
@@ -19,7 +17,9 @@ module bram_true2p_2clk
   output reg [(data_width-1):0] data_out_a, data_out_b
 );
   // Declare the RAM variable
+/* verilator lint_off MULTIDRIVEN */
   reg [data_width-1:0] ram[2**addr_width-1:0];
+/* verilator lint_on MULTIDRIVEN */
   generate
     if(initial_file != "")
       initial $readmemh(initial_file, ram);
