@@ -59,7 +59,7 @@ void clear(int color)
 
 void main(void)
 {
-    print("XGSoC\r\nCopyright (c) 2022-2025 Daniel Cliche\r\n\r\n");
+    print("XGSoC\r\nCopyright (c) 2022-2026 Daniel Cliche\r\n\r\n");
 
     unsigned int hw_conf = MEM_READ(CONFIG4);
 
