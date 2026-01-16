@@ -63,8 +63,6 @@ make run SERIAL=<serial device>
 picocom -b 1000000 <serial device>
 ```
 
-By default, the configuration is `bvgkm`.
-
 For the PS/2 keyboard and/or PS/2 mouse, you need a Digilent PS/2 PMOD connected to the top-left.
 
 ## Icepi Zero
@@ -77,11 +75,9 @@ make run SERIAL=<serial device>
 picocom -b 1000000 <serial device>
 ```
 
-By default, the configuration is `bvkm`.  Graphite is not yet supported on this board.
-
 The PS/2 keyboard and PS/2 mouse must be connected to USB1 and USB2 respectively. 
 
-### Configurations
+## Configurations
 
 | Identifier | Description           |
 | ---------- | --------------------- |

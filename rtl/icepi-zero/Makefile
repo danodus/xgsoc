@@ -4,7 +4,7 @@ NEXTPNR := $(OSS_CAD_SUITE_PATH)nextpnr-ecp5
 OPENFPGALOADER := $(OSS_CAD_SUITE_PATH)openFPGALoader
 
 VIDEO = vga
-CONF = bvkm
+CONF = bvgkm
 
 # 12 25 45 85
 DEVICE := 25k
