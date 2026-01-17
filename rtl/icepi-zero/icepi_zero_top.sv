@@ -106,7 +106,7 @@ module icepi_zero_top(
     assign led = led8[4:0];
 
     soc_top #(
-        .FREQ_HZ(25_000_000),
+        .FREQ_HZ(50_000_000),
         .BAUD_RATE(1_000_000)
     ) soc_top(
         .clk_cpu(clk_cpu),
