@@ -42,8 +42,8 @@ module icepi_zero_top(
     inout logic [3:0] sd_dat,
 );
 
-	assign usb_pull_dp = 2'b01; 	// pull USB D+ to +3.3V through 1.5K resistor
-	assign usb_pull_dn = 2'b01; 	// pull USB D- to +3.3V through 1.5K resistor
+	assign usb_pull_dp = 2'b11; 	// pull USB D+ to +3.3V through 1.5K resistor
+	assign usb_pull_dn = 2'b11; 	// pull USB D- to +3.3V through 1.5K resistor
 
 `ifdef VIDEO
 `ifdef VIDEO_480P
