@@ -45,6 +45,7 @@ SRC = \
   ../vdu/vdu_display_timings.sv \
   ../dvi/hdmi_interface.v \
   ../../external/graphite/rtl/graphite.sv \
+  ../../external/graphite/rtl/graphite_fragment_shader.sv \
   ../../external/graphite/rtl/reciprocal.sv \
   ../../external/graphite/rtl/div.sv
 
