@@ -94,6 +94,8 @@ extern uint16_t tex64x64[];
 int nb_triangles;
 bool rasterizer_ena = true;
 
+uint32_t t_tri_setup, t_tri_raster;
+
 void send_command(struct Command *cmd)
 {
     while (!MEM_READ(GRAPHITE));
@@ -120,9 +122,13 @@ static inline int64_t mul_shr4(int64_t a, int64_t b) {
     return a * (b >> 4) + ((a * (b & 15)) >> 4);
 }
 
-static inline int64_t solve_gradient_high(int64_t det, fixed16 termA, int32_t factorA, fixed16 termB, int32_t factorB) {
+static inline int64_t solve_gradient_high(int64_t det, int32_t termA, int32_t factorA, int32_t termB, int32_t factorB) {
     int64_t num = (int64_t)termA * factorA - (int64_t)termB * factorB; 
-    return (num / det) * 1048576LL + ((num % det) * 1048576LL) / det;
+    int64_t num_abs = num < 0 ? -num : num;
+    if (num_abs >= (1LL << 43)) {
+        return (num / det) * 1048576LL + ((num % det) * 1048576LL) / det;
+    }
+    return (num << 20) / det;
 }
 
 void xd_draw_triangle(vec3d p[3], vec2d t[3], vec3d c[3], texture_t* tex, bool clamp_s, bool clamp_t, int texture_scale_x, int texture_scale_y,
@@ -131,6 +137,8 @@ void xd_draw_triangle(vec3d p[3], vec2d t[3], vec3d c[3], texture_t* tex, bool c
     nb_triangles++;
     if (!rasterizer_ena)
         return;
+
+    uint32_t t1_tri_setup = MEM_READ(TIMER);
 
     uint32_t texture_width = 32 << texture_scale_x;
     uint32_t texture_height = 32 << texture_scale_y;
@@ -151,6 +159,7 @@ void xd_draw_triangle(vec3d p[3], vec2d t[3], vec3d c[3], texture_t* tex, bool c
     if (det == 0) return; 
 
     // SOLVE HIGH-PRECISION GRADIENTS
+
     fixed16 w0_inv = v0.w;
     fixed16 w1_inv = v1.w;
     fixed16 w2_inv = v2.w;
@@ -254,12 +263,18 @@ void xd_draw_triangle(vec3d p[3], vec2d t[3], vec3d c[3], texture_t* tex, bool c
     int32_t E12 = sign * ((p_x - v1.x) * (v2.y - v1.y) - (p_y - v1.y) * (v2.x - v1.x)) + bias12;
     int32_t E20 = sign * ((p_x - v2.x) * (v0.y - v2.y) - (p_y - v2.y) * (v0.x - v2.x)) + bias20;
 
-    int32_t acc_w_inv = start_w + (int32_t)(((int64_t)curr_x * dw_dx) + ((int64_t)curr_y * dw_dy) + (dw_dx >> 1) + (dw_dy >> 1));
-    int32_t acc_u_w   = start_s + (int32_t)(((int64_t)curr_x * du_dx) + ((int64_t)curr_y * du_dy) + (du_dx >> 1) + (du_dy >> 1));
-    int32_t acc_v_w   = start_t + (int32_t)(((int64_t)curr_x * dv_dx) + ((int64_t)curr_y * dv_dy) + (dv_dx >> 1) + (dv_dy >> 1));
-    int32_t acc_r_w   = start_r + (int32_t)(((int64_t)curr_x * dr_dx) + ((int64_t)curr_y * dr_dy) + (dr_dx >> 1) + (dr_dy >> 1));
-    int32_t acc_g_w   = start_g + (int32_t)(((int64_t)curr_x * dg_dx) + ((int64_t)curr_y * dg_dy) + (dg_dx >> 1) + (dg_dy >> 1));
-    int32_t acc_b_w   = start_b + (int32_t)(((int64_t)curr_x * db_dx) + ((int64_t)curr_y * db_dy) + (db_dx >> 1) + (db_dy >> 1));
+    int32_t acc_w_inv = start_w + (int32_t)((uint32_t)curr_x * (uint32_t)dw_dx + (uint32_t)curr_y * (uint32_t)dw_dy) + (dw_dx >> 1) + (dw_dy >> 1);
+    int32_t acc_u_w   = start_s + (int32_t)((uint32_t)curr_x * (uint32_t)du_dx + (uint32_t)curr_y * (uint32_t)du_dy) + (du_dx >> 1) + (du_dy >> 1);
+    int32_t acc_v_w   = start_t + (int32_t)((uint32_t)curr_x * (uint32_t)dv_dx + (uint32_t)curr_y * (uint32_t)dv_dy) + (dv_dx >> 1) + (dv_dy >> 1);
+    int32_t acc_r_w   = start_r + (int32_t)((uint32_t)curr_x * (uint32_t)dr_dx + (uint32_t)curr_y * (uint32_t)dr_dy) + (dr_dx >> 1) + (dr_dy >> 1);
+    int32_t acc_g_w   = start_g + (int32_t)((uint32_t)curr_x * (uint32_t)dg_dx + (uint32_t)curr_y * (uint32_t)dg_dy) + (dg_dx >> 1) + (dg_dy >> 1);
+    int32_t acc_b_w   = start_b + (int32_t)((uint32_t)curr_x * (uint32_t)db_dx + (uint32_t)curr_y * (uint32_t)db_dy) + (db_dx >> 1) + (db_dy >> 1);
+
+
+    uint32_t t2_tri_setup = MEM_READ(TIMER);
+    t_tri_setup += t2_tri_setup - t1_tri_setup;
+
+    uint32_t t1_tri_raster = MEM_READ(TIMER);
 
     push_16(OP_SET_MIN_X, min_x);
     push_16(OP_SET_MAX_X, max_x);
@@ -309,6 +324,9 @@ void xd_draw_triangle(vec3d p[3], vec2d t[3], vec3d c[3], texture_t* tex, bool c
     cmd.param |= texture_scale_y << 8;
 
     send_command(&cmd);
+
+    uint32_t t2_tri_raster = MEM_READ(TIMER);
+    t_tri_raster += t2_tri_raster - t1_tri_raster;
 }
 
 void clear(unsigned int color)
@@ -448,7 +466,7 @@ void main(void)
             } else if (c == '1') {
                 texture = 1;
             }
-        }        
+        }
 
         uint32_t t1 = MEM_READ(TIMER);
 
@@ -473,6 +491,8 @@ void main(void)
         set_texture(texture);
         texture_t dummy_texture;
         nb_triangles = 0;
+        t_tri_setup = 0;
+        t_tri_raster = 0;
         draw_model(fb_width, fb_height, &vec_camera, model, &mat_world, gouraud_shading ? &mat_normal : NULL, &mat_proj, &mat_view, lights, nb_lights, is_wireframe, is_textured ? &dummy_texture : NULL, clamp_s, clamp_t, texture > 0 ? 1 : 0, texture > 0 ? 1 : 0, perspective_correct);
         uint32_t t2_draw = MEM_READ(TIMER);
 
@@ -487,6 +507,6 @@ void main(void)
         uint32_t t2 = MEM_READ(TIMER);
 
         if (print_stats)
-            printf("xform: %d ms, clear: %d ms, draw: %d ms, total: %d ms, nb triangles: %d, tri/sec: %d\r\n", t2_xform - t1_xform, t2_clear - t1_clear, t2_draw - t1_draw, t2 - t1, nb_triangles, nb_triangles * 1000 / (t2 - t1));
+            printf("xform: %d ms, clear: %d ms, tri_setup: %d ms, tri_raster: %d ms, draw: %d ms, total: %d ms, nb triangles: %d, tri/sec: %d\r\n", t2_xform - t1_xform, t2_clear - t1_clear, t_tri_setup, t_tri_raster, t2_draw - t1_draw, t2 - t1, nb_triangles, nb_triangles * 1000 / (t2 - t1));
     }
 }
