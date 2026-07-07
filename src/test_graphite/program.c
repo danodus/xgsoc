@@ -1,5 +1,5 @@
 // program.c
-// Copyright (c) 2023-2024 Daniel Cliche
+// Copyright (c) 2023-2026 Daniel Cliche
 // SPDX-License-Identifier: MIT
 
 #include <stdint.h>
@@ -15,49 +15,76 @@
 #define TEXTURE_WIDTH 32
 #define TEXTURE_HEIGHT 32
 
-#define OP_SET_X0 0
-#define OP_SET_Y0 1
-#define OP_SET_Z0 2
-#define OP_SET_X1 3
-#define OP_SET_Y1 4
-#define OP_SET_Z1 5
-#define OP_SET_X2 6
-#define OP_SET_Y2 7
-#define OP_SET_Z2 8
-#define OP_SET_R0 9
-#define OP_SET_G0 10
-#define OP_SET_B0 11
-#define OP_SET_R1 12
-#define OP_SET_G1 13
-#define OP_SET_B1 14
-#define OP_SET_R2 15
-#define OP_SET_G2 16
-#define OP_SET_B2 17
-#define OP_SET_S0 18
-#define OP_SET_T0 19
-#define OP_SET_S1 20
-#define OP_SET_T1 21
-#define OP_SET_S2 22
-#define OP_SET_T2 23
-#define OP_CLEAR 24
-#define OP_DRAW 25
-#define OP_SWAP 26
-#define OP_SET_TEX_ADDR 27
-#define OP_SET_FB_ADDR 28
+#define OP_SET_MIN_X 0
+#define OP_SET_MAX_X 1
+#define OP_SET_MAX_Y 2
+#define OP_SET_START_X 3
+#define OP_SET_START_Y 4
+#define OP_SET_E01_START 5
+#define OP_SET_E12_START 6
+#define OP_SET_E20_START 7
+#define OP_SET_STEP_E01_X 8
+#define OP_SET_STEP_E01_Y 9
+#define OP_SET_STEP_E12_X 10
+#define OP_SET_STEP_E12_Y 11
+#define OP_SET_STEP_E20_X 12
+#define OP_SET_STEP_E20_Y 13
+#define OP_SET_START_W_INV 14
+#define OP_SET_START_S 15
+#define OP_SET_START_T 16
+#define OP_SET_START_R 17
+#define OP_SET_START_G 18
+#define OP_SET_START_B 19
+#define OP_SET_DW_DX 20
+#define OP_SET_DW_DY 21
+#define OP_SET_DS_DX 22
+#define OP_SET_DS_DY 23
+#define OP_SET_DT_DX 24
+#define OP_SET_DT_DY 25
+#define OP_SET_DR_DX 26
+#define OP_SET_DR_DY 27
+#define OP_SET_DG_DX 28
+#define OP_SET_DG_DY 29
+#define OP_SET_DB_DX 30
+#define OP_SET_DB_DY 31
+#define OP_CLEAR 32
+#define OP_DRAW 33
+#define OP_SWAP 34
+#define OP_SET_TEX_ADDR 35
+#define OP_SET_FB_ADDR 36
 
 #define MEM_WRITE(_addr_, _value_) (*((volatile unsigned int *)(_addr_)) = _value_)
 #define MEM_READ(_addr_) *((volatile unsigned int *)(_addr_))
 
-#if FIXED_POINT
 #define PARAM(x) (x)
-#else
-#define PARAM(x) (_FLOAT_TO_FIXED(x, 14))
-#endif
 
 struct Command {
     uint32_t opcode : 8;
     uint32_t param : 24;
 };
+
+typedef int32_t fixed16;
+#define TO_FIXED(x)          ((fixed16)std::round((x) * 65536.0f))
+#define INT_TO_FIXED(x)      ((fixed16)((x) << 16))
+#define FIXED_TO_INT(x)      ((int32_t)((x) >> 16))
+#define FIXED_MUL(a, b)      ((fixed16)(((int64_t)(a) * (b)) >> 16))
+#define FIXED_DIV(a, b)      ((fixed16)(((int64_t)(a) << 16) / (b)))
+#define FIXED_CEIL_HALF(x)   (((x) + 0x7FFF) >> 16)
+
+typedef struct {
+    int16_t x, y; // 12.4 fixed-point format
+    fixed16 w; 
+    fixed16 s, t;
+    fixed16 r, g, b; 
+} Vertex2;
+
+static inline int16_t min3(int16_t a, int16_t b, int16_t c) {
+    int16_t m = a; if (b < m) m = b; if (c < m) m = c; return m;
+}
+
+static inline int16_t max3(int16_t a, int16_t b, int16_t c) {
+    int16_t m = a; if (b > m) m = b; if (c > m) m = c; return m;
+}
 
 int fb_width, fb_height;
 
@@ -73,6 +100,31 @@ void send_command(struct Command *cmd)
     MEM_WRITE(GRAPHITE, (cmd->opcode << 24) | cmd->param);
 }
 
+static void push_16(uint32_t op, int32_t val) {
+    struct Command cmd;
+    cmd.opcode = op;
+    cmd.param = val & 0xFFFF;
+    send_command(&cmd);
+}
+
+static void push_32(uint32_t op, int32_t val) {
+    struct Command cmd;
+    cmd.opcode = op;
+    cmd.param = val & 0xFFFF;
+    send_command(&cmd);
+    cmd.param = 0x10000 | ((val >> 16) & 0xFFFF);
+    send_command(&cmd);
+}
+
+static inline int64_t mul_shr4(int64_t a, int64_t b) {
+    return a * (b >> 4) + ((a * (b & 15)) >> 4);
+}
+
+static inline int64_t solve_gradient_high(int64_t det, fixed16 termA, int32_t factorA, fixed16 termB, int32_t factorB) {
+    int64_t num = (int64_t)termA * factorA - (int64_t)termB * factorB; 
+    return (num / det) * 1048576LL + ((num % det) * 1048576LL) / det;
+}
+
 void xd_draw_triangle(vec3d p[3], vec2d t[3], vec3d c[3], texture_t* tex, bool clamp_s, bool clamp_t, int texture_scale_x, int texture_scale_y,
                       bool depth_test, bool perspective_correct)                      
 {
@@ -80,156 +132,178 @@ void xd_draw_triangle(vec3d p[3], vec2d t[3], vec3d c[3], texture_t* tex, bool c
     if (!rasterizer_ena)
         return;
 
+    uint32_t texture_width = 32 << texture_scale_x;
+    uint32_t texture_height = 32 << texture_scale_y;
+
+    Vertex2 v0, v1, v2;
+    v0.x = p[0].x >> 12; v0.y = p[0].y >> 12; v0.w = t[0].w; v0.s = MUL(t[0].u, FXI(texture_width)); v0.t = MUL(t[0].v, FXI(texture_height)); v0.r = MUL(c[0].x, FXI(255)); v0.g = MUL(c[0].y, FXI(255)); v0.b = MUL(c[0].z, FXI(255));
+    v1.x = p[1].x >> 12; v1.y = p[1].y >> 12; v1.w = t[1].w; v1.s = MUL(t[1].u, FXI(texture_width)); v1.t = MUL(t[1].v, FXI(texture_height)); v1.r = MUL(c[1].x, FXI(255)); v1.g = MUL(c[1].y, FXI(255)); v1.b = MUL(c[1].z, FXI(255));
+    v2.x = p[2].x >> 12; v2.y = p[2].y >> 12; v2.w = t[2].w; v2.s = MUL(t[2].u, FXI(texture_width)); v2.t = MUL(t[2].v, FXI(texture_height)); v2.r = MUL(c[2].x, FXI(255)); v2.g = MUL(c[2].y, FXI(255)); v2.b = MUL(c[2].z, FXI(255));
+
+    // Sort vertices by Y coordinate
+    if (v0.y > v1.y) { Vertex2 t = v0; v0 = v1; v1 = t; }
+    if (v0.y > v2.y) { Vertex2 t = v0; v0 = v2; v2 = t; }
+    if (v1.y > v2.y) { Vertex2 t = v1; v1 = v2; v2 = t; }
+
+    int32_t dx1 = v1.x - v0.x; int32_t dy1 = v1.y - v0.y;
+    int32_t dx2 = v2.x - v0.x; int32_t dy2 = v2.y - v0.y;
+    int64_t det = (int64_t)dx1 * dy2 - (int64_t)dy1 * dx2; // 24.8 format
+    if (det == 0) return; 
+
+    // SOLVE HIGH-PRECISION GRADIENTS
+    fixed16 w0_inv = v0.w;
+    fixed16 w1_inv = v1.w;
+    fixed16 w2_inv = v2.w;
+
+    fixed16 s0_w = FIXED_MUL(v0.s, w0_inv); fixed16 s1_w = FIXED_MUL(v1.s, w1_inv); fixed16 s2_w = FIXED_MUL(v2.s, w2_inv);
+    fixed16 t0_w = FIXED_MUL(v0.t, w0_inv); fixed16 t1_w = FIXED_MUL(v1.t, w1_inv); fixed16 t2_w = FIXED_MUL(v2.t, w2_inv);
+    fixed16 r0_w = FIXED_MUL(v0.r, w0_inv); fixed16 r1_w = FIXED_MUL(v1.r, w1_inv); fixed16 r2_w = FIXED_MUL(v2.r, w2_inv);
+    fixed16 g0_w = FIXED_MUL(v0.g, w0_inv); fixed16 g1_w = FIXED_MUL(v1.g, w1_inv); fixed16 g2_w = FIXED_MUL(v2.g, w2_inv);
+    fixed16 b0_w = FIXED_MUL(v0.b, w0_inv); fixed16 b1_w = FIXED_MUL(v1.b, w1_inv); fixed16 b2_w = FIXED_MUL(v2.b, w2_inv);
+
+    fixed16 dw_inv1 = w1_inv - w0_inv; fixed16 dw_inv2 = w2_inv - w0_inv;
+    fixed16 ds1 = s1_w - s0_w;         fixed16 ds2 = s2_w - s0_w;
+    fixed16 dt1 = t1_w - t0_w;         fixed16 dt2 = t2_w - t0_w;
+    fixed16 dr1 = r1_w - r0_w;         fixed16 dr2 = r2_w - r0_w;
+    fixed16 dg1 = g1_w - g0_w;         fixed16 dg2 = g2_w - g0_w;
+    fixed16 db1 = b1_w - b0_w;         fixed16 db2 = b2_w - b0_w;
+
+    int64_t raw_dw_dx = solve_gradient_high(det, dw_inv1, dy2, dw_inv2, dy1);
+    int64_t raw_du_dx = solve_gradient_high(det, ds1,     dy2, ds2,     dy1);
+    int64_t raw_dv_dx = solve_gradient_high(det, dt1,     dy2, dt2,     dy1);
+    int64_t raw_dr_dx = solve_gradient_high(det, dr1,     dy2, dr2,     dy1);
+    int64_t raw_dg_dx = solve_gradient_high(det, dg1,     dy2, dg2,     dy1);
+    int64_t raw_db_dx = solve_gradient_high(det, db1,     dy2, db2,     dy1);
+
+    int64_t raw_dw_dy = solve_gradient_high(det, dw_inv2, dx1, dw_inv1, dx2);
+    int64_t raw_ds_dy = solve_gradient_high(det, ds2,     dx1, ds1,     dx2);
+    int64_t raw_dt_dy = solve_gradient_high(det, dt2,     dx1, dt1,     dx2);
+    int64_t raw_dr_dy = solve_gradient_high(det, dr2,     dx1, dr1,     dx2);
+    int64_t raw_dg_dy = solve_gradient_high(det, dg2,     dx1, dg1,     dx2);
+    int64_t raw_db_dy = solve_gradient_high(det, db2,     dx1, db1,     dx2);
+
+    int64_t raw_start_w = ((int64_t)w0_inv << 16) - mul_shr4(v0.x, raw_dw_dx) - mul_shr4(v0.y, raw_dw_dy);
+    int64_t raw_start_s = ((int64_t)s0_w   << 16) - mul_shr4(v0.x, raw_du_dx) - mul_shr4(v0.y, raw_ds_dy);
+    int64_t raw_start_t = ((int64_t)t0_w   << 16) - mul_shr4(v0.x, raw_dv_dx) - mul_shr4(v0.y, raw_dt_dy);
+    int64_t raw_start_r = ((int64_t)r0_w   << 16) - mul_shr4(v0.x, raw_dr_dx) - mul_shr4(v0.y, raw_dr_dy);
+    int64_t raw_start_g = ((int64_t)g0_w   << 16) - mul_shr4(v0.x, raw_dg_dx) - mul_shr4(v0.y, raw_dg_dy);
+    int64_t raw_start_b = ((int64_t)b0_w   << 16) - mul_shr4(v0.x, raw_db_dx) - mul_shr4(v0.y, raw_db_dy);    
+
+    int32_t start_w = (int32_t)(raw_start_w >> 2);
+    int32_t dw_dx   = (int32_t)(raw_dw_dx   >> 2);
+    int32_t dw_dy   = (int32_t)(raw_dw_dy   >> 2);
+
+    int32_t start_s = (int32_t)(raw_start_s >> 14);
+    int32_t du_dx   = (int32_t)(raw_du_dx   >> 14);
+    int32_t du_dy   = (int32_t)(raw_ds_dy   >> 14);
+
+    int32_t start_t = (int32_t)(raw_start_t >> 14);
+    int32_t dv_dx   = (int32_t)(raw_dv_dx   >> 14);
+    int32_t dv_dy   = (int32_t)(raw_dt_dy   >> 14);
+
+    int32_t start_r = ((int32_t)(raw_start_r >> 20) << 8) >> 8;
+    int32_t dr_dx   = ((int32_t)(raw_dr_dx   >> 20) << 8) >> 8;
+    int32_t dr_dy   = ((int32_t)(raw_dr_dy   >> 20) << 8) >> 8;
+
+    int32_t start_g = ((int32_t)(raw_start_g >> 20) << 8) >> 8;
+    int32_t dg_dx   = ((int32_t)(raw_dg_dx   >> 20) << 8) >> 8;
+    int32_t dg_dy   = ((int32_t)(raw_dg_dy   >> 20) << 8) >> 8;
+
+    int32_t start_b = ((int32_t)(raw_start_b >> 20) << 8) >> 8;
+    int32_t db_dx   = ((int32_t)(raw_db_dx   >> 20) << 8) >> 8;
+    int32_t db_dy   = ((int32_t)(raw_db_dy   >> 20) << 8) >> 8;
+
+    // Rasterizer Bounding Box & Pineda Edges setup
+    bool sign_bit = det > 0;
+    int32_t sign = sign_bit ? -1 : 1;
+
+    int start_y = v0.y >> 4;
+    int min_x   = min3(v0.x, v1.x, v2.x) >> 4;
+    int max_x   = max3(v0.x, v1.x, v2.x) >> 4;
+    int max_y   = v2.y >> 4;
+
+    if (min_x < 0) min_x = 0;
+    if (max_x >= fb_width) max_x = fb_width - 1;
+    if (max_y >= fb_height) max_y = fb_height - 1;
+    if (start_y < 0) start_y = 0;    
+
+    int32_t step_e01_x = sign * ((int32_t)(v1.y - v0.y) << 4);
+    int32_t step_e01_y = -sign * ((int32_t)(v1.x - v0.x) << 4);
+    int32_t step_e12_x = sign * ((int32_t)(v2.y - v1.y) << 4);
+    int32_t step_e12_y = -sign * ((int32_t)(v2.x - v1.x) << 4);
+    int32_t step_e20_x = sign * ((int32_t)(v0.y - v2.y) << 4);
+    int32_t step_e20_y = -sign * ((int32_t)(v0.x - v2.x) << 4);
+
+    int32_t bias01, bias12, bias20;
+    if (sign == -1) {
+        bias01 = (dy1 > 0 || (dy1 == 0 && dx1 < 0)) ? 0 : -1;
+        bias12 = ((v2.y - v1.y) > 0 || ((v2.y - v1.y) == 0 && (v2.x - v1.x) < 0)) ? 0 : -1;
+        bias20 = ((v0.y - v2.y) > 0 || ((v0.y - v2.y) == 0 && (v0.x - v2.x) < 0)) ? 0 : -1;
+    } else {
+        bias01 = (dy1 > 0 || (dy1 == 0 && dx1 < 0)) ? -1 : 0;
+        bias12 = ((v2.y - v1.y) > 0 || ((v2.y - v1.y) == 0 && (v2.x - v1.x) < 0)) ? -1 : 0;
+        bias20 = ((v0.y - v2.y) > 0 || ((v0.y - v2.y) == 0 && (v0.x - v2.x) < 0)) ? -1 : 0;
+    }    
+
+    int curr_x = min_x;
+    int curr_y = start_y;
+    int32_t p_x = (curr_x << 4) + 8;
+    int32_t p_y = (curr_y << 4) + 8;
+
+    int32_t E01 = sign * ((p_x - v0.x) * dy1 - (p_y - v0.y) * dx1) + bias01;
+    int32_t E12 = sign * ((p_x - v1.x) * (v2.y - v1.y) - (p_y - v1.y) * (v2.x - v1.x)) + bias12;
+    int32_t E20 = sign * ((p_x - v2.x) * (v0.y - v2.y) - (p_y - v2.y) * (v0.x - v2.x)) + bias20;
+
+    int32_t acc_w_inv = start_w + (int32_t)(((int64_t)curr_x * dw_dx) + ((int64_t)curr_y * dw_dy) + (dw_dx >> 1) + (dw_dy >> 1));
+    int32_t acc_u_w   = start_s + (int32_t)(((int64_t)curr_x * du_dx) + ((int64_t)curr_y * du_dy) + (du_dx >> 1) + (du_dy >> 1));
+    int32_t acc_v_w   = start_t + (int32_t)(((int64_t)curr_x * dv_dx) + ((int64_t)curr_y * dv_dy) + (dv_dx >> 1) + (dv_dy >> 1));
+    int32_t acc_r_w   = start_r + (int32_t)(((int64_t)curr_x * dr_dx) + ((int64_t)curr_y * dr_dy) + (dr_dx >> 1) + (dr_dy >> 1));
+    int32_t acc_g_w   = start_g + (int32_t)(((int64_t)curr_x * dg_dx) + ((int64_t)curr_y * dg_dy) + (dg_dx >> 1) + (dg_dy >> 1));
+    int32_t acc_b_w   = start_b + (int32_t)(((int64_t)curr_x * db_dx) + ((int64_t)curr_y * db_dy) + (db_dx >> 1) + (db_dy >> 1));
+
+    push_16(OP_SET_MIN_X, min_x);
+    push_16(OP_SET_MAX_X, max_x);
+    push_16(OP_SET_MAX_Y, max_y);
+    push_16(OP_SET_START_X, curr_x);
+    push_16(OP_SET_START_Y, curr_y);
+
+    push_32(OP_SET_E01_START, E01);
+    push_32(OP_SET_E12_START, E12);
+    push_32(OP_SET_E20_START, E20);
+    
+    push_32(OP_SET_STEP_E01_X, step_e01_x);
+    push_32(OP_SET_STEP_E01_Y, step_e01_y);
+    push_32(OP_SET_STEP_E12_X, step_e12_x);
+    push_32(OP_SET_STEP_E12_Y, step_e12_y);
+    push_32(OP_SET_STEP_E20_X, step_e20_x);
+    push_32(OP_SET_STEP_E20_Y, step_e20_y);
+
+    push_32(OP_SET_START_W_INV, acc_w_inv);
+    push_32(OP_SET_START_S, acc_u_w);
+    push_32(OP_SET_START_T, acc_v_w);
+    push_32(OP_SET_START_R, acc_r_w);
+    push_32(OP_SET_START_G, acc_g_w);
+    push_32(OP_SET_START_B, acc_b_w);
+
+    push_32(OP_SET_DW_DX, dw_dx);
+    push_32(OP_SET_DW_DY, dw_dy);
+    push_32(OP_SET_DS_DX, du_dx);
+    push_32(OP_SET_DS_DY, du_dy);
+    push_32(OP_SET_DT_DX, dv_dx);
+    push_32(OP_SET_DT_DY, dv_dy);
+    push_32(OP_SET_DR_DX, dr_dx);
+    push_32(OP_SET_DR_DY, dr_dy);
+    push_32(OP_SET_DG_DX, dg_dx);
+    push_32(OP_SET_DG_DY, dg_dy);
+    push_32(OP_SET_DB_DX, db_dx);
+    push_32(OP_SET_DB_DY, db_dy);
+
     struct Command cmd;
-
-    cmd.opcode = OP_SET_X0;
-    cmd.param = PARAM(p[0].x) & 0xFFFF;
-    send_command(&cmd);
-    cmd.param = 0x10000 | (PARAM(p[0].x) >> 16);
-    send_command(&cmd);
-
-    cmd.opcode = OP_SET_Y0;
-    cmd.param = PARAM(p[0].y) & 0xFFFF;
-    send_command(&cmd);
-    cmd.param = 0x10000 | (PARAM(p[0].y) >> 16);
-    send_command(&cmd);
-
-    cmd.opcode = OP_SET_Z0;
-    cmd.param = PARAM(t[0].w) & 0xFFFF;
-    send_command(&cmd);
-    cmd.param = 0x10000 | (PARAM(t[0].w) >> 16);
-    send_command(&cmd);
-
-    cmd.opcode = OP_SET_X1;
-    cmd.param = PARAM(p[1].x) & 0xFFFF;
-    send_command(&cmd);
-    cmd.param = 0x10000 | (PARAM(p[1].x) >> 16);
-    send_command(&cmd);
-
-    cmd.opcode = OP_SET_Y1;
-    cmd.param = PARAM(p[1].y) & 0xFFFF;
-    send_command(&cmd);
-    cmd.param = 0x10000 | (PARAM(p[1].y) >> 16);
-    send_command(&cmd);
-
-    cmd.opcode = OP_SET_Z1;
-    cmd.param = PARAM(t[1].w) & 0xFFFF;
-    send_command(&cmd);
-    cmd.param = 0x10000 | (PARAM(t[1].w) >> 16);
-    send_command(&cmd);
-
-    cmd.opcode = OP_SET_X2;
-    cmd.param = PARAM(p[2].x) & 0xFFFF;
-    send_command(&cmd);
-    cmd.param = 0x10000 | (PARAM(p[2].x) >> 16);
-    send_command(&cmd);
-
-    cmd.opcode = OP_SET_Y2;
-    cmd.param = PARAM(p[2].y) & 0xFFFF;
-    send_command(&cmd);
-    cmd.param = 0x10000 | (PARAM(p[2].y) >> 16);
-    send_command(&cmd);
-
-    cmd.opcode = OP_SET_Z2;
-    cmd.param = PARAM(t[2].w) & 0xFFFF;
-    send_command(&cmd);
-    cmd.param = 0x10000 | (PARAM(p[2].z) >> 16);
-    send_command(&cmd);
-
-    cmd.opcode = OP_SET_S0;
-    cmd.param = PARAM(t[0].u) & 0xFFFF;
-    send_command(&cmd);
-    cmd.param = 0x10000 | (PARAM(t[0].u) >> 16);
-    send_command(&cmd);
-
-    cmd.opcode = OP_SET_T0;
-    cmd.param = PARAM(t[0].v) & 0xFFFF;
-    send_command(&cmd);
-    cmd.param = 0x10000 | (PARAM(t[0].v) >> 16);
-    send_command(&cmd);
-
-    cmd.opcode = OP_SET_S1;
-    cmd.param = PARAM(t[1].u) & 0xFFFF;
-    send_command(&cmd);
-    cmd.param = 0x10000 | (PARAM(t[1].u) >> 16);
-    send_command(&cmd);
-
-    cmd.opcode = OP_SET_T1;
-    cmd.param = PARAM(t[1].v) & 0xFFFF;
-    send_command(&cmd);
-    cmd.param = 0x10000 | (PARAM(t[1].v) >> 16);
-    send_command(&cmd);
-
-    cmd.opcode = OP_SET_S2;
-    cmd.param = PARAM(t[2].u) & 0xFFFF;
-    send_command(&cmd);
-    cmd.param = 0x10000 | (PARAM(t[2].u) >> 16);
-    send_command(&cmd);
-
-    cmd.opcode = OP_SET_T2;
-    cmd.param = PARAM(t[2].v) & 0xFFFF;
-    send_command(&cmd);
-    cmd.param = 0x10000 | (PARAM(t[2].v) >> 16);
-    send_command(&cmd);
-
-    cmd.opcode = OP_SET_R0;
-    cmd.param = PARAM(c[0].x) & 0xFFFF;
-    send_command(&cmd);
-    cmd.param = 0x10000 | (PARAM(c[0].x) >> 16);
-    send_command(&cmd);
-
-    cmd.opcode = OP_SET_G0;
-    cmd.param = PARAM(c[0].y) & 0xFFFF;
-    send_command(&cmd);
-    cmd.param = 0x10000 | (PARAM(c[0].y) >> 16);
-    send_command(&cmd);
-
-    cmd.opcode = OP_SET_B0;
-    cmd.param = PARAM(c[0].z) & 0xFFFF;
-    send_command(&cmd);
-    cmd.param = 0x10000 | (PARAM(c[0].z) >> 16);
-    send_command(&cmd);
-
-    cmd.opcode = OP_SET_R1;
-    cmd.param = PARAM(c[1].x) & 0xFFFF;
-    send_command(&cmd);
-    cmd.param = 0x10000 | (PARAM(c[1].x) >> 16);
-    send_command(&cmd);
-
-    cmd.opcode = OP_SET_G1;
-    cmd.param = PARAM(c[1].y) & 0xFFFF;
-    send_command(&cmd);
-    cmd.param = 0x10000 | (PARAM(c[1].y) >> 16);
-    send_command(&cmd);
-
-    cmd.opcode = OP_SET_B1;
-    cmd.param = PARAM(c[1].z) & 0xFFFF;
-    send_command(&cmd);
-    cmd.param = 0x10000 | (PARAM(c[1].z) >> 16);
-    send_command(&cmd);
-
-    cmd.opcode = OP_SET_R2;
-    cmd.param = PARAM(c[2].x) & 0xFFFF;
-    send_command(&cmd);
-    cmd.param = 0x10000 | (PARAM(c[2].x) >> 16);
-    send_command(&cmd);
-
-    cmd.opcode = OP_SET_G2;
-    cmd.param = PARAM(c[2].y) & 0xFFFF;
-    send_command(&cmd);
-    cmd.param = 0x10000 | (PARAM(c[2].y) >> 16);
-    send_command(&cmd);
-
-    cmd.opcode = OP_SET_B2;
-    cmd.param = PARAM(c[2].z) & 0xFFFF;
-    send_command(&cmd);
-    cmd.param = 0x10000 | (PARAM(c[2].z) >> 16);
-    send_command(&cmd);
 
     cmd.opcode = OP_DRAW;
 
     cmd.param = (depth_test ? 0b01000 : 0b00000) | (clamp_s ? 0b00100 : 0b00000) | (clamp_t ? 0b00010 : 0b00000) |
-              ((tex != NULL) ? 0b00001 : 0b00000) | (perspective_correct ? 0b10000 : 0xb00000);
+              ((tex != NULL) ? 0b00001 : 0b00000) | (perspective_correct ? 0b10000 : 0b00000);
 
     cmd.param |= texture_scale_x << 5;
     cmd.param |= texture_scale_y << 8;
@@ -247,7 +321,7 @@ void clear(unsigned int color)
     send_command(&cmd);
     // Clear depth buffer
     cmd.opcode = OP_CLEAR;
-    cmd.param = 0x010000;
+    cmd.param = 0x01FFFF;
     send_command(&cmd);
 }
 
