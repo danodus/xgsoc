@@ -67,7 +67,7 @@ typedef int32_t fixed16;
 #define TO_FIXED(x)          ((fixed16)std::round((x) * 65536.0f))
 #define INT_TO_FIXED(x)      ((fixed16)((x) << 16))
 #define FIXED_TO_INT(x)      ((int32_t)((x) >> 16))
-#define FIXED_MUL(a, b)      ((fixed16)(((int64_t)(a) * (b)) >> 16))
+#define FIXED_MUL(a, b)      MUL(a, b)
 #define FIXED_DIV(a, b)      ((fixed16)(((int64_t)(a) << 16) / (b)))
 #define FIXED_CEIL_HALF(x)   (((x) + 0x7FFF) >> 16)
 
@@ -118,17 +118,40 @@ static void push_32(uint32_t op, int32_t val) {
     send_command(&cmd);
 }
 
-static inline int64_t mul_shr4(int64_t a, int64_t b) {
-    return a * (b >> 4) + ((a * (b & 15)) >> 4);
+#define FAST_MUL32(a_16, b) MUL((a_16) << 16, b)
+
+static inline int64_t mul_32x16_64(int32_t a, int32_t b_16) {
+    int32_t mid = MUL(a, b_16);
+    int32_t low = MUL(a, b_16 << 16);
+    return ((int64_t)mid << 16) | (low & 0xFFFF);
 }
 
-static inline int64_t solve_gradient_high(int64_t det, int32_t termA, int32_t factorA, int32_t termB, int32_t factorB) {
-    int64_t num = (int64_t)termA * factorA - (int64_t)termB * factorB; 
-    int64_t num_abs = num < 0 ? -num : num;
-    if (num_abs >= (1LL << 43)) {
-        return (num / det) * 1048576LL + ((num % det) * 1048576LL) / det;
+static inline int64_t mul_shr4(int32_t a_16, int64_t b) {
+    if (b < 2147483648LL && b >= -2147483648LL) {
+        int64_t prod = mul_32x16_64((int32_t)b, a_16);
+        return prod >> 4;
     }
-    return (num << 20) / det;
+    return (int64_t)a_16 * (b >> 4) + (((int64_t)a_16 * (b & 15)) >> 4);
+}
+
+static inline int64_t solve_gradient_fast(int64_t det, int32_t inv_det_23, int shift, int32_t termA, int32_t factorA, int32_t termB, int32_t factorB) {
+    int64_t num = mul_32x16_64(termA, factorA) - mul_32x16_64(termB, factorB); 
+    int64_t num_abs = num < 0 ? -num : num;
+
+    // Tier 1: Fast path using 64-bit multiplication (0 divisions)
+    // 23-bit reciprocal guarantees perfectly safe 64-bit multiplication up to 40-bit num.
+    if (num_abs < (1LL << 40)) {
+        int64_t prod_64 = num * inv_det_23;
+        return prod_64 >> (33 - shift);
+    }
+    
+    // Tier 2: Single 64-bit division
+    if (num_abs < (1LL << 43)) {
+        return (num << 20) / det;
+    }
+
+    // Tier 3: Safe fallback to prevent overflow
+    return (num / det) * 1048576LL + ((num % det) * 1048576LL) / det;
 }
 
 void xd_draw_triangle(vec3d p[3], vec2d t[3], vec3d c[3], texture_t* tex, bool clamp_s, bool clamp_t, int texture_scale_x, int texture_scale_y,
@@ -155,8 +178,17 @@ void xd_draw_triangle(vec3d p[3], vec2d t[3], vec3d c[3], texture_t* tex, bool c
 
     int32_t dx1 = v1.x - v0.x; int32_t dy1 = v1.y - v0.y;
     int32_t dx2 = v2.x - v0.x; int32_t dy2 = v2.y - v0.y;
-    int64_t det = (int64_t)dx1 * dy2 - (int64_t)dy1 * dx2; // 24.8 format
+    int64_t det = mul_32x16_64(dx1, dy2) - mul_32x16_64(dy1, dx2); // 24.8 format
     if (det == 0) return; 
+
+    // Compute fast reciprocal for gradients
+    int32_t det32 = (int32_t)det;
+    int32_t abs_det = det32 < 0 ? -det32 : det32;
+    int lz = __builtin_clz(abs_det);
+    int shift = lz - 1; 
+    uint32_t norm_det = abs_det << shift;
+    int32_t inv_det_23 = (int32_t)((1LL << 53) / norm_det);
+    if (det32 < 0) inv_det_23 = -inv_det_23;
 
     // SOLVE HIGH-PRECISION GRADIENTS
 
@@ -177,19 +209,19 @@ void xd_draw_triangle(vec3d p[3], vec2d t[3], vec3d c[3], texture_t* tex, bool c
     fixed16 dg1 = g1_w - g0_w;         fixed16 dg2 = g2_w - g0_w;
     fixed16 db1 = b1_w - b0_w;         fixed16 db2 = b2_w - b0_w;
 
-    int64_t raw_dw_dx = solve_gradient_high(det, dw_inv1, dy2, dw_inv2, dy1);
-    int64_t raw_du_dx = solve_gradient_high(det, ds1,     dy2, ds2,     dy1);
-    int64_t raw_dv_dx = solve_gradient_high(det, dt1,     dy2, dt2,     dy1);
-    int64_t raw_dr_dx = solve_gradient_high(det, dr1,     dy2, dr2,     dy1);
-    int64_t raw_dg_dx = solve_gradient_high(det, dg1,     dy2, dg2,     dy1);
-    int64_t raw_db_dx = solve_gradient_high(det, db1,     dy2, db2,     dy1);
+    int64_t raw_dw_dx = solve_gradient_fast(det, inv_det_23, shift, dw_inv1, dy2, dw_inv2, dy1);
+    int64_t raw_du_dx = solve_gradient_fast(det, inv_det_23, shift, ds1,     dy2, ds2,     dy1);
+    int64_t raw_dv_dx = solve_gradient_fast(det, inv_det_23, shift, dt1,     dy2, dt2,     dy1);
+    int64_t raw_dr_dx = solve_gradient_fast(det, inv_det_23, shift, dr1,     dy2, dr2,     dy1);
+    int64_t raw_dg_dx = solve_gradient_fast(det, inv_det_23, shift, dg1,     dy2, dg2,     dy1);
+    int64_t raw_db_dx = solve_gradient_fast(det, inv_det_23, shift, db1,     dy2, db2,     dy1);
 
-    int64_t raw_dw_dy = solve_gradient_high(det, dw_inv2, dx1, dw_inv1, dx2);
-    int64_t raw_ds_dy = solve_gradient_high(det, ds2,     dx1, ds1,     dx2);
-    int64_t raw_dt_dy = solve_gradient_high(det, dt2,     dx1, dt1,     dx2);
-    int64_t raw_dr_dy = solve_gradient_high(det, dr2,     dx1, dr1,     dx2);
-    int64_t raw_dg_dy = solve_gradient_high(det, dg2,     dx1, dg1,     dx2);
-    int64_t raw_db_dy = solve_gradient_high(det, db2,     dx1, db1,     dx2);
+    int64_t raw_dw_dy = solve_gradient_fast(det, inv_det_23, shift, dw_inv2, dx1, dw_inv1, dx2);
+    int64_t raw_ds_dy = solve_gradient_fast(det, inv_det_23, shift, ds2,     dx1, ds1,     dx2);
+    int64_t raw_dt_dy = solve_gradient_fast(det, inv_det_23, shift, dt2,     dx1, dt1,     dx2);
+    int64_t raw_dr_dy = solve_gradient_fast(det, inv_det_23, shift, dr2,     dx1, dr1,     dx2);
+    int64_t raw_dg_dy = solve_gradient_fast(det, inv_det_23, shift, dg2,     dx1, dg1,     dx2);
+    int64_t raw_db_dy = solve_gradient_fast(det, inv_det_23, shift, db2,     dx1, db1,     dx2);
 
     int64_t raw_start_w = ((int64_t)w0_inv << 16) - mul_shr4(v0.x, raw_dw_dx) - mul_shr4(v0.y, raw_dw_dy);
     int64_t raw_start_s = ((int64_t)s0_w   << 16) - mul_shr4(v0.x, raw_du_dx) - mul_shr4(v0.y, raw_ds_dy);
@@ -259,16 +291,16 @@ void xd_draw_triangle(vec3d p[3], vec2d t[3], vec3d c[3], texture_t* tex, bool c
     int32_t p_x = (curr_x << 4) + 8;
     int32_t p_y = (curr_y << 4) + 8;
 
-    int32_t E01 = sign * ((p_x - v0.x) * dy1 - (p_y - v0.y) * dx1) + bias01;
-    int32_t E12 = sign * ((p_x - v1.x) * (v2.y - v1.y) - (p_y - v1.y) * (v2.x - v1.x)) + bias12;
-    int32_t E20 = sign * ((p_x - v2.x) * (v0.y - v2.y) - (p_y - v2.y) * (v0.x - v2.x)) + bias20;
+    int32_t E01 = sign * (FAST_MUL32(p_x - v0.x, dy1) - FAST_MUL32(p_y - v0.y, dx1)) + bias01;
+    int32_t E12 = sign * (FAST_MUL32(p_x - v1.x, v2.y - v1.y) - FAST_MUL32(p_y - v1.y, v2.x - v1.x)) + bias12;
+    int32_t E20 = sign * (FAST_MUL32(p_x - v2.x, v0.y - v2.y) - FAST_MUL32(p_y - v2.y, v0.x - v2.x)) + bias20;
 
-    int32_t acc_w_inv = start_w + (int32_t)((uint32_t)curr_x * (uint32_t)dw_dx + (uint32_t)curr_y * (uint32_t)dw_dy) + (dw_dx >> 1) + (dw_dy >> 1);
-    int32_t acc_u_w   = start_s + (int32_t)((uint32_t)curr_x * (uint32_t)du_dx + (uint32_t)curr_y * (uint32_t)du_dy) + (du_dx >> 1) + (du_dy >> 1);
-    int32_t acc_v_w   = start_t + (int32_t)((uint32_t)curr_x * (uint32_t)dv_dx + (uint32_t)curr_y * (uint32_t)dv_dy) + (dv_dx >> 1) + (dv_dy >> 1);
-    int32_t acc_r_w   = start_r + (int32_t)((uint32_t)curr_x * (uint32_t)dr_dx + (uint32_t)curr_y * (uint32_t)dr_dy) + (dr_dx >> 1) + (dr_dy >> 1);
-    int32_t acc_g_w   = start_g + (int32_t)((uint32_t)curr_x * (uint32_t)dg_dx + (uint32_t)curr_y * (uint32_t)dg_dy) + (dg_dx >> 1) + (dg_dy >> 1);
-    int32_t acc_b_w   = start_b + (int32_t)((uint32_t)curr_x * (uint32_t)db_dx + (uint32_t)curr_y * (uint32_t)db_dy) + (db_dx >> 1) + (db_dy >> 1);
+    int32_t acc_w_inv = start_w + FAST_MUL32(curr_x, dw_dx) + FAST_MUL32(curr_y, dw_dy) + (dw_dx >> 1) + (dw_dy >> 1);
+    int32_t acc_u_w   = start_s + FAST_MUL32(curr_x, du_dx) + FAST_MUL32(curr_y, du_dy) + (du_dx >> 1) + (du_dy >> 1);
+    int32_t acc_v_w   = start_t + FAST_MUL32(curr_x, dv_dx) + FAST_MUL32(curr_y, dv_dy) + (dv_dx >> 1) + (dv_dy >> 1);
+    int32_t acc_r_w   = start_r + FAST_MUL32(curr_x, dr_dx) + FAST_MUL32(curr_y, dr_dy) + (dr_dx >> 1) + (dr_dy >> 1);
+    int32_t acc_g_w   = start_g + FAST_MUL32(curr_x, dg_dx) + FAST_MUL32(curr_y, dg_dy) + (dg_dx >> 1) + (dg_dy >> 1);
+    int32_t acc_b_w   = start_b + FAST_MUL32(curr_x, db_dx) + FAST_MUL32(curr_y, db_dy) + (db_dx >> 1) + (db_dy >> 1);
 
 
     uint32_t t2_tri_setup = MEM_READ(TIMER);

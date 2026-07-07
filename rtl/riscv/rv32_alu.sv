@@ -28,7 +28,7 @@ function logic signed [31:0] fix_mul(logic signed [31:0] x, logic signed [31:0] 
     begin
         x2 = {{32{x[31]}}, x};
         y2 = {{32{y[31]}}, y};
-        mul2 = (x2 * y2) >>> 14;
+        mul2 = (x2 * y2) >>> 16;
         fix_mul = mul2[31:0];
     end
 endfunction
