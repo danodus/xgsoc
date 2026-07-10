@@ -1,4 +1,4 @@
-PROGRAM = ../../src/test_video/program.hex
+PROGRAM = ../../src/test_graphite/program.hex
 
 VERILATOR = verilator
 
@@ -27,8 +27,11 @@ SRC = bram32bit.v \
 	bus_arbiter.sv \
   	rv32.sv \
 	graphite.sv \
-	reciprocal.sv \
-	div.sv \
+	graphite_command_processor.sv \
+	graphite_edge_setup.v \
+	graphite_rasterizer.v \
+	reciprocal_lerp.v \
+	reciprocal_lut.v \
 	usb/phy.v \
 	usb/regs.v \
 	usb/sie.v \
