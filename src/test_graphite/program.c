@@ -59,7 +59,7 @@ typedef int32_t fixed16;
 #define TO_FIXED(x)          ((fixed16)std::round((x) * 65536.0f))
 #define INT_TO_FIXED(x)      ((fixed16)((x) << 16))
 #define FIXED_TO_INT(x)      ((int32_t)((x) >> 16))
-#define FIXED_MUL(a, b)      MUL(a, b)
+#define FIXED_MUL(a, b)      ((fixed16)(((int64_t)(a) * (b)) >> 16))
 #define FIXED_DIV(a, b)      ((fixed16)(((int64_t)(a) << 16) / (b)))
 #define FIXED_CEIL_HALF(x)   (((x) + 0x7FFF) >> 16)
 
@@ -116,11 +116,11 @@ static void push_32(uint32_t op, int32_t val) {
     send_command(&cmd);
 }
 
-#define FAST_MUL32(a_16, b) MUL((a_16) << 16, b)
+#define FAST_MUL32(a_16, b) FIXED_MUL((a_16) << 16, b)
 
 static inline int64_t mul_32x16_64(int32_t a, int32_t b_16) {
-    int32_t mid = MUL(a, b_16);
-    int32_t low = MUL(a, b_16 << 16);
+    int32_t mid = FIXED_MUL(a, b_16);
+    int32_t low = FIXED_MUL(a, b_16 << 16);
     return ((int64_t)mid << 16) | (low & 0xFFFF);
 }
 
