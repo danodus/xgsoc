@@ -45,12 +45,11 @@ SRC = \
   ../dvi/hdmi_interface.v \
   ../../external/graphite/rtl/graphite.sv \
   ../../external/graphite/rtl/graphite_command_processor.sv \
-  ../../external/graphite/rtl/graphite_edge_setup.v \
   ../../external/graphite/rtl/graphite_rasterizer.v \
   ../../external/graphite/rtl/reciprocal_lerp.v \
   ../../external/graphite/rtl/reciprocal_lut.v
 
-DEFINES = -DPIPELINED_CPU
+#DEFINES = -DPIPELINED_CPU
 
 ifneq (,$(findstring v,$(CONF)))
   DEFINES += -DVIDEO
