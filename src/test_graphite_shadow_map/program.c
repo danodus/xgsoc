@@ -48,6 +48,8 @@
 #define OP_SET_DQ_DX 30
 #define OP_SET_DQ_DY 31
 
+uint16_t shadow_fb[320 * 240 * 3] __attribute__((aligned(4)));
+
 #define MEM_WRITE(_addr_, _value_) (*((volatile unsigned int *)(_addr_)) = _value_)
 #define MEM_READ(_addr_) *((volatile unsigned int *)(_addr_))
 
@@ -68,10 +70,9 @@ typedef int32_t fixed16;
 
 typedef struct {
     int16_t x, y; // 12.4 fixed-point format
-    fixed16 w; 
-    fixed16 s, t;
-    fixed16 q;
-    fixed16 r, g, b; 
+    fx32 w; 
+    fx32 s, t, q;
+    fx32 r, g, b; 
 } Vertex2;
 
 static inline int16_t min3(int16_t a, int16_t b, int16_t c) {
@@ -150,6 +151,8 @@ static inline int64_t solve_gradient_fast(int64_t det, int32_t inv_det_23, int s
     return (num / det) * 1048576LL + ((num % det) * 1048576LL) / det;
 }
 
+bool enable_shadow_map = false;
+
 void xd_draw_triangle(vec3d p[3], vec2d t[3], vec3d c[3], fx32 q[3], texture_t* tex, bool clamp_s, bool clamp_t, int texture_scale_x, int texture_scale_y,
                       bool depth_test, bool perspective_correct)                      
 {
@@ -188,24 +191,24 @@ void xd_draw_triangle(vec3d p[3], vec2d t[3], vec3d c[3], fx32 q[3], texture_t* 
 
     // SOLVE HIGH-PRECISION GRADIENTS
 
-    fixed16 w0_inv = v0.w;
-    fixed16 w1_inv = v1.w;
-    fixed16 w2_inv = v2.w;
+    fx32 w0_inv = DIV(FX(1.0f), v0.w);
+    fx32 w1_inv = DIV(FX(1.0f), v1.w);
+    fx32 w2_inv = DIV(FX(1.0f), v2.w);
 
-    fixed16 s0_w = FIXED_MUL(v0.s, w0_inv); fixed16 s1_w = FIXED_MUL(v1.s, w1_inv); fixed16 s2_w = FIXED_MUL(v2.s, w2_inv);
-    fixed16 t0_w = FIXED_MUL(v0.t, w0_inv); fixed16 t1_w = FIXED_MUL(v1.t, w1_inv); fixed16 t2_w = FIXED_MUL(v2.t, w2_inv);
-    fixed16 q0_w = FIXED_MUL(v0.q, w0_inv); fixed16 q1_w = FIXED_MUL(v1.q, w1_inv); fixed16 q2_w = FIXED_MUL(v2.q, w2_inv);
-    fixed16 r0_w = FIXED_MUL(v0.r, w0_inv); fixed16 r1_w = FIXED_MUL(v1.r, w1_inv); fixed16 r2_w = FIXED_MUL(v2.r, w2_inv);
-    fixed16 g0_w = FIXED_MUL(v0.g, w0_inv); fixed16 g1_w = FIXED_MUL(v1.g, w1_inv); fixed16 g2_w = FIXED_MUL(v2.g, w2_inv);
-    fixed16 b0_w = FIXED_MUL(v0.b, w0_inv); fixed16 b1_w = FIXED_MUL(v1.b, w1_inv); fixed16 b2_w = FIXED_MUL(v2.b, w2_inv);
+    fx32 s0_w = FIXED_MUL(v0.s, w0_inv); fx32 s1_w = FIXED_MUL(v1.s, w1_inv); fx32 s2_w = FIXED_MUL(v2.s, w2_inv);
+    fx32 t0_w = FIXED_MUL(v0.t, w0_inv); fx32 t1_w = FIXED_MUL(v1.t, w1_inv); fx32 t2_w = FIXED_MUL(v2.t, w2_inv);
+    fx32 q0_w = FIXED_MUL(v0.q, w0_inv); fx32 q1_w = FIXED_MUL(v1.q, w1_inv); fx32 q2_w = FIXED_MUL(v2.q, w2_inv);
+    fx32 r0_w = FIXED_MUL(v0.r, w0_inv); fx32 r1_w = FIXED_MUL(v1.r, w1_inv); fx32 r2_w = FIXED_MUL(v2.r, w2_inv);
+    fx32 g0_w = FIXED_MUL(v0.g, w0_inv); fx32 g1_w = FIXED_MUL(v1.g, w1_inv); fx32 g2_w = FIXED_MUL(v2.g, w2_inv);
+    fx32 b0_w = FIXED_MUL(v0.b, w0_inv); fx32 b1_w = FIXED_MUL(v1.b, w1_inv); fx32 b2_w = FIXED_MUL(v2.b, w2_inv);
 
-    fixed16 dw_inv1 = w1_inv - w0_inv; fixed16 dw_inv2 = w2_inv - w0_inv;
-    fixed16 ds1 = s1_w - s0_w;         fixed16 ds2 = s2_w - s0_w;
-    fixed16 dt1 = t1_w - t0_w;         fixed16 dt2 = t2_w - t0_w;
-    fixed16 dq1 = q1_w - q0_w;         fixed16 dq2 = q2_w - q0_w;
-    fixed16 dr1 = r1_w - r0_w;         fixed16 dr2 = r2_w - r0_w;
-    fixed16 dg1 = g1_w - g0_w;         fixed16 dg2 = g2_w - g0_w;
-    fixed16 db1 = b1_w - b0_w;         fixed16 db2 = b2_w - b0_w;
+    fx32 dw_inv1 = w1_inv - w0_inv; fx32 dw_inv2 = w2_inv - w0_inv;
+    fx32 ds1 = s1_w - s0_w;         fx32 ds2 = s2_w - s0_w;
+    fx32 dt1 = t1_w - t0_w;         fx32 dt2 = t2_w - t0_w;
+    fx32 dq1 = q1_w - q0_w;         fx32 dq2 = q2_w - q0_w;
+    fx32 dr1 = r1_w - r0_w;         fx32 dr2 = r2_w - r0_w;
+    fx32 dg1 = g1_w - g0_w;         fx32 dg2 = g2_w - g0_w;
+    fx32 db1 = b1_w - b0_w;         fx32 db2 = b2_w - b0_w;
 
     int64_t raw_dw_dx = solve_gradient_fast(det, inv_det_23, shift, dw_inv1, dy2, dw_inv2, dy1);
     int64_t raw_du_dx = solve_gradient_fast(det, inv_det_23, shift, ds1,     dy2, ds2,     dy1);
@@ -302,7 +305,6 @@ void xd_draw_triangle(vec3d p[3], vec2d t[3], vec3d c[3], fx32 q[3], texture_t* 
     push_32(OP_SET_START_R, acc_r_w);
     push_32(OP_SET_START_G, acc_g_w);
     push_32(OP_SET_START_B, acc_b_w);
-    push_32(OP_SET_START_Q, acc_q_w);
 
     push_32(OP_SET_DW_DX, dw_dx);
     push_32(OP_SET_DW_DY, dw_dy);
@@ -318,6 +320,7 @@ void xd_draw_triangle(vec3d p[3], vec2d t[3], vec3d c[3], fx32 q[3], texture_t* 
     push_32(OP_SET_DG_DY, dg_dy);
     push_32(OP_SET_DB_DX, db_dx);
     push_32(OP_SET_DB_DY, db_dy);
+    push_32(OP_SET_START_Q, acc_q_w);
 
     struct Command cmd;
 
@@ -325,7 +328,7 @@ void xd_draw_triangle(vec3d p[3], vec2d t[3], vec3d c[3], fx32 q[3], texture_t* 
 
     cmd.param = (depth_test ? 0b01000 : 0b00000) | (clamp_s ? 0b00100 : 0b00000) | (clamp_t ? 0b00010 : 0b00000) |
               ((tex != NULL) ? 0b00001 : 0b00000) | (perspective_correct ? 0b10000 : 0b00000) |
-              (sign_bit ? 0b100000 : 0b000000);
+              (sign_bit ? 0b100000 : 0b000000) | (enable_shadow_map ? (1<<12) : 0);
 
     cmd.param |= texture_scale_x << 6;
     cmd.param |= texture_scale_y << 9;
@@ -362,6 +365,11 @@ void set_texture(int texture)
     send_command(&cmd);
 }
 
+void init_graphite()
+{
+    MEM_WRITE(0xE0000024, 3); // enable graphite
+}
+
 void swap()
 {
     struct Command cmd;
@@ -387,9 +395,10 @@ void main(void)
 
     print_help();
 
-    float theta = 0.5f;
+    float theta = 0.0f;
 
     mat4x4 mat_proj = matrix_make_projection(fb_width, fb_height, 60.0f);
+
 
     // camera
     vec3d  vec_camera = {FX(0.0f), FX(0.0f), FX(0.0f), FX(1.0f)};
@@ -401,7 +410,7 @@ void main(void)
     model_t *model = teapot_model;
 
     bool quit = false;
-    bool print_stats = false;
+    bool print_stats = true;
     bool is_rotating = false;
     bool is_textured = true;
     size_t nb_lights = 4;
@@ -483,6 +492,7 @@ void main(void)
         uint32_t t2_clear = MEM_READ(TIMER);
 
         uint32_t t1_xform = MEM_READ(TIMER);
+
         // world
         mat4x4 mat_rot_z = matrix_make_rotation_z(theta);
         mat4x4 mat_rot_x = matrix_make_rotation_x(theta);
@@ -495,12 +505,64 @@ void main(void)
         uint32_t t2_xform = MEM_READ(TIMER);
 
         uint32_t t1_draw = MEM_READ(TIMER);
-        set_texture(texture);
-        texture_t dummy_texture;
+
+        // Pass 1: Render shadow map
+        enable_shadow_map = false;
+        
+        // Light view/proj
+        mat4x4 mat_light_proj = matrix_make_projection(64, 64, 60.0f);
+        vec3d light_pos = vector_mul(&lights[0].direction, FX(-10.0f));
+        vec3d target = {FX(0), FX(0), FX(0)};
+        vec3d up = {FX(0), FX(1), FX(0)};
+        mat4x4 mat_light_view = matrix_point_at(&light_pos, &target, &up);
+        mat_light_view = matrix_quick_inverse(&mat_light_view);
+        mat4x4 mat_light_view_proj = matrix_multiply_matrix(&mat_light_proj, &mat_light_view);
+        
+        // Set FB to our dedicated shadow FB buffer
+        uint32_t pass1_fb_addr = ((uint32_t)(&shadow_fb[0])) >> 1;
+        uint32_t tex_addr = pass1_fb_addr;
+        
+        struct Command cmd;
+        cmd.opcode = OP_SET_FB_ADDR;
+        cmd.param = tex_addr & 0xFFFF;
+        send_command(&cmd);
+        cmd.param = 0x10000 | (tex_addr >> 16);
+        send_command(&cmd);
+/*        
+        // Clear shadow map texture (which is now FB)
+        cmd.opcode = OP_CLEAR;
+        cmd.param = 0xFFFF; // Max depth
+        send_command(&cmd);
+        
         nb_triangles = 0;
         t_tri_setup = 0;
         t_tri_raster = 0;
-        draw_model(fb_width, fb_height, &vec_camera, model, &mat_world, gouraud_shading ? &mat_normal : NULL, &mat_proj, &mat_view, lights, nb_lights, is_wireframe, is_textured ? &dummy_texture : NULL, clamp_s, clamp_t, texture > 0 ? 1 : 0, texture > 0 ? 1 : 0, perspective_correct);
+        
+        draw_model_ext(64, 64, &light_pos, model, &mat_world, gouraud_shading ? &mat_normal : NULL, &mat_light_proj, &mat_light_view, lights, nb_lights, is_wireframe, NULL, false, false, 0, 0, perspective_correct, NULL, true);
+
+        // Pass 2: Render scene
+        enable_shadow_map = true;
+        
+        // Restore FB ADDR (0x01000000 bytes -> 0x00800000 words)
+        cmd.opcode = OP_SET_FB_ADDR;
+        cmd.param = 0x0000; // Low 16 bits
+        send_command(&cmd);
+        cmd.param = 0x10000 | 0x0080; // High 16 bits
+        send_command(&cmd);
+
+        
+        // Pass 2 Texture address is the Z-buffer from Pass 1
+        uint32_t pass2_tex_addr = pass1_fb_addr + 2 * 320 * 240;
+        cmd.opcode = OP_SET_TEX_ADDR;
+        cmd.param = pass2_tex_addr & 0xFFFF;
+        send_command(&cmd);
+        cmd.param = 0x10000 | (pass2_tex_addr >> 16);
+        send_command(&cmd);
+        
+        set_texture(texture);
+        texture_t dummy_texture;
+        draw_model_ext(fb_width, fb_height, &vec_camera, model, &mat_world, gouraud_shading ? &mat_normal : NULL, &mat_proj, &mat_view, lights, nb_lights, is_wireframe, is_textured ? &dummy_texture : NULL, clamp_s, clamp_t, texture > 0 ? 1 : 0, texture > 0 ? 1 : 0, perspective_correct, &mat_light_view_proj, false);
+        */
         uint32_t t2_draw = MEM_READ(TIMER);
 
         swap();
@@ -513,6 +575,7 @@ void main(void)
 
         uint32_t t2 = MEM_READ(TIMER);
 
+        printf(".");
         if (print_stats)
             printf("xform: %d ms, clear: %d ms, tri_setup: %d ms, tri_raster: %d ms, draw: %d ms, total: %d ms, nb triangles: %d, tri/sec: %d\r\n", t2_xform - t1_xform, t2_clear - t1_clear, t_tri_setup, t_tri_raster, t2_draw - t1_draw, t2 - t1, nb_triangles, nb_triangles * 1000 / (t2 - t1));
     }
