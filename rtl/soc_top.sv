@@ -189,7 +189,9 @@ module soc_top #(
     logic [1:0]  MISO = {1'b1, sd_do_i};
     logic [1:0]  SCLK, MOSI;
     logic [1:0]  SS;
-    logic CE; 
+    logic cache_CE;
+    logic cpu_ce;
+    logic gpu_ce;
     logic empty;
     logic qready = 1'b0;
     logic req_flush_cache;
@@ -239,7 +241,7 @@ module soc_top #(
     assign wr = cpu_sel && !pm_sel && !vdu_sel && cpu_we;
 
     logic [31:0] pmout;
-    prom prom(.adr(adr[11:2]), .data(pmout), .clk(clk_cpu), .ce(CE));
+    prom prom(.adr(adr[11:2]), .data(pmout), .clk(clk_cpu), .ce(cpu_ce));
 
     logic pm_sel;
     assign pm_sel = adr[31:28] == 4'hF;
@@ -253,11 +255,7 @@ module soc_top #(
     assign cpu_sel = cpu_we | cpu_rstrb;
     femtorv32 cpu(
         .clk(clk_cpu),
-`ifdef VIDEO_GRAPHITE
-        .ce(CE && !process_graphite),
-`else // VIDEO_GRAPHITE
-        .ce(CE),
-`endif // VIDEO_GRAPHITE
+        .ce(cpu_ce),
         .mem_addr(adr),
         .mem_wdata(outbus),
         .mem_wmask(wmask),
@@ -276,11 +274,7 @@ module soc_top #(
     ) cpu(
         .clk(clk_cpu),
         .reset_i(~rst_n),
-`ifdef VIDEO_GRAPHITE
-        .ce_i(CE && !process_graphite),
-`else // VIDEO_GRAPHITE
-        .ce_i(CE),
-`endif // VIDEO_GRAPHITE
+        .ce_i(cpu_ce),
 
         // interrupts (2)
         .irq_i(2'b00),
@@ -461,7 +455,7 @@ module soc_top #(
     ) graphite(
         .clk(clk_cpu),
         .reset_i(~rst_n),
-        .ce_i(CE),
+        .ce_i(gpu_ce),
 
         // AXI stream command interface (slave)
         .cmd_axis_tvalid_i(graphite_cmd_axis_tvalid),
@@ -619,7 +613,7 @@ module soc_top #(
             graphite_cmd_axis_tvalid <= 1'b0;
 `endif // VIDEO_GRAPHITE
             req_flush_cache <= 1'b0;
-            if(CE && wr && ioenb) begin
+            if(cpu_ce && wr && ioenb) begin
                 if (iowadr == 1)
                     led_o <= outbus[7:0];
                 else if (iowadr == 5)
@@ -705,13 +699,61 @@ module soc_top #(
     logic [3:0] cache_ctrl_wmask;
 
 `ifdef VIDEO_GRAPHITE
-    logic process_graphite;
-    assign process_graphite = !cpu_sel && !graphite_cmd_axis_tready;
-`endif // VIDEO_GRAPHITE
+    // Cycle-by-cycle Memory Arbiter
+    logic gpu_active;
+    logic cpu_active;
+    logic locked_gpu;
+    logic locked_cpu;
+
+    always_ff @(posedge clk_cpu) begin
+        if (~rst_n) begin
+            locked_gpu <= 1'b0;
+            locked_cpu <= 1'b0;
+        end else begin
+            if (gpu_active && !cache_CE)
+                locked_gpu <= 1'b1;
+            else if (cache_CE)
+                locked_gpu <= 1'b0;
+
+            if (cpu_active && !cache_CE)
+                locked_cpu <= 1'b1;
+            else if (cache_CE)
+                locked_cpu <= 1'b0;
+        end
+    end
+
+    always_comb begin
+        if (locked_gpu) begin
+            gpu_active = 1'b1;
+            cpu_active = 1'b0;
+        end else if (locked_cpu) begin
+            gpu_active = 1'b0;
+            cpu_active = 1'b1;
+        end else begin
+            // Free to arbitrate (GPU Priority)
+            if (graphite_vram_sel) begin
+                gpu_active = 1'b1;
+                cpu_active = 1'b0;
+            end else if (mreq) begin
+                gpu_active = 1'b0;
+                cpu_active = 1'b1;
+            end else begin
+                gpu_active = 1'b0;
+                cpu_active = 1'b0;
+            end
+        end
+    end
+    
+    assign gpu_ce = graphite_vram_sel ? (gpu_active && cache_CE) : 1'b1;
+    assign cpu_ce = mreq ? (cpu_active && cache_CE) : 1'b1;
+`else
+    assign cpu_ce = cache_CE;
+    assign gpu_ce = 1'b1;
+`endif
 
     always_comb begin
 `ifdef VIDEO_GRAPHITE
-        if (process_graphite) begin
+        if (gpu_active) begin
             cache_ctrl_adr = {graphite_vram_addr[31:1], 2'b0};
             cache_ctrl_din = {graphite_vram_data_out, graphite_vram_data_out};
             //cache_ctrl_din = {16'd0, graphite_vram_data_out};
@@ -723,7 +765,11 @@ module soc_top #(
         begin
             cache_ctrl_adr = adr;
             cache_ctrl_din = outbus;
+`ifdef VIDEO_GRAPHITE
+            cache_ctrl_mreq = cpu_active ? mreq : 1'b0;
+`else
             cache_ctrl_mreq = mreq;
+`endif
             cache_ctrl_wmask = wmask & {4{wr}};
         end
     end
@@ -736,7 +782,7 @@ module soc_top #(
          .clk(clk_cpu),
          .mreq(cache_ctrl_mreq), 
          .wmask(cache_ctrl_wmask),
-         .ce(CE), 
+         .ce(cache_CE), 
          .ddr_din(sys_DOUT), 
          .ddr_dout(cntrl0_user_input_data), 
          .ddr_clk(clk_sdram), 
