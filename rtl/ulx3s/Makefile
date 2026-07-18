@@ -54,7 +54,7 @@ SRC = \
   ../../external/graphite/rtl/reciprocal_lerp.v \
   ../../external/graphite/rtl/reciprocal_lut.v
   
-#DEFINES = -DPIPELINED_CPU
+DEFINES = -DPIPELINED_CPU
 
 ifneq (,$(findstring v,$(CONF)))
   DEFINES += -DVIDEO

@@ -30,10 +30,14 @@ module top (
     output      logic [12:0] sdram_a_o,
     output      logic [1:0]  sdram_ba_o,
     output      logic [1:0]  sdram_dqm_o,
-    inout       logic [15:0] sdram_dq_io  
+    inout       logic [15:0] sdram_dq_io,
+    output      logic        uart_write_o,
+    output      logic [7:0]  uart_data_o
     );
 
     assign sdram_cke_o = 1'b1; // SDRAM clock enable
+    assign uart_write_o = soc_top.startTx;
+    assign uart_data_o = soc_top.dataTx;
 
     soc_top soc_top
     (

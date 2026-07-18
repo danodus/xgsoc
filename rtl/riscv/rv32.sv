@@ -52,6 +52,7 @@ module rv32 #(
 
     /* hazard -> execute control */
     logic execute_stall;
+    logic execute_external_stall;
     logic execute_flush;
 
     /* hazard -> mem control */
@@ -105,7 +106,7 @@ module rv32 #(
     logic [3:0] decode_exception_cause;
     logic [4:0] decode_rs1;
     logic [4:0] decode_rs2;
-    logic [3:0] decode_alu_op;
+    logic [4:0] decode_alu_op;
     logic decode_alu_sub_sra;
     logic [1:0] decode_alu_src1;
     logic [1:0] decode_alu_src2;
@@ -145,6 +146,7 @@ module rv32 #(
 `endif
 
     /* execute -> mem control */
+    logic execute_alu_busy;
     logic execute_branch_predicted_taken;
     logic execute_branch_misaligned;
     logic execute_valid;
@@ -231,6 +233,7 @@ module rv32 #(
 
         .execute_rd_in(execute_rd),
         .execute_mem_fence_in(execute_mem_fence),
+        .execute_alu_busy_in(execute_alu_busy),
 
         .mem_rd_in(mem_rd),
         .mem_trap_in(mem_trap_unreg),
@@ -253,6 +256,7 @@ module rv32 #(
         .decode_flush_out(decode_flush),
 
         .execute_stall_out(execute_stall),
+        .execute_external_stall_out(execute_external_stall),
         .execute_flush_out(execute_flush),
 
         .mem_stall_out(mem_stall),
@@ -426,6 +430,7 @@ module rv32 #(
 
         /* control in (from hazard) */
         .stall_in(execute_stall),
+        .external_stall_in(execute_external_stall),
         .flush_in(execute_flush),
         .mem_flush_in(mem_flush),
         .writeback_flush_in(writeback_flush),
@@ -493,6 +498,7 @@ module rv32 #(
         .mret_out(execute_mret),
         .rd_out(execute_rd),
         .rd_write_out(execute_rd_write),
+        .alu_busy_out(execute_alu_busy),
 
         /* data out */
         .pc_out(execute_pc),

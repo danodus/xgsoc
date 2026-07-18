@@ -48,7 +48,7 @@ int main(int argc, char **argv, char **env)
         screen_height,
         0);
 
-    SDL_Renderer *renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED);
+    SDL_Renderer *renderer = window ? SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED) : nullptr;
 
     // Create logs/ directory in case we have traces to put under it
     Verilated::mkdir("logs");
@@ -57,7 +57,7 @@ int main(int argc, char **argv, char **env)
     const size_t pixels_size = vga_width * vga_height * 4;
     unsigned char *pixels = new unsigned char[pixels_size];
 
-    SDL_Texture *texture = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_RGBA32, SDL_TEXTUREACCESS_STREAMING, vga_width, vga_height);
+    SDL_Texture *texture = renderer ? SDL_CreateTexture(renderer, SDL_PIXELFORMAT_RGBA32, SDL_TEXTUREACCESS_STREAMING, vga_width, vga_height) : nullptr;
 
     uint16_t *sdram_mem = new uint16_t[SDRAM_MEM_SIZE];
     uint32_t sdram_rows[4] = {0, 0, 0, 0};  // 2^13 = 8192 rows per bank
@@ -238,6 +238,10 @@ int main(int argc, char **argv, char **env)
 
             // if posedge clk
             if (toggle_clk && top->clk) {
+                if (top->uart_write_o) {
+                    putchar(top->uart_data_o);
+                    fflush(stdout);
+                }
                 
                 if (top->ps2_kbd_strobe_i) {
                     top->ps2_kbd_strobe_i = 0;
@@ -273,15 +277,23 @@ int main(int argc, char **argv, char **env)
                 pixels[pixel_index + 3] = 255;
                 pixel_index = (pixel_index + 4) % (pixels_size);
 
+                static uint8_t last_display = 0xFF;
+                if (top->display_o != last_display) {
+                    printf("LED: %02x\n", top->display_o);
+                    last_display = top->display_o;
+                }
+
                 if (!top->vga_vsync && !was_vsync)
                 {
                     was_vsync = true;
-                    void *p;
-                    int pitch;
-                    SDL_LockTexture(texture, NULL, &p, &pitch);
-                    assert(pitch == vga_width * 4);
-                    memcpy(p, pixels, vga_width * vga_height * 4);
-                    SDL_UnlockTexture(texture);
+                    if (texture) {
+                        void *p;
+                        int pitch;
+                        SDL_LockTexture(texture, NULL, &p, &pitch);
+                        assert(pitch == vga_width * 4);
+                        memcpy(p, pixels, vga_width * vga_height * 4);
+                        SDL_UnlockTexture(texture);
+                    }
                 }
             }
 
@@ -294,7 +306,7 @@ int main(int argc, char **argv, char **env)
                 tp_clk = tp_now;
             }
 
-            if (duration_frame.count() >= 1.0 / 60.0)
+            if (window && duration_frame.count() >= 1.0 / 60.0)
             {
                 while (SDL_PollEvent(&e))
                 {
@@ -391,8 +403,10 @@ int main(int argc, char **argv, char **env)
             contextp->timeInc(1);
             top->eval();
 
-            //if (contextp->time() > 20000)
-            //    quit = true;            
+            // if (contextp->time() > 20000000) {
+            //     std::cout << "Simulation timeout (10M cycles)\n";
+            //     quit = true;
+            // }
 
         }
 
@@ -402,11 +416,11 @@ int main(int argc, char **argv, char **env)
 
     delete[] sdram_mem;
 
-    SDL_DestroyTexture(texture);
+    if (texture) SDL_DestroyTexture(texture);
 
     delete[] pixels;
 
-    SDL_DestroyWindow(window);
+    if (window) SDL_DestroyWindow(window);
     SDL_Quit();
 
     return 0;

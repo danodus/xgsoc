@@ -31,6 +31,7 @@ module rv32_execute #(
 
     /* control in (from hazard) */
     input stall_in,
+    input external_stall_in,
     input flush_in,
     input mem_flush_in,
     input writeback_flush_in,
@@ -42,7 +43,7 @@ module rv32_execute #(
     input [3:0] exception_cause_in,
     input [4:0] rs1_in,
     input [4:0] rs2_in,
-    input [3:0] alu_op_in,
+    input [4:0] alu_op_in,
     input alu_sub_sra_in,
     input [1:0] alu_src1_in,
     input [1:0] alu_src2_in,
@@ -78,6 +79,7 @@ module rv32_execute #(
     input [31:0] writeback_rd_value_in,
 
     /* control out */
+    output logic alu_busy_out,
     output logic branch_predicted_taken_out,
     output logic branch_misaligned_out,
     output logic valid_out,
@@ -137,9 +139,36 @@ module rv32_execute #(
 
     /* ALU */
     logic [31:0] alu_result;
+    logic alu_was_busy;
+    logic rd_write_out_saved;
+    logic [4:0] rd_out_saved;
+
+    always_ff @(posedge clk) begin
+        if (reset) begin
+            alu_was_busy <= 0;
+            rd_write_out_saved <= 0;
+            rd_out_saved <= 0;
+        end else if (ce_i) begin
+            alu_was_busy <= alu_busy_out;
+            // Save rd_in and rd_write_in on the cycle the div instruction enters execute.
+            // Use external_stall_in (not stall_in) because stall_in includes alu_busy
+            // which is already high combinationally on this entry cycle.
+            if (!external_stall_in && !alu_was_busy && alu_busy_out) begin
+                rd_write_out_saved <= rd_write_in;
+                rd_out_saved <= rd_in;
+            end
+        end
+    end
 
     rv32_alu alu (
+        .clk(clk),
+        .ce_i(ce_i),
+        .reset(reset),
+        
         /* control in */
+        .valid_in(valid_in),
+        .stall_in(stall_in),
+        .external_stall_in(external_stall_in),
         .op_in(alu_op_in),
         .sub_sra_in(alu_sub_sra_in),
         .src1_in(alu_src1_in),
@@ -152,7 +181,8 @@ module rv32_execute #(
         .imm_value_in(imm_value_in),
 
         /* data out */
-        .result_out(alu_result)
+        .result_out(alu_result),
+        .busy_out(alu_busy_out)
     );
 
     /* branch target calculation */
@@ -178,56 +208,76 @@ module rv32_execute #(
 
     always_ff @(posedge clk) begin
         if (ce_i) begin
-            if (!stall_in) begin
+            if (flush_in) begin
+                branch_predicted_taken_out <= 0;
+                valid_out <= 0;
+                exception_out <= 0;
+                mem_read_out <= 0;
+                mem_write_out <= 0;
+                csr_read_out <= 0;
+                csr_write_out <= 0;
+                branch_op_out <= `RV32_BRANCH_OP_NEVER;
+                ecall_out <= 0;
+                ebreak_out <= 0;
+                mret_out <= 0;
+                rd_write_out <= 0;
+            end else if (stall_in && !external_stall_in) begin
+                branch_predicted_taken_out <= 0;
+                valid_out <= 0;
+                exception_out <= 0;
+                mem_read_out <= 0;
+                mem_write_out <= 0;
+                csr_read_out <= 0;
+                csr_write_out <= 0;
+                branch_op_out <= `RV32_BRANCH_OP_NEVER;
+                ecall_out <= 0;
+                ebreak_out <= 0;
+                mret_out <= 0;
+                rd_write_out <= 0;
+            end else if (!stall_in) begin
+                if (alu_was_busy) begin
+                    // Division commit cycle: execute's decode inputs show the NEXT instruction.
+                    // Restore saved rd_out and rd_write_out, and capture the division result.
+                    result_out <= alu_result;
+                    rd_out <= rd_out_saved;
+                    rd_write_out <= rd_write_out_saved;
+                    valid_out <= 1;
+                end else begin
 `ifdef RISCV_FORMAL
-                intr_out <= intr_in;
-                next_pc_out <= next_pc_in;
-                rs1_out <= rs1_in;
-                rs2_out <= rs2_in;
-                instr_out <= instr_in;
+                    intr_out <= intr_in;
+                    next_pc_out <= next_pc_in;
+                    rs1_out <= rs1_in;
+                    rs2_out <= rs2_in;
+                    instr_out <= instr_in;
 `endif
 
-                branch_predicted_taken_out <= branch_predicted_taken_in;
-                branch_misaligned_out <= branch_misaligned;
-                valid_out <= valid_in;
-                exception_out <= exception_in;
-                exception_cause_out <= exception_cause_in;
-                mem_read_out <= mem_read_in;
-                mem_write_out <= mem_write_in;
-                mem_width_out <= mem_width_in;
-                mem_zero_extend_out <= mem_zero_extend_in;
-                mem_fence_out <= mem_fence_in;
-                csr_read_out <= csr_read_in;
-                csr_write_out <= csr_write_in;
-                csr_write_op_out <= csr_write_op_in;
-                csr_src_out <= csr_src_in;
-                branch_op_out <= branch_op_in;
-                ecall_out <= ecall_in;
-                ebreak_out <= ebreak_in;
-                mret_out <= mret_in;
-                rd_out <= rd_in;
-                rd_write_out <= rd_write_in;
-                pc_out <= pc_in;
-                rs1_value_out <= rs1_value;
-                rs2_value_out <= rs2_value;
-                imm_value_out <= imm_value_in;
-                csr_out <= csr_in;
-                branch_pc_out <= branch_pc;
-                result_out <= alu_result;
-
-                if (flush_in) begin
-                    branch_predicted_taken_out <= 0;
-                    valid_out <= 0;
-                    exception_out <= 0;
-                    mem_read_out <= 0;
-                    mem_write_out <= 0;
-                    csr_read_out <= 0;
-                    csr_write_out <= 0;
-                    branch_op_out <= `RV32_BRANCH_OP_NEVER;
-                    ecall_out <= 0;
-                    ebreak_out <= 0;
-                    mret_out <= 0;
-                    rd_write_out <= 0;
+                    branch_predicted_taken_out <= branch_predicted_taken_in;
+                    branch_misaligned_out <= branch_misaligned;
+                    valid_out <= valid_in;
+                    exception_out <= exception_in;
+                    exception_cause_out <= exception_cause_in;
+                    mem_read_out <= mem_read_in;
+                    mem_write_out <= mem_write_in;
+                    mem_width_out <= mem_width_in;
+                    mem_zero_extend_out <= mem_zero_extend_in;
+                    mem_fence_out <= mem_fence_in;
+                    csr_read_out <= csr_read_in;
+                    csr_write_out <= csr_write_in;
+                    csr_write_op_out <= csr_write_op_in;
+                    csr_src_out <= csr_src_in;
+                    branch_op_out <= branch_op_in;
+                    ecall_out <= ecall_in;
+                    ebreak_out <= ebreak_in;
+                    mret_out <= mret_in;
+                    rd_out <= rd_in;
+                    rd_write_out <= rd_write_in;
+                    pc_out <= pc_in;
+                    rs1_value_out <= rs1_value;
+                    rs2_value_out <= rs2_value;
+                    imm_value_out <= imm_value_in;
+                    csr_out <= csr_in;
+                    branch_pc_out <= branch_pc;
+                    result_out <= alu_result;
                 end
             end
         end

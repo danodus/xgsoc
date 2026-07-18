@@ -21,6 +21,7 @@ module rv32_hazard_unit #(
 
     input [4:0] execute_rd_in,
     input execute_mem_fence_in,
+    input execute_alu_busy_in,
 
     input [4:0] mem_rd_in,
     input mem_trap_in,
@@ -43,6 +44,7 @@ module rv32_hazard_unit #(
     output logic decode_flush_out,
 
     output logic execute_stall_out,
+    output logic execute_external_stall_out,
     output logic execute_flush_out,
 
     output logic mem_stall_out,
@@ -81,11 +83,12 @@ module rv32_hazard_unit #(
     assign decode_stall_out = execute_stall_out;
     assign decode_flush_out = fetch_stall_out || mem_trap_in || mem_branch_mispredicted_in || fetch_overwrite_pc_in;
 
-    assign execute_stall_out = mem_stall_out || execute_wait_for_bus;
-    assign execute_flush_out = decode_stall_out || mem_trap_in || mem_branch_mispredicted_in || fetch_overwrite_pc_in;
+    assign execute_external_stall_out = mem_stall_out || execute_wait_for_bus;
+    assign execute_stall_out = execute_external_stall_out || execute_alu_busy_in;
+    assign execute_flush_out = (execute_alu_busy_in && !execute_external_stall_out) || mem_trap_in || mem_branch_mispredicted_in || fetch_overwrite_pc_in;
 
     assign mem_stall_out = 0;
-    assign mem_flush_out = execute_stall_out;
+    assign mem_flush_out = execute_external_stall_out;
 
     assign writeback_flush_out = mem_stall_out;
 endmodule
