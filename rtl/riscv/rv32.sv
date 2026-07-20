@@ -86,8 +86,12 @@ module rv32 #(
     /* decode -> hazard control */
     logic [4:0] decode_rs1_unreg;
     logic decode_rs1_read_unreg;
+    logic decode_rs1_fp_unreg;
     logic [4:0] decode_rs2_unreg;
     logic decode_rs2_read_unreg;
+    logic decode_rs2_fp_unreg;
+    logic [4:0] decode_rs3_unreg;
+    logic decode_rs3_read_unreg;
     logic decode_mem_fence_unreg;
 
 `ifdef RISCV_FORMAL
@@ -126,13 +130,17 @@ module rv32 #(
     logic decode_mret;
     logic [4:0] decode_rd;
     logic decode_rd_write;
+    logic decode_rd_fp;
+    logic decode_fpu_en;
 
     /* decode -> execute data */
     logic [31:0] decode_pc;
     logic [31:0] decode_rs1_value;
     logic [31:0] decode_rs2_value;
+    logic [31:0] decode_rs3_value;
     logic [31:0] decode_imm_value;
     logic [11:0] decode_csr;
+    logic [31:2] decode_instr_fpu;
 
 `ifdef RISCV_FORMAL
     /* execute -> mem debug control */
@@ -167,6 +175,7 @@ module rv32 #(
     logic execute_mret;
     logic [4:0] execute_rd;
     logic execute_rd_write;
+    logic execute_rd_fp;
 
     /* execute -> mem data */
     logic [31:0] execute_pc;
@@ -201,6 +210,7 @@ module rv32 #(
     logic mem_valid;
     logic [4:0] mem_rd;
     logic mem_rd_write;
+    logic mem_rd_fp;
 
     /* mem -> fetch control */
     logic mem_trap_unreg;
@@ -219,8 +229,12 @@ module rv32 #(
         /* control in */
         .decode_rs1_unreg_in(decode_rs1_unreg),
         .decode_rs1_read_unreg_in(decode_rs1_read_unreg),
+        .decode_rs1_fp_unreg_in(decode_rs1_fp_unreg),
         .decode_rs2_unreg_in(decode_rs2_unreg),
         .decode_rs2_read_unreg_in(decode_rs2_read_unreg),
+        .decode_rs2_fp_unreg_in(decode_rs2_fp_unreg),
+        .decode_rs3_unreg_in(decode_rs3_unreg),
+        .decode_rs3_read_unreg_in(decode_rs3_read_unreg),
         .decode_mem_fence_unreg_in(decode_mem_fence_unreg),
 
         .decode_mem_read_in(decode_mem_read),
@@ -228,14 +242,19 @@ module rv32 #(
         .decode_csr_read_in(decode_csr_read),
         .decode_rd_in(decode_rd),
         .decode_rd_write_in(decode_rd_write),
+        .decode_rd_fp_in(decode_rd_fp),
 
         .fetch_overwrite_pc_in(fetch_overwrite_pc),
 
         .execute_rd_in(execute_rd),
+        .execute_rd_write_in(execute_rd_write),
+        .execute_rd_fp_in(execute_rd_fp),
         .execute_mem_fence_in(execute_mem_fence),
         .execute_alu_busy_in(execute_alu_busy),
 
         .mem_rd_in(mem_rd),
+        .mem_rd_write_in(mem_rd_write),
+        .mem_rd_fp_in(mem_rd_fp),
         .mem_trap_in(mem_trap_unreg),
         .mem_branch_mispredicted_in(mem_branch_mispredicted),
 
@@ -352,6 +371,7 @@ module rv32 #(
         /* control in (from writeback) */
         .rd_in(mem_rd),
         .rd_write_in(mem_rd_write),
+        .rd_fp_in(mem_rd_fp),
 
         /* data in */
         .pc_in(fetch_pc),
@@ -363,8 +383,12 @@ module rv32 #(
         /* control out (to hazard) */
         .rs1_unreg_out(decode_rs1_unreg),
         .rs1_read_unreg_out(decode_rs1_read_unreg),
+        .rs1_fp_unreg_out(decode_rs1_fp_unreg),
         .rs2_unreg_out(decode_rs2_unreg),
         .rs2_read_unreg_out(decode_rs2_read_unreg),
+        .rs2_fp_unreg_out(decode_rs2_fp_unreg),
+        .rs3_unreg_out(decode_rs3_unreg),
+        .rs3_read_unreg_out(decode_rs3_read_unreg),
         .mem_fence_unreg_out(decode_mem_fence_unreg),
 
         /* control out */
@@ -394,13 +418,17 @@ module rv32 #(
         .mret_out(decode_mret),
         .rd_out(decode_rd),
         .rd_write_out(decode_rd_write),
+        .rd_fp_out(decode_rd_fp),
+        .fpu_en_out(decode_fpu_en),
 
         /* data out */
         .pc_out(decode_pc),
         .rs1_value_out(decode_rs1_value),
         .rs2_value_out(decode_rs2_value),
+        .rs3_value_out(decode_rs3_value),
         .imm_value_out(decode_imm_value),
-        .csr_out(decode_csr)
+        .csr_out(decode_csr),
+        .instr_fpu_out(decode_instr_fpu)
     );
 
     rv32_execute #(
@@ -462,17 +490,22 @@ module rv32 #(
         .mret_in(decode_mret),
         .rd_in(decode_rd),
         .rd_write_in(decode_rd_write),
+        .rd_fp_in(decode_rd_fp),
+        .fpu_en_in(decode_fpu_en),
 
         /* control in (from writeback) */
         .writeback_rd_in(mem_rd),
         .writeback_rd_write_in(mem_rd_write),
+        .writeback_rd_fp_in(mem_rd_fp),
 
         /* data in */
         .pc_in(decode_pc),
         .rs1_value_in(decode_rs1_value),
         .rs2_value_in(decode_rs2_value),
+        .rs3_value_in(decode_rs3_value),
         .imm_value_in(decode_imm_value),
         .csr_in(decode_csr),
+        .instr_fpu_in(decode_instr_fpu),
 
         /* data in (from writeback) */
         .writeback_rd_value_in(mem_rd_value),
@@ -498,6 +531,7 @@ module rv32 #(
         .mret_out(execute_mret),
         .rd_out(execute_rd),
         .rd_write_out(execute_rd_write),
+        .rd_fp_out(execute_rd_fp),
         .alu_busy_out(execute_alu_busy),
 
         /* data out */
@@ -569,6 +603,7 @@ module rv32 #(
         .mret_in(execute_mret),
         .rd_in(execute_rd),
         .rd_write_in(execute_rd_write),
+        .rd_fp_in(execute_rd_fp),
 
         /* control in (from memory bus) */
         .data_fault_in(data_fault_in),
@@ -591,6 +626,7 @@ module rv32 #(
         .branch_mispredicted_out(mem_branch_mispredicted),
         .rd_out(mem_rd),
         .rd_write_out(mem_rd_write),
+        .rd_fp_out(mem_rd_fp),
 
         /* control out (to memory bus) */
         .data_read_out(data_read_out),

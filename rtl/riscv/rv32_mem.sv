@@ -67,6 +67,7 @@ module rv32_mem (
     input mret_in,
     input [4:0] rd_in,
     input rd_write_in,
+    input rd_fp_in,
 
     /* control in (from data memory bus) */
     input data_fault_in,
@@ -89,6 +90,7 @@ module rv32_mem (
     output logic branch_mispredicted_out,
     output logic [4:0] rd_out,
     output logic rd_write_out,
+    output logic rd_fp_out,
 
     /* control out (to data memory bus) */
     output logic data_read_out,
@@ -364,6 +366,7 @@ module rv32_mem (
                 valid_out <= valid_in;
                 rd_out <= rd_in;
                 rd_write_out <= rd_write_in;
+                rd_fp_out <= rd_fp_in;
 
                 if (read_in)
                     rd_value_out <= read_value;
@@ -380,6 +383,7 @@ module rv32_mem (
                 if (flush_in || mem_exception) begin
                     valid_out <= 0;
                     rd_write_out <= 0;
+                    rd_fp_out <= 0;
                 end
             end
         end
@@ -391,6 +395,7 @@ module rv32_mem (
             valid_out <= 0;
             rd_out <= 0;
             rd_write_out <= 0;
+            rd_fp_out <= 0;
             rd_value_out <= 0;
         end
     end

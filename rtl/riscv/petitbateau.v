@@ -164,6 +164,7 @@ module PetitBateau(
    (* onehot *)
    wire [FPMI_NB-1:0] fpmi_is = 1 << fpmi_instr[$clog2(FPMI_NB):0]; 
    initial fpmi_PC = 0;
+   initial fpmi_instr = FPMI_READY;
    assign busy = !fpmi_is[FPMI_READY];
 
    // Generate a micro-instructions in ROM 

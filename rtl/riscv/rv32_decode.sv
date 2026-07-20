@@ -4,6 +4,7 @@
 `include "rv32_control.sv"
 `include "rv32_csrs.sv"
 `include "rv32_regs.sv"
+`include "rv32_fregs.sv"
 
 module rv32_decode (
     input clk,
@@ -39,6 +40,7 @@ module rv32_decode (
     /* control in (from writeback) */
     input [4:0] rd_in,
     input rd_write_in,
+    input rd_fp_in,
 
     /* data in */
     input [31:0] pc_in,
@@ -50,8 +52,12 @@ module rv32_decode (
     /* control out (to hazard) */
     output logic [4:0] rs1_unreg_out,
     output logic rs1_read_unreg_out,
+    output logic rs1_fp_unreg_out,
     output logic [4:0] rs2_unreg_out,
     output logic rs2_read_unreg_out,
+    output logic rs2_fp_unreg_out,
+    output logic [4:0] rs3_unreg_out,
+    output logic rs3_read_unreg_out,
     output logic mem_fence_unreg_out,
 
     /* control out */
@@ -81,48 +87,90 @@ module rv32_decode (
     output logic mret_out,
     output logic [4:0] rd_out,
     output logic rd_write_out,
+    output logic rd_fp_out,
+    output logic fpu_en_out,
 
     /* data out */
     output logic [31:0] pc_out,
     output logic [31:0] rs1_value_out,
     output logic [31:0] rs2_value_out,
+    output logic [31:0] rs3_value_out,
     output logic [31:0] imm_value_out,
-    output logic [11:0] csr_out
+    output logic [11:0] csr_out,
+    output logic [31:2] instr_fpu_out
 );
     logic [4:0] rs2;
     logic [4:0] rs1;
+    logic [4:0] rs3;
     logic [4:0] rd;
 
     assign rs2 = instr_in[24:20];
     assign rs1 = instr_in[19:15];
+    assign rs3 = instr_in[31:27];
     assign rd  = instr_in[11:7];
 
     assign rs1_unreg_out = rs1;
     assign rs2_unreg_out = rs2;
+    assign rs3_unreg_out = rs3;
+
+    logic [31:0] int_rs1_value;
+    logic [31:0] int_rs2_value;
+    logic [31:0] fp_rs1_value;
+    logic [31:0] fp_rs2_value;
+    logic [31:0] fp_rs3_value;
 
     rv32_regs regs (
         .clk(clk),
         .ce_i(ce_i),
         .stall_in(stall_in),
+        .flush_in(flush_in),
         .writeback_flush_in(writeback_flush_in),
 
         /* control in */
         .rs1_in(rs1),
         .rs2_in(rs2),
         .rd_in(rd_in),
-        .rd_write_in(rd_write_in),
+        .rd_write_in(rd_write_in && !rd_fp_in),
 
         /* data in */
         .rd_value_in(rd_value_in),
 
         /* data out */
-        .rs1_value_out(rs1_value_out),
-        .rs2_value_out(rs2_value_out)
+        .rs1_value_out(int_rs1_value),
+        .rs2_value_out(int_rs2_value)
+    );
+
+    rv32_fregs fregs (
+        .clk(clk),
+        .ce_i(ce_i),
+        .stall_in(stall_in),
+        .flush_in(flush_in),
+        .writeback_flush_in(writeback_flush_in),
+
+        /* control in */
+        .rs1_in(rs1),
+        .rs2_in(rs2),
+        .rs3_in(rs3),
+        .rd_in(rd_in),
+        .rd_write_in(rd_write_in && rd_fp_in),
+
+        /* data in */
+        .rd_value_in(rd_value_in),
+
+        /* data out */
+        .rs1_value_out(fp_rs1_value),
+        .rs2_value_out(fp_rs2_value),
+        .rs3_value_out(fp_rs3_value)
     );
 
     logic valid;
     logic rs1_read;
     logic rs2_read;
+    logic rs3_read;
+    logic rs1_fp;
+    logic rs2_fp;
+    logic rd_fp;
+    logic fpu_en;
     logic [2:0] imm;
     logic [4:0] alu_op;
     logic alu_sub_sra;
@@ -146,6 +194,9 @@ module rv32_decode (
 
     assign rs1_read_unreg_out = rs1_read;
     assign rs2_read_unreg_out = rs2_read;
+    assign rs3_read_unreg_out = rs3_read;
+    assign rs1_fp_unreg_out = rs1_fp;
+    assign rs2_fp_unreg_out = rs2_fp;
     assign mem_fence_unreg_out = mem_fence;
 
     rv32_control_unit control_unit (
@@ -160,6 +211,11 @@ module rv32_decode (
         .valid_out(valid),
         .rs1_read_out(rs1_read),
         .rs2_read_out(rs2_read),
+        .rs3_read_out(rs3_read),
+        .rs1_fp_out(rs1_fp),
+        .rs2_fp_out(rs2_fp),
+        .rd_fp_out(rd_fp),
+        .fpu_en_out(fpu_en),
         .imm_out(imm),
         .alu_op_out(alu_op),
         .alu_sub_sra_out(alu_sub_sra),
@@ -198,6 +254,26 @@ module rv32_decode (
     logic [11:0] csr;
 
     assign csr = instr_in[31:20];
+
+    /* Bank selects must track the latched regfile read addresses (same timing as rv32_regs).
+     * Do not update on flush — otherwise a mispredicted fall-through can desync the
+     * int/FP mux from the address latches after redirect. */
+    logic rs1_fp_latched;
+    logic rs2_fp_latched;
+
+    always_ff @(posedge clk) begin
+        if (reset) begin
+            rs1_fp_latched <= 0;
+            rs2_fp_latched <= 0;
+        end else if (ce_i && !stall_in && !flush_in) begin
+            rs1_fp_latched <= rs1_fp;
+            rs2_fp_latched <= rs2_fp;
+        end
+    end
+
+    assign rs1_value_out = rs1_fp_latched ? fp_rs1_value : int_rs1_value;
+    assign rs2_value_out = rs2_fp_latched ? fp_rs2_value : int_rs2_value;
+    assign rs3_value_out = fp_rs3_value;
 
     always_ff @(posedge clk) begin
         if (ce_i) begin
@@ -239,10 +315,13 @@ module rv32_decode (
                 mret_out <= mret;
                 rd_out <= rd;
                 rd_write_out <= rd_write;
+                rd_fp_out <= rd_fp;
+                fpu_en_out <= fpu_en;
 
                 pc_out <= pc_in;
                 imm_value_out <= imm_value;
                 csr_out <= csr;
+                instr_fpu_out <= instr_in[31:2];
 
                 if (flush_in) begin
                     branch_predicted_taken_out <= 0;
@@ -257,7 +336,11 @@ module rv32_decode (
                     ebreak_out <= 0;
                     mret_out <= 0;
                     rd_write_out <= 0;
+                    rd_fp_out <= 0;
+                    fpu_en_out <= 0;
                     alu_op_out <= `RV32_ALU_OP_ADD_SUB;
+                    alu_src1_out <= `RV32_ALU_SRC1_REG;
+                    alu_src2_out <= `RV32_ALU_SRC2_REG;
                 end
             end
         end
@@ -288,10 +371,13 @@ module rv32_decode (
             mret_out <= 0;
             rd_out <= 0;
             rd_write_out <= 0;
+            rd_fp_out <= 0;
+            fpu_en_out <= 0;
 
             pc_out <= 0;
             imm_value_out <= 0;
             csr_out <= 0;
+            instr_fpu_out <= 0;
         end
     end
 endmodule

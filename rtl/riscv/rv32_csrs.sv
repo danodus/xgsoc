@@ -5,6 +5,9 @@
 `define RV32_CSR_MISA           12'h301
 `define RV32_CSR_MIE            12'h304
 `define RV32_CSR_MTVEC          12'h305
+`define RV32_CSR_FFLAGS         12'h001
+`define RV32_CSR_FRM            12'h002
+`define RV32_CSR_FCSR           12'h003
 `define RV32_CSR_MHPMEVENT3     12'h323
 `define RV32_CSR_MHPMEVENT4     12'h324
 `define RV32_CSR_MHPMEVENT5     12'h325
@@ -140,7 +143,7 @@
 `define RV32_CSR_SRC_REG 1'b1
 
                      /* | XLEN|    |ABCDEFGHIJKLMNOPQRSTUVWXYZ | */
-`define RV32_MISA_VALUE 32'b01_0000_00000000100000000000000000
+`define RV32_MISA_VALUE 32'b01_0000_00000000100000000000000100 /* RV32IM + F */
 
 `define RV32_MCAUSE_MACHINE_SOFTWARE_INTERRUPT 4'b0011
 `define RV32_MCAUSE_MACHINE_TIMER_INTERRUPT    4'b0111
@@ -219,6 +222,9 @@ module rv32_csrs (
 
     always_comb begin
         case (csr_in)
+            `RV32_CSR_FFLAGS:         read_value_out = 32'b0;
+            `RV32_CSR_FRM:            read_value_out = 32'b0;
+            `RV32_CSR_FCSR:           read_value_out = 32'b0;
             `RV32_CSR_MSTATUS:        read_value_out = {19'b0, 2'b11, 3'b0, mstatus_mpie, 3'b0, mstatus_mie, 3'b0};
             `RV32_CSR_MISA:           read_value_out = `RV32_MISA_VALUE;
             `RV32_CSR_MIE:            read_value_out = {20'b0, mie_meie, 3'b0, mie_mtie, 3'b0, mie_msie, 3'b0};
@@ -349,14 +355,14 @@ module rv32_csrs (
             `RV32_CSR_MARCHID:        read_value_out = 32'b0;
             `RV32_CSR_MIMPID:         read_value_out = 32'b0;
             `RV32_CSR_MHARTID:        read_value_out = 32'b0;
-            default:                  read_value_out = 32'bx;
+            default:                  read_value_out = 32'b0;
         endcase
 
         case (write_op_in)
             `RV32_CSR_WRITE_OP_RW: new_value = write_value;
             `RV32_CSR_WRITE_OP_RS: new_value = read_value_out |  write_value;
             `RV32_CSR_WRITE_OP_RC: new_value = read_value_out & ~write_value;
-            default:               new_value = 32'bx;
+            default:               new_value = 32'b0;
         endcase
     end
 

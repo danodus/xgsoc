@@ -7,8 +7,12 @@ module rv32_hazard_unit #(
     /* control in */
     input [4:0] decode_rs1_unreg_in,
     input decode_rs1_read_unreg_in,
+    input decode_rs1_fp_unreg_in,
     input [4:0] decode_rs2_unreg_in,
     input decode_rs2_read_unreg_in,
+    input decode_rs2_fp_unreg_in,
+    input [4:0] decode_rs3_unreg_in,
+    input decode_rs3_read_unreg_in,
     input decode_mem_fence_unreg_in,
 
     input decode_mem_read_in,
@@ -16,14 +20,19 @@ module rv32_hazard_unit #(
     input decode_csr_read_in,
     input [4:0] decode_rd_in,
     input decode_rd_write_in,
+    input decode_rd_fp_in,
 
     input fetch_overwrite_pc_in,
 
     input [4:0] execute_rd_in,
+    input execute_rd_write_in,
+    input execute_rd_fp_in,
     input execute_mem_fence_in,
     input execute_alu_busy_in,
 
     input [4:0] mem_rd_in,
+    input mem_rd_write_in,
+    input mem_rd_fp_in,
     input mem_trap_in,
     input mem_branch_mispredicted_in,
 
@@ -54,20 +63,62 @@ module rv32_hazard_unit #(
 );
     logic rs1_matches;
     logic rs2_matches;
+    logic rs3_matches;
     logic pcgen_wait_for_bus;
     logic fetch_wait_for_rd_write;
     logic fetch_wait_for_mem_fence;
     logic execute_wait_for_bus;
 
+    /* Match only within the same register file. Integer x0 is not a real dest; f0 is. */
+    function automatic logic rd_hazard(
+        input [4:0] rs,
+        input rs_fp,
+        input [4:0] rd,
+        input rd_write,
+        input rd_fp
+    );
+        rd_hazard = rd_write && (rs_fp == rd_fp) && (rs == rd) && (rs_fp || |rd);
+    endfunction
+
     generate
         if (BYPASSING) begin
-            assign rs1_matches = decode_rs1_unreg_in == decode_rd_in && decode_rs1_read_unreg_in;
-            assign rs2_matches = decode_rs2_unreg_in == decode_rd_in && decode_rs2_read_unreg_in;
-            assign fetch_wait_for_rd_write = (rs1_matches || rs2_matches) && |decode_rd_in && (decode_mem_read_in || decode_csr_read_in) && decode_rd_write_in;
+            assign rs1_matches = decode_rs1_read_unreg_in &&
+                rd_hazard(decode_rs1_unreg_in, decode_rs1_fp_unreg_in,
+                          decode_rd_in, decode_rd_write_in, decode_rd_fp_in);
+            assign rs2_matches = decode_rs2_read_unreg_in &&
+                rd_hazard(decode_rs2_unreg_in, decode_rs2_fp_unreg_in,
+                          decode_rd_in, decode_rd_write_in, decode_rd_fp_in);
+            assign rs3_matches = decode_rs3_read_unreg_in &&
+                rd_hazard(decode_rs3_unreg_in, 1'b1,
+                          decode_rd_in, decode_rd_write_in, decode_rd_fp_in);
+            assign fetch_wait_for_rd_write = (rs1_matches || rs2_matches || rs3_matches) &&
+                (decode_mem_read_in || decode_csr_read_in);
         end else begin
-            assign rs1_matches = (decode_rs1_unreg_in == decode_rd_in || decode_rs1_unreg_in == execute_rd_in || decode_rs1_unreg_in == mem_rd_in) && decode_rs1_read_unreg_in;
-            assign rs2_matches = (decode_rs2_unreg_in == decode_rd_in || decode_rs2_unreg_in == execute_rd_in || decode_rs2_unreg_in == mem_rd_in) && decode_rs2_read_unreg_in;
-            assign fetch_wait_for_rd_write = (rs1_matches || rs2_matches) && |decode_rd_in && decode_rd_write_in;
+            assign rs1_matches = decode_rs1_read_unreg_in && (
+                rd_hazard(decode_rs1_unreg_in, decode_rs1_fp_unreg_in,
+                          decode_rd_in, decode_rd_write_in, decode_rd_fp_in) ||
+                rd_hazard(decode_rs1_unreg_in, decode_rs1_fp_unreg_in,
+                          execute_rd_in, execute_rd_write_in, execute_rd_fp_in) ||
+                rd_hazard(decode_rs1_unreg_in, decode_rs1_fp_unreg_in,
+                          mem_rd_in, mem_rd_write_in, mem_rd_fp_in)
+            );
+            assign rs2_matches = decode_rs2_read_unreg_in && (
+                rd_hazard(decode_rs2_unreg_in, decode_rs2_fp_unreg_in,
+                          decode_rd_in, decode_rd_write_in, decode_rd_fp_in) ||
+                rd_hazard(decode_rs2_unreg_in, decode_rs2_fp_unreg_in,
+                          execute_rd_in, execute_rd_write_in, execute_rd_fp_in) ||
+                rd_hazard(decode_rs2_unreg_in, decode_rs2_fp_unreg_in,
+                          mem_rd_in, mem_rd_write_in, mem_rd_fp_in)
+            );
+            assign rs3_matches = decode_rs3_read_unreg_in && (
+                rd_hazard(decode_rs3_unreg_in, 1'b1,
+                          decode_rd_in, decode_rd_write_in, decode_rd_fp_in) ||
+                rd_hazard(decode_rs3_unreg_in, 1'b1,
+                          execute_rd_in, execute_rd_write_in, execute_rd_fp_in) ||
+                rd_hazard(decode_rs3_unreg_in, 1'b1,
+                          mem_rd_in, mem_rd_write_in, mem_rd_fp_in)
+            );
+            assign fetch_wait_for_rd_write = rs1_matches || rs2_matches || rs3_matches;
         end
     endgenerate
 

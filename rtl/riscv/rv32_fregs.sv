@@ -1,7 +1,7 @@
-`ifndef RV32_REGS
-`define RV32_REGS
+`ifndef RV32_FREGS
+`define RV32_FREGS
 
-module rv32_regs (
+module rv32_fregs (
     input clk,
     input ce_i,
     input stall_in,
@@ -11,6 +11,7 @@ module rv32_regs (
     /* control in */
     input [4:0] rs1_in,
     input [4:0] rs2_in,
+    input [4:0] rs3_in,
     input [4:0] rd_in,
     input rd_write_in,
 
@@ -19,11 +20,13 @@ module rv32_regs (
 
     /* data out */
     output logic [31:0] rs1_value_out,
-    output logic [31:0] rs2_value_out
+    output logic [31:0] rs2_value_out,
+    output logic [31:0] rs3_value_out
 );
     logic [31:0] regs [31:0];
     logic [4:0] rs1;
     logic [4:0] rs2;
+    logic [4:0] rs3;
 
     generate
         genvar i;
@@ -35,6 +38,7 @@ module rv32_regs (
 
     assign rs1_value_out = regs[rs1];
     assign rs2_value_out = regs[rs2];
+    assign rs3_value_out = regs[rs3];
 
     always_ff @(posedge clk) begin
         if (ce_i) begin
@@ -42,11 +46,12 @@ module rv32_regs (
             if (!stall_in && !flush_in) begin
                 rs1 <= rs1_in;
                 rs2 <= rs2_in;
+                rs3 <= rs3_in;
             end
 
-            if (!writeback_flush_in && rd_write_in && |rd_in) begin
+            /* f0 is a real register (unlike x0) */
+            if (!writeback_flush_in && rd_write_in) begin
                 regs[rd_in] <= rd_value_in;
-                //$display("x%d <- %x", rd_in, rd_value_in);
             end
         end
     end

@@ -20,6 +20,11 @@ module rv32_control_unit (
     output logic valid_out,
     output logic rs1_read_out,
     output logic rs2_read_out,
+    output logic rs3_read_out,
+    output logic rs1_fp_out,
+    output logic rs2_fp_out,
+    output logic rd_fp_out,
+    output logic fpu_en_out,
     output logic [2:0] imm_out,
     output logic [4:0] alu_op_out,
     output logic alu_sub_sra_out,
@@ -45,6 +50,11 @@ module rv32_control_unit (
         valid_out = 0;
         rs1_read_out = 0;
         rs2_read_out = 0;
+        rs3_read_out = 0;
+        rs1_fp_out = 0;
+        rs2_fp_out = 0;
+        rd_fp_out = 0;
+        fpu_en_out = 0;
         imm_out = 3'bx;
         alu_op_out = `RV32_ALU_OP_ADD_SUB;
         alu_sub_sra_out = 1'bx;
@@ -619,6 +629,84 @@ module rv32_control_unit (
                 alu_src1_out = `RV32_ALU_SRC1_REG;
                 alu_src2_out = `RV32_ALU_SRC2_REG;
                 rd_write_out = 1;
+            end
+            `RV32_INSTR_FLW: begin
+                valid_out = 1;
+                rs1_read_out = 1;
+                imm_out = `RV32_IMM_I;
+                alu_op_out = `RV32_ALU_OP_ADD_SUB;
+                alu_sub_sra_out = 0;
+                alu_src1_out = `RV32_ALU_SRC1_REG;
+                alu_src2_out = `RV32_ALU_SRC2_IMM;
+                mem_read_out = 1;
+                mem_width_out = `RV32_MEM_WIDTH_WORD;
+                rd_write_out = 1;
+                rd_fp_out = 1;
+            end
+            `RV32_INSTR_FSW: begin
+                valid_out = 1;
+                rs1_read_out = 1;
+                rs2_read_out = 1;
+                rs2_fp_out = 1;
+                imm_out = `RV32_IMM_S;
+                alu_op_out = `RV32_ALU_OP_ADD_SUB;
+                alu_sub_sra_out = 0;
+                alu_src1_out = `RV32_ALU_SRC1_REG;
+                alu_src2_out = `RV32_ALU_SRC2_IMM;
+                mem_write_out = 1;
+                mem_width_out = `RV32_MEM_WIDTH_WORD;
+            end
+            `RV32_INSTR_FMADD,
+            `RV32_INSTR_FMSUB,
+            `RV32_INSTR_FNMSUB,
+            `RV32_INSTR_FNMADD: begin
+                valid_out = 1;
+                rs1_read_out = 1;
+                rs2_read_out = 1;
+                rs3_read_out = 1;
+                rs1_fp_out = 1;
+                rs2_fp_out = 1;
+                rd_fp_out = 1;
+                fpu_en_out = 1;
+                rd_write_out = 1;
+                /* Keep integer ALU inert if EX ever mishandles the FPU mux. */
+                alu_op_out = `RV32_ALU_OP_ADD_SUB;
+                alu_sub_sra_out = 0;
+                alu_src1_out = `RV32_ALU_SRC1_ZERO;
+                alu_src2_out = `RV32_ALU_SRC2_FOUR;
+            end
+            `RV32_INSTR_OP_FP: begin
+                valid_out = 1;
+                rs1_read_out = 1;
+                fpu_en_out = 1;
+                rd_write_out = 1;
+                /* Keep integer ALU inert if EX ever mishandles the FPU mux.
+                 * Default ADD of rs1/rs2 would bitwise-add IEEE encodings. */
+                alu_op_out = `RV32_ALU_OP_ADD_SUB;
+                alu_sub_sra_out = 0;
+                alu_src1_out = `RV32_ALU_SRC1_ZERO;
+                alu_src2_out = `RV32_ALU_SRC2_FOUR;
+                /* rs1 is FP except FCVT.S.W{U} and FMV.W.X */
+                rs1_fp_out = !((instr_in[31:28] == 4'b1101) || (instr_in[31:28] == 4'b1111));
+                /* rs2 is FP for two-operand ops */
+                case (instr_in[31:27])
+                    5'b00000, /* FADD */
+                    5'b00001, /* FSUB */
+                    5'b00010, /* FMUL */
+                    5'b00011, /* FDIV */
+                    5'b00100, /* FSGNJ* */
+                    5'b00101, /* FMIN/FMAX */
+                    5'b10100: /* FEQ/FLT/FLE */
+                    begin
+                        rs2_read_out = 1;
+                        rs2_fp_out = 1;
+                    end
+                    default: ;
+                endcase
+                /* rd is FP for compute / convert-to-float / move-to-float */
+                rd_fp_out = (instr_in[31] == 1'b0) ||
+                            (instr_in[31:28] == 4'b1101) ||
+                            (instr_in[31:28] == 4'b1111);
             end
         endcase
     end
