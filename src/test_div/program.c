@@ -14,7 +14,7 @@ void print_hex(unsigned int val) {
 
 void main() {
     print("Testing division...\r\n");
-    unsigned int a = 120;
+    unsigned int a = 121;
     unsigned int b = 10;
     unsigned int q, r;
     __asm__ volatile ("divu %0, %1, %2" : "=r"(q) : "r"(a), "r"(b));
@@ -26,8 +26,10 @@ void main() {
     if (q == 12) print("DIVU Pass\r\n");
     else print("DIVU Fail\r\n");
     
-    if (r == 0) print("REMU Pass\r\n");
+    if (r == 1) print("REMU Pass\r\n");
     else print("REMU Fail\r\n");
     
     print("Done.\r\n");
+
+    for(;;);
 }

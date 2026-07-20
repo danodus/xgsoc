@@ -41,7 +41,6 @@ module rv32_alu (
     input clk,
     input reset,
     input ce_i,
-    input valid_in,
     input stall_in,
     input external_stall_in,
 
@@ -50,6 +49,7 @@ module rv32_alu (
     input sub_sra_in,
     input [1:0] src1_in,
     input [1:0] src2_in,
+    input rd_write_in,
 
     /* data in */
     input [31:0] pc_in,
@@ -121,20 +121,19 @@ module rv32_alu (
     logic signed [63:0] multiply;
     assign multiply = mul_signed1 * mul_signed2;
 
-    // Multi-cycle Divider Logic
+    // Multi-cycle divider.
+    //
+    // Start on rd_write && is_div_op, not pipeline valid_in. This core writebacks
+    // from rd_write; valid can be 0 in EX while rd_write/op still describe a live
+    // divide. Op-alone is unsafe: a flushed instr can leave a sticky alu_op.
+    logic is_div_op;
+    logic is_signed_div;
     logic div_start;
-    assign div_start = valid_in && (op_in == `RV32_ALU_OP_DIV || op_in == `RV32_ALU_OP_DIVU || op_in == `RV32_ALU_OP_REM || op_in == `RV32_ALU_OP_REMU);
-
     logic [31:0] dividend;
     logic [31:0] divisor;
-    logic is_signed_div;
-    assign is_signed_div = (op_in == `RV32_ALU_OP_DIV || op_in == `RV32_ALU_OP_REM);
-
-    assign dividend = (is_signed_div && src1[31]) ? -src1 : src1;
-    assign divisor = (is_signed_div && src2[31]) ? -src2 : src2;
-
-    logic [63:0] div_reg; 
-    logic [31:0] div_d;   
+    logic [63:0] div_reg;
+    logic [31:0] div_d;
+    logic [31:0] div_src1;
     logic [5:0] div_ctr;
     logic div_active;
     logic div_ready;
@@ -143,6 +142,14 @@ module rv32_alu (
     logic div_by_zero;
     logic [4:0] div_op;
 
+    assign is_div_op = op_in == `RV32_ALU_OP_DIV ||
+                       op_in == `RV32_ALU_OP_DIVU ||
+                       op_in == `RV32_ALU_OP_REM ||
+                       op_in == `RV32_ALU_OP_REMU;
+    assign is_signed_div = op_in == `RV32_ALU_OP_DIV || op_in == `RV32_ALU_OP_REM;
+    assign dividend = (is_signed_div && src1[31]) ? -src1 : src1;
+    assign divisor = (is_signed_div && src2[31]) ? -src2 : src2;
+    assign div_start = rd_write_in && is_div_op;
     assign busy_out = div_active || (div_start && !div_ready);
 
     logic [63:0] shifted;
@@ -161,6 +168,7 @@ module rv32_alu (
             div_q_sign <= 0;
             div_r_sign <= 0;
             div_by_zero <= 0;
+            div_src1 <= 0;
         end else if (ce_i) begin
             if (div_start && !div_active && !div_ready && !external_stall_in) begin
                 div_active <= 1;
@@ -168,6 +176,7 @@ module rv32_alu (
                 div_op <= op_in;
                 div_reg <= {32'b0, dividend};
                 div_d <= divisor;
+                div_src1 <= src1;
                 div_q_sign <= is_signed_div && (src1[31] != src2[31]);
                 div_r_sign <= is_signed_div && src1[31];
                 div_by_zero <= (src2 == 0);
@@ -192,14 +201,15 @@ module rv32_alu (
     end
 
     logic div_overflow;
-    assign div_overflow = is_signed_div && (src1 == 32'h80000000) && (src2 == 32'hFFFFFFFF);
-    
+    assign div_overflow = (div_op == `RV32_ALU_OP_DIV || div_op == `RV32_ALU_OP_REM) &&
+                          (div_src1 == 32'h80000000) && (div_d == 32'hFFFFFFFF);
+
     logic [31:0] final_q, final_r;
     assign final_q = div_by_zero ? 32'hFFFFFFFF :
                      div_overflow ? 32'h80000000 :
                      (div_q_sign ? -div_reg[31:0] : div_reg[31:0]);
-                     
-    assign final_r = div_by_zero ? src1 :
+
+    assign final_r = div_by_zero ? div_src1 :
                      div_overflow ? 32'b0 :
                      (div_r_sign ? -div_reg[63:32] : div_reg[63:32]);
 
@@ -228,10 +238,7 @@ module rv32_alu (
                 `RV32_ALU_OP_MULHSU,
                 `RV32_ALU_OP_MULHU:   result_out = multiply[63:32];
                 `RV32_ALU_OP_FXMUL:   result_out = fix_mul(src1, src2);
-                `RV32_ALU_OP_DIV,
-                `RV32_ALU_OP_DIVU:    result_out = final_q;
-                `RV32_ALU_OP_REM,
-                `RV32_ALU_OP_REMU:    result_out = final_r;
+                default:              result_out = 32'b0;
             endcase
         end
     end

@@ -164,15 +164,15 @@ module rv32_execute #(
         .clk(clk),
         .ce_i(ce_i),
         .reset(reset),
-        
+
         /* control in */
-        .valid_in(valid_in),
         .stall_in(stall_in),
         .external_stall_in(external_stall_in),
         .op_in(alu_op_in),
         .sub_sra_in(alu_sub_sra_in),
         .src1_in(alu_src1_in),
         .src2_in(alu_src2_in),
+        .rd_write_in(rd_write_in),
 
         /* data in */
         .pc_in(pc_in),

@@ -257,6 +257,7 @@ module rv32_decode (
                     ebreak_out <= 0;
                     mret_out <= 0;
                     rd_write_out <= 0;
+                    alu_op_out <= `RV32_ALU_OP_ADD_SUB;
                 end
             end
         end
