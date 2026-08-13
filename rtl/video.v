@@ -71,9 +71,15 @@ assign RGB = vid;
 always @(posedge pclk) if(ce && init_req_counter == 2'd0) begin  // pixel clock domain
   hcnt <= hend ? 0 : hcnt+1;
   vcnt <= hend ? (vend ? 0 : (vcnt+1)) : vcnt;
-  hblank <= xfer ? (hcnt >= H_RES) : hblank;
 `ifdef ZOOM
-  pixbuf <= hcnt[1] ? vidbuf : {pixbuf[31:16], pixbuf[31:16]};
+  // The first word is prefetched during the preceding line's blanking interval.
+  hblank <= (hcnt == H_TOTAL-1) ? 1'b0 : (xfer ? (hcnt >= H_RES-1) : hblank);
+`else
+  hblank <= xfer ? (hcnt >= H_RES) : hblank;
+`endif
+`ifdef ZOOM
+  // Keep each half-word for two output clocks while the image is doubled.
+  pixbuf <= ((hcnt[1:0] == 2'b11) || (hcnt[1:0] == 2'b00)) ? vidbuf : {pixbuf[31:16], pixbuf[31:16]};
 `else
   pixbuf <= xfer ? vidbuf : {16'd0, pixbuf[31:16]};
 `endif
