@@ -10,9 +10,9 @@ module rgb565_to_rgb888 (
 );
 
     // Constants taken from https://stackoverflow.com/a/9069480
-    logic [13:0] red   = {2'b0, rgb565_i[15:11]} * 10'd527 + 14'd23;
-    logic [13:0] green = {1'b0, rgb565_i[10:5]} * 10'd259 + 14'd33;
-    logic [13:0] blue  = {2'b0, rgb565_i[4:0]} * 10'd527 + 14'd23;
+    wire [13:0] red   = {2'b0, rgb565_i[15:11]} * 10'd527 + 14'd23;
+    wire [13:0] green = {1'b0, rgb565_i[10:5]} * 10'd259 + 14'd33;
+    wire [13:0] blue  = {2'b0, rgb565_i[4:0]} * 10'd527 + 14'd23;
 
     assign rgb888_o[23:16] = red[13:6];
     assign rgb888_o[15:8]  = green[13:6];
