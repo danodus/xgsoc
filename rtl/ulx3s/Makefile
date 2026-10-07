@@ -33,10 +33,6 @@ SRC = \
   ../uart_rx.v \
   ../uart_tx.v \
   ../spi.v \
-  ../riscv/femtorv32.v \
-  ../riscv/petitbateau.v \
-  ../riscv/processor.sv \
-  ../riscv/bus_arbiter.sv \
   ../riscv/rv32.sv \
   ../video.v \
   ../rgb565_to_rgb888.sv \
@@ -54,7 +50,7 @@ SRC = \
   ../../external/graphite/rtl/reciprocal_lerp.v \
   ../../external/graphite/rtl/reciprocal_lut.v
   
-DEFINES = -DPIPELINED_CPU
+DEFINES =
 
 ifneq (,$(findstring v,$(CONF)))
   DEFINES += -DVIDEO

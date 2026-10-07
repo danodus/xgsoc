@@ -6,7 +6,7 @@ The documentation is available here: https://danodus.github.io/xgsoc/
 
 # Features
 
-- RISC-V (RV32I)
+- RISC-V (RV32IMF)
 - UART (1000000-N-8-1)
 - SDRAM (32MiB shared between CPU and video)
 - Set associative cache (4-way with LRU replacement policy)
@@ -163,4 +163,6 @@ Press a key when completed. The SD card image will automatically be read and exe
 ## Acknowledgements
 
 - The SoC is based on the Oberon project for the ULX3S available here: https://github.com/emard/oberon
+- The RISC-V processor is based on Icicle available here: https://github.com/grahamedgecombe/icicle/tree/v1
+- The RISC-V processor FPU is based on FemtoRV PetitBateau available here: https://github.com/BrunoLevy/learn-fpga/tree/master/FemtoRV/RTL/PROCESSOR
 - The USB host is based on usb_host available here: https://gitlab.com/pnru/usb_host

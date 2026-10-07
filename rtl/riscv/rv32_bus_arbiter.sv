@@ -1,6 +1,7 @@
-// See LICENSE_rv32.md
+`ifndef RV32_BUS_ARBITER
+`define RV32_BUS_ARBITER
 
-module bus_arbiter (
+module rv32_bus_arbiter (
     input clk,
     input ce_i,
     input reset,
@@ -92,3 +93,5 @@ module bus_arbiter (
             instr_read_in_progress <= 0;
     end
 endmodule
+
+`endif

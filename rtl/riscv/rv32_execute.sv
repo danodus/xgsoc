@@ -3,6 +3,7 @@
 
 `include "rv32_alu.sv"
 `include "rv32_branch.sv"
+`include "rv32_fpu.sv"
 
 module rv32_execute #(
     parameter BYPASSING = 0
@@ -155,7 +156,7 @@ module rv32_execute #(
     logic was_fpu_saved;
 
     /* FPU
-     * PetitBateau is multi-cycle (wr pulse, then busy). Commit mirrors divide:
+     * The FPU is multi-cycle (wr pulse, then busy). Commit mirrors divide:
      * stall while busy, then one cycle with alu_was_busy to write fpu_out.
      *
      * Important: start on rd_write && fpu_en, NOT valid_in — same as the
@@ -245,7 +246,7 @@ module rv32_execute #(
         .busy_out(alu_div_busy)
     );
 
-    PetitBateau fpu (
+    rv32_fpu fpu (
         .clk(clk),
         .ce(ce_i),
         .wr(fpu_wr),

@@ -1,7 +1,8 @@
-/******************************************************************************/
-// FemtoRV32, a collection of minimalistic RISC-V RV32 cores.
-//
-// PetitBateau (make it float): a simple single-precision RISC-V FPU
+// Based on FemtoRV32 PetitBateau available here: https://github.com/BrunoLevy/learn-fpga/blob/master/FemtoRV/RTL/PROCESSOR/petitbateau.v
+// Copyright (c) 2020-2021, Bruno Levy
+// License: BSD 3-Clause
+
+// A simple single-precision RISC-V FPU
 //   Mission statement: achieve a good area/performance ratio, by
 //   implementing a full-precision FMA (48 bits), and micro-programmed
 //   Newton-Raphson for FDIV and FSQRT (that reuse the FMA).
@@ -18,10 +19,6 @@
 // [TODO] support IEEE754 denormals
 // [TODO] NaNs propagation and infinity
 // [TODO] support all IEEE754 rounding modes
-//
-// Bruno Levy, 2021
-/******************************************************************************/
-
 // TODO: instead of mux between A,B,C and FMA, make FMA always compute
 //       A*B+C and mux rs1,rs2,rs3,1.0,0.0 to A,B,C based on instr (mux
 //       will be more complicated but will probably reduce overall
@@ -32,9 +29,8 @@
 // TODO: the necessity to copy rs1 in E without flushing denormals for
 //       the int-to-fp instructions is unelegant.
 
-// Include guard for LiteX
-`ifndef PETITBATEAU_INCLUDED
-`define PETITBATEAU_INCLUDED
+`ifndef RV32_FPU
+`define RV32_FPU
 
 // Check condition and display message in simulation
 `ifdef BENCH
@@ -45,7 +41,7 @@
  `define ASSERT_NOT_REACHED(msg)
 `endif
 
-module PetitBateau(
+module rv32_fpu(
    input 	     clk,
    input         ce,
    input 	     wr,    // write strobe, starts computation
@@ -348,7 +344,7 @@ module PetitBateau(
 
    // determine microprogram to be called based on decoded instruction
    reg [6:0] fpmprog;
-   always @(*) begin
+   always_comb begin
       (* parallel_case, full_case *)
       case(1'b1)
 	isFLT   | isFLE   | isFEQ               : fpmprog = FPMPROG_CMP[6:0];
@@ -369,13 +365,13 @@ module PetitBateau(
                wr                             ? fpmprog   :
 	       fpmi_instr[FPMI_EXIT_FLAG_bit] ? 0         : 
                                                 fpmi_PC+1 ;
-   always @(posedge clk) if (ce) begin
+   always_ff @(posedge clk) if (ce) begin
           fpmi_PC <= fpmi_PC_next;
           fpmi_instr <= fpmi_ROM[fpmi_PC_next];
    end
    
 
-   always @(posedge clk) if (ce) begin
+   always_ff @(posedge clk) if (ce) begin
       if(wr) begin
          // Denormals are flushed to zero
          `FP_LD(A, rs1[31], rs1[30:23], (|rs1[30:23]?{1'b1,rs1[22:0]}:24'b0));
@@ -695,7 +691,7 @@ module PetitBateau(
    reg isFCVTSW, isFCVTSWU;
    reg isFMVXW, isFMVWX;
 
-   always @(*) begin
+   always_comb begin
       isFMADD   = (instr[4:2] == 3'b000); // rd <-   rs1*rs2+rs3
       isFMSUB   = (instr[4:2] == 3'b001); // rd <-   rs1*rs2-rs3
       isFNMSUB  = (instr[4:2] == 3'b010); // rd <- -(rs1*rs2-rs3) 
@@ -734,7 +730,7 @@ module PetitBateau(
  `define FPU_EMUL1(op) `X <= $c32(op,"(",rs1,")")
  `define FPU_EMUL2(op) `X <= $c32(op,"(",rs1,",",rs2,")")
  `define FPU_EMUL3(op) `X <= $c32(op,"(",rs1,",",rs2,",",rs3,")")
-   always @(posedge clk) if (ce) begin
+   always_ff @(posedge clk) if (ce) begin
       if(wr) begin
 	 (* parallel_case *)
 	 case(1'b1)
@@ -785,7 +781,7 @@ module PetitBateau(
    reg [31:0] z;
    reg 	      active;
    
-   always @(posedge clk) if (ce) begin
+   always_ff @(posedge clk) if (ce) begin
       
       if(wr) begin
 	 active  <= 1'b1;

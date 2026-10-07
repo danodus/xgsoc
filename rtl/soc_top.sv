@@ -249,27 +249,7 @@ module soc_top #(
     logic vdu_sel;
     assign vdu_sel = adr[31:28] == 4'h1;
 
-`ifndef PIPELINED_CPU
-    logic cpu_rstrb;
-    assign cpu_we = |wmask;
-    assign cpu_sel = cpu_we | cpu_rstrb;
-    femtorv32 cpu(
-        .clk(clk_cpu),
-        .ce(cpu_ce),
-        .mem_addr(adr),
-        .mem_wdata(outbus),
-        .mem_wmask(wmask),
-        .mem_rdata(pm_sel ? pmout : inbus),
-        .mem_rstrb(cpu_rstrb),
-        .mem_rbusy(1'b0),
-        .mem_wbusy(1'b0),
-
-        .interrupt_request(1'b0),
-
-        .reset(rst_n)
-    );
-`else // PIPELINED_CPU
-    processor  #(
+    rv32 #(
         .RESET_VEC_ADDR(32'hF0000000)
     ) cpu(
         .clk(clk_cpu),
@@ -289,8 +269,6 @@ module soc_top #(
         .data_out_o(outbus),
         .ack_i(1'b1)
     );
-
-`endif // PIPELINED_CPU
 
     uart_rx #(.FREQ_HZ(FREQ_HZ), .BAUD_RATE(BAUD_RATE)) uart_rx(.clk(clk_cpu), .rst(rst_n), .RxD(rx_i), .fsel(1'b0), .done(doneRx),
     .data(dataRx), .rdy(rdyRx));
