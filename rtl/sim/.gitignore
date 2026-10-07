@@ -2,3 +2,4 @@ logs
 obj_dir
 firmware.hex
 program.hex
+out_*.tga

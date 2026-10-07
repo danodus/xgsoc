@@ -1,4 +1,6 @@
 PROGRAM = ../../src/test_graphite/program.hex
+GRAPHITE_REF_FRAMES = 5
+GRAPHITE_TEST_PREFIX = out
 
 VERILATOR = verilator
 
@@ -40,6 +42,7 @@ clean:
 	rm -rf obj_dir
 	rm -f firmware.hex
 	rm -f program.hex
+	rm -f $(GRAPHITE_TEST_PREFIX)_*.tga
 
 firmware:
 	make -C $(FIRMWARE_DIR)
@@ -53,4 +56,36 @@ run: firmware sim
 	ln -f -s $(PROGRAM) .
 	obj_dir/Vtop
 
-.PHONY: all clean firmware
+# Compare simulator frame dumps against ref_000.tga .. ref_014.tga (good run).
+test-graphite-frames: sim $(PROGRAM)
+	@i=0; \
+	while [ $$i -lt $(GRAPHITE_REF_FRAMES) ]; do \
+		ref=ref_$$(printf '%03d' $$i).tga; \
+		if [ ! -f "$$ref" ]; then \
+			echo "ERROR: missing reference $$ref"; \
+			exit 1; \
+		fi; \
+		i=$$((i + 1)); \
+	done
+	rm -f $(GRAPHITE_TEST_PREFIX)_*.tga
+	ln -f -s $(PROGRAM) program.hex
+	obj_dir/Vtop --dump-frames $(GRAPHITE_REF_FRAMES) --dump-prefix $(GRAPHITE_TEST_PREFIX)
+	@fail=0; \
+	i=0; \
+	while [ $$i -lt $(GRAPHITE_REF_FRAMES) ]; do \
+		n=$$(printf '%03d' $$i); \
+		ref=ref_$$n.tga; \
+		out=$(GRAPHITE_TEST_PREFIX)_$$n.tga; \
+		if [ ! -f "$$out" ]; then \
+			echo "ERROR: simulator did not write $$out"; \
+			fail=1; \
+		elif ! cmp -s "$$ref" "$$out"; then \
+			echo "ERROR: frame mismatch: $$ref vs $$out"; \
+			fail=1; \
+		fi; \
+		i=$$((i + 1)); \
+	done; \
+	if [ $$fail -ne 0 ]; then exit 1; fi; \
+	echo "OK: $(GRAPHITE_REF_FRAMES) Graphite frames match reference TGAs"
+
+.PHONY: all clean firmware run test-graphite-frames

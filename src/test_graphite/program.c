@@ -391,7 +391,7 @@ void main(void)
 
     bool quit = false;
     bool print_stats = false;
-    bool is_rotating = false;
+    bool is_rotating = true;
     bool is_textured = true;
     size_t nb_lights = 4;
     bool is_wireframe = false;

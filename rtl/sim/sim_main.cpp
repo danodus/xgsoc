@@ -6,9 +6,14 @@
 
 #include <memory>
 #include <chrono>
+#include <cstdio>
+#include <cstdlib>
+#include <cstring>
 #include <deque>
 #include <fstream>
 #include <sstream>
+#include <string>
+#include <vector>
 
 #include <verilated.h>
 #include <iostream>
@@ -36,8 +41,87 @@ double sc_time_stamp()
     return 0.0;
 }
 
+// SDRAM byte address -> index in sdram_mem. The controller maps
+// {bank[24:23], row[22:10], column[9:1]} onto a linear halfword array,
+// and consecutive halfwords stay consecutive inside one bank.
+static uint32_t sdram_index_from_byte_addr(uint32_t byte_addr)
+{
+    uint32_t bank = (byte_addr >> 23) & 3u;
+    uint32_t row = (byte_addr >> 10) & 0x1FFFu;
+    uint32_t col = (byte_addr >> 1) & 0x1FFu;
+    return bank * 8192u * 512u + row * 512u + col;
+}
+
+// Uncompressed 24-bit BGR TGA, top-left origin.
+static bool write_rgb565_tga(const char *path, const uint16_t *rgb565, int w, int h)
+{
+    FILE *fp = fopen(path, "wb");
+    if (!fp) {
+        std::cerr << "write_rgb565_tga: cannot open " << path << "\n";
+        return false;
+    }
+    uint8_t header[18] = {};
+    header[2] = 2;
+    header[12] = (uint8_t)(w & 0xFF);
+    header[13] = (uint8_t)((w >> 8) & 0xFF);
+    header[14] = (uint8_t)(h & 0xFF);
+    header[15] = (uint8_t)((h >> 8) & 0xFF);
+    header[16] = 24;
+    header[17] = 0x20;
+    if (fwrite(header, 1, 18, fp) != 18) {
+        std::cerr << "write_rgb565_tga: short write header\n";
+        fclose(fp);
+        return false;
+    }
+    for (int y = 0; y < h; ++y) {
+        const uint16_t *row = rgb565 + y * w;
+        for (int x = 0; x < w; ++x) {
+            uint16_t p = row[x];
+            unsigned r5 = (p >> 11) & 31u;
+            unsigned g6 = (p >> 5) & 63u;
+            unsigned b5 = p & 31u;
+            uint8_t b = (uint8_t)((b5 << 3) | (b5 >> 2));
+            uint8_t g = (uint8_t)((g6 << 2) | (g6 >> 4));
+            uint8_t r = (uint8_t)((r5 << 3) | (r5 >> 2));
+            if (fputc(b, fp) == EOF || fputc(g, fp) == EOF || fputc(r, fp) == EOF) {
+                std::cerr << "write_rgb565_tga: write error\n";
+                fclose(fp);
+                return false;
+            }
+        }
+    }
+    fclose(fp);
+    return true;
+}
+
 int main(int argc, char **argv, char **env)
 {
+    int dump_frame_count = 0;
+    std::string dump_prefix = "graphite_frame";
+    std::vector<char *> filtered_args;
+    filtered_args.push_back(argv[0]);
+    for (int i = 1; i < argc; ++i) {
+        if (std::strcmp(argv[i], "--dump-frames") == 0 && i + 1 < argc) {
+            dump_frame_count = std::atoi(argv[++i]);
+            if (dump_frame_count < 0)
+                dump_frame_count = 0;
+        } else if (std::strcmp(argv[i], "--dump-prefix") == 0 && i + 1 < argc) {
+            dump_prefix = argv[++i];
+        } else if (std::strcmp(argv[i], "--help") == 0) {
+            std::cerr << "usage: Vtop [--dump-frames N] [--dump-prefix NAME]\n"
+                      << "  After each Graphite swap, write NAME_XXX.tga for N frames, then exit.\n";
+            return 0;
+        } else {
+            filtered_args.push_back(argv[i]);
+        }
+    }
+    filtered_args.push_back(nullptr);
+
+    if (dump_frame_count > 0) {
+        std::cout << "Dumping " << dump_frame_count << " Graphite frame(s) as "
+                  << dump_prefix << "_XXX.tga\n";
+    }
+
     SDL_Init(SDL_INIT_VIDEO);
 
     SDL_Window *window = SDL_CreateWindow(
@@ -109,7 +193,7 @@ int main(int argc, char **argv, char **env)
 
         // Pass arguments so Verilated code can see them, e.g. $value$plusargs
         // This needs to be called before you create any model
-        contextp->commandArgs(argc, argv);
+        contextp->commandArgs((int)filtered_args.size() - 1, filtered_args.data());
 
         restart_model = false;
 
@@ -146,6 +230,8 @@ int main(int argc, char **argv, char **env)
         bool read_sdram = false;
 
         bool manual_reset = false;
+        bool prev_graphite_swap = false;
+        int dumped_frames = 0;
 
         while (!contextp->gotFinish() && !quit)
         {
@@ -282,6 +368,34 @@ int main(int argc, char **argv, char **env)
                     printf("LED: %02x\n", top->display_o);
                     last_display = top->display_o;
                 }
+
+                // swap_o stays high through the v-sync wait, which is also when
+                // the cache writes the finished frame back to SDRAM. Capture
+                // the new front buffer once that wait ends.
+                bool graphite_swap = top->graphite_swap_o;
+                if (dump_frame_count > 0 && !top->reset_i && prev_graphite_swap && !graphite_swap &&
+                    dumped_frames < dump_frame_count) {
+                    int fb_w = top->graphite_fb_width_o;
+                    int fb_h = top->graphite_fb_height_o;
+                    uint32_t byte_addr = top->graphite_front_addr_o << 1;
+                    uint32_t index = sdram_index_from_byte_addr(byte_addr);
+                    uint32_t pixels_n = (uint32_t)fb_w * (uint32_t)fb_h;
+                    if (fb_w <= 0 || fb_h <= 0 || index + pixels_n > SDRAM_MEM_SIZE) {
+                        std::cerr << "Graphite frame " << dumped_frames
+                                  << " is outside SDRAM (addr=0x" << std::hex << byte_addr
+                                  << std::dec << " " << fb_w << "x" << fb_h << ")\n";
+                    } else {
+                        char path[512];
+                        std::snprintf(path, sizeof(path), "%s_%03d.tga", dump_prefix.c_str(), dumped_frames);
+                        if (write_rgb565_tga(path, sdram_mem + index, fb_w, fb_h)) {
+                            std::cout << "Wrote " << path << " (" << fb_w << "x" << fb_h << ")\n";
+                            dumped_frames++;
+                            if (dumped_frames >= dump_frame_count)
+                                quit = true;
+                        }
+                    }
+                }
+                prev_graphite_swap = graphite_swap;
 
                 if (!top->vga_vsync && !was_vsync)
                 {

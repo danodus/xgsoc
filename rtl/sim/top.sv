@@ -33,11 +33,23 @@ module top (
     inout       logic [15:0] sdram_dq_io,
     output      logic        uart_write_o,
     output      logic [7:0]  uart_data_o
+`ifdef VIDEO_GRAPHITE
+    , output    logic        graphite_swap_o
+    , output    logic [31:0] graphite_front_addr_o
+    , output    logic [15:0] graphite_fb_width_o
+    , output    logic [15:0] graphite_fb_height_o
+`endif
     );
 
     assign sdram_cke_o = 1'b1; // SDRAM clock enable
     assign uart_write_o = soc_top.startTx;
     assign uart_data_o = soc_top.dataTx;
+`ifdef VIDEO_GRAPHITE
+    assign graphite_swap_o = soc_top.graphite_swap;
+    assign graphite_front_addr_o = soc_top.graphite_front_addr;
+    assign graphite_fb_width_o = soc_top.graphite_fb_width;
+    assign graphite_fb_height_o = soc_top.graphite_fb_height;
+`endif
 
     soc_top soc_top
     (

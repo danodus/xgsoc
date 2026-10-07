@@ -420,6 +420,13 @@ module soc_top #(
     logic graphite_clear;
     logic graphite_swap;
     logic use_graphite_front_addr;
+`ifdef ZOOM
+    wire [15:0] graphite_fb_width = 16'(H_RES/2);
+    wire [15:0] graphite_fb_height = 16'(V_RES/2);
+`else
+    wire [15:0] graphite_fb_width = 16'(H_RES);
+    wire [15:0] graphite_fb_height = 16'(V_RES);
+`endif
 
     graphite #(
         .FB_ADDRESS(DEFAULT_FB_ADDRESS >> 'd1),
