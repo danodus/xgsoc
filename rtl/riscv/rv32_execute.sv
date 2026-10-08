@@ -74,6 +74,7 @@ module rv32_execute #(
 
     /* data in */
     input [31:0] pc_in,
+    input [31:0] pc_incr_in,
     input [31:0] rs1_value_in,
     input [31:0] rs2_value_in,
     input [31:0] rs3_value_in,
@@ -237,6 +238,7 @@ module rv32_execute #(
 
         /* data in */
         .pc_in(pc_in),
+        .pc_incr_in(pc_incr_in),
         .rs1_value_in(rs1_value),
         .rs2_value_in(rs2_value),
         .imm_value_in(imm_value_in),
@@ -269,6 +271,7 @@ module rv32_execute #(
 
         /* data in */
         .pc_in(pc_in),
+        .pc_incr_in(pc_incr_in),
         .rs1_value_in(rs1_value),
         .imm_value_in(imm_value_in),
 
@@ -382,8 +385,8 @@ module rv32_execute #(
                     imm_value_out <= imm_value_in;
                     csr_out <= csr_in;
                     branch_pc_out <= branch_pc;
-                    /* ZERO+FOUR is only the FPU inert ALU placeholder (JAL is
-                     * PC+FOUR). Never retire 0+4 if OP-FP lost fpu_en. */
+                    /* ZERO+FOUR is only the FPU inert ALU placeholder (JAL adds
+                     * pc_incr). Never retire 0+4 if OP-FP lost fpu_en. */
                     result_out <= fpu_alu_inert ? fpu_out : alu_result;
                 end
             end

@@ -101,7 +101,7 @@ module rv32_control_unit (
                 alu_op_out = `RV32_ALU_OP_ADD_SUB;
                 alu_sub_sra_out = 0;
                 alu_src1_out = `RV32_ALU_SRC1_PC;
-                alu_src2_out = `RV32_ALU_SRC2_FOUR;
+                alu_src2_out = `RV32_ALU_SRC2_PC_INCR;
                 branch_op_out = `RV32_BRANCH_OP_ALWAYS;
                 branch_pc_src_out = `RV32_BRANCH_PC_SRC_IMM;
                 rd_write_out = 1;
@@ -113,7 +113,7 @@ module rv32_control_unit (
                 alu_op_out = `RV32_ALU_OP_ADD_SUB;
                 alu_sub_sra_out = 0;
                 alu_src1_out = `RV32_ALU_SRC1_PC;
-                alu_src2_out = `RV32_ALU_SRC2_FOUR;
+                alu_src2_out = `RV32_ALU_SRC2_PC_INCR;
                 branch_op_out = `RV32_BRANCH_OP_ALWAYS;
                 branch_pc_src_out = `RV32_BRANCH_PC_SRC_REG;
                 rd_write_out = 1;

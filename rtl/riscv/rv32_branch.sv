@@ -16,6 +16,7 @@ module rv32_branch_pc_mux (
 
     /* data in */
     input [31:0] pc_in,
+    input [31:0] pc_incr_in,
     input [31:0] rs1_value_in,
     input [31:0] imm_value_in,
 
@@ -30,12 +31,13 @@ module rv32_branch_pc_mux (
     logic [31:0] pc;
 
     assign taken_pc = (pc_src_in ? rs1_value_in : pc_in) + imm_value_in;
-    assign not_taken_pc = pc_in + 32'd4;
+    assign not_taken_pc = pc_in + pc_incr_in;
 
     assign pc = predicted_taken_in ? not_taken_pc : taken_pc;
     assign pc_out = {pc[31:1], 1'b0};
 
-    assign misaligned_out = taken_pc[1] != 0;
+    /* C allows halfword instruction addresses. Only an odd target is misaligned. */
+    assign misaligned_out = taken_pc[0] != 0;
 endmodule
 
 module rv32_branch_unit (

@@ -23,7 +23,7 @@ OUTFLAG= -o
 # by eliminating alignment nops. This is really a toolchain issue because
 # most 2-byte alignment nops could also be eliminated by selectively
 # expanding 16-bit instructions to 32-bit.
-MARCH        = rv32imaf_zicsr
+MARCH        = rv32imafc_zicsr
 MABI         = ilp32f
 CROSS_PREFIX = riscv-none-elf-
 

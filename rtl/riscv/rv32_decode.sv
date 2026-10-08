@@ -44,6 +44,7 @@ module rv32_decode (
 
     /* data in */
     input [31:0] pc_in,
+    input [31:0] pc_incr_in,
     input [31:0] instr_in,
 
     /* data in (from writeback) */
@@ -92,6 +93,7 @@ module rv32_decode (
 
     /* data out */
     output logic [31:0] pc_out,
+    output logic [31:0] pc_incr_out,
     output logic [31:0] rs1_value_out,
     output logic [31:0] rs2_value_out,
     output logic [31:0] rs3_value_out,
@@ -319,6 +321,7 @@ module rv32_decode (
                 fpu_en_out <= fpu_en;
 
                 pc_out <= pc_in;
+                pc_incr_out <= pc_incr_in;
                 imm_value_out <= imm_value;
                 csr_out <= csr;
                 instr_fpu_out <= instr_in[31:2];
@@ -341,6 +344,7 @@ module rv32_decode (
                     alu_op_out <= `RV32_ALU_OP_ADD_SUB;
                     alu_src1_out <= `RV32_ALU_SRC1_REG;
                     alu_src2_out <= `RV32_ALU_SRC2_REG;
+                    pc_incr_out <= 32'd4;
                 end
             end
         end
@@ -375,6 +379,7 @@ module rv32_decode (
             fpu_en_out <= 0;
 
             pc_out <= 0;
+            pc_incr_out <= 32'd4;
             imm_value_out <= 0;
             csr_out <= 0;
             instr_fpu_out <= 0;

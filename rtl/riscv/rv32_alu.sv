@@ -23,9 +23,10 @@
 `define RV32_ALU_SRC1_PC   2'b01
 `define RV32_ALU_SRC1_ZERO 2'b10
 
-`define RV32_ALU_SRC2_REG  2'b00
-`define RV32_ALU_SRC2_IMM  2'b01
-`define RV32_ALU_SRC2_FOUR 2'b10
+`define RV32_ALU_SRC2_REG     2'b00
+`define RV32_ALU_SRC2_IMM     2'b01
+`define RV32_ALU_SRC2_FOUR    2'b10
+`define RV32_ALU_SRC2_PC_INCR 2'b11
 
 function logic signed [31:0] fix_mul(logic signed [31:0] x, logic signed [31:0] y);
     logic signed [63:0] x2, y2, mul2;
@@ -53,6 +54,7 @@ module rv32_alu (
 
     /* data in */
     input [31:0] pc_in,
+    input [31:0] pc_incr_in,
     input [31:0] rs1_value_in,
     input [31:0] rs2_value_in,
     input [31:0] imm_value_in,
@@ -88,10 +90,11 @@ module rv32_alu (
         endcase
 
         case (src2_in)
-            `RV32_ALU_SRC2_REG:  src2 = rs2_value_in;
-            `RV32_ALU_SRC2_IMM:  src2 = imm_value_in;
-            `RV32_ALU_SRC2_FOUR: src2 = 4;
-            default:             src2 = 32'bx;
+            `RV32_ALU_SRC2_REG:     src2 = rs2_value_in;
+            `RV32_ALU_SRC2_IMM:     src2 = imm_value_in;
+            `RV32_ALU_SRC2_FOUR:    src2 = 4;
+            `RV32_ALU_SRC2_PC_INCR: src2 = pc_incr_in;
+            default:                src2 = 32'bx;
         endcase
     end
 

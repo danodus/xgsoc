@@ -82,6 +82,7 @@ module rv32_core #(
     /* fetch -> decode data */
     logic [31:0] fetch_pc;
     logic [31:0] fetch_instr;
+    logic [31:0] fetch_pc_incr;
 
     /* decode -> hazard control */
     logic [4:0] decode_rs1_unreg;
@@ -135,6 +136,7 @@ module rv32_core #(
 
     /* decode -> execute data */
     logic [31:0] decode_pc;
+    logic [31:0] decode_pc_incr;
     logic [31:0] decode_rs1_value;
     logic [31:0] decode_rs2_value;
     logic [31:0] decode_rs3_value;
@@ -310,6 +312,7 @@ module rv32_core #(
         .branch_mispredicted_in(mem_branch_mispredicted),
 
         /* control in (from memory bus) */
+        .instr_ready_in(instr_ready_in),
         .instr_fault_in(instr_fault_in),
 
         /* control out (to hazard) */
@@ -334,6 +337,7 @@ module rv32_core #(
         /* data out */
         .pc_out(fetch_pc),
         .instr_out(fetch_instr),
+        .pc_incr_out(fetch_pc_incr),
 
         /* data out (to memory bus) */
         .instr_address_out(instr_address_out)
@@ -375,6 +379,7 @@ module rv32_core #(
 
         /* data in */
         .pc_in(fetch_pc),
+        .pc_incr_in(fetch_pc_incr),
         .instr_in(fetch_instr),
 
         /* data in (from writeback) */
@@ -423,6 +428,7 @@ module rv32_core #(
 
         /* data out */
         .pc_out(decode_pc),
+        .pc_incr_out(decode_pc_incr),
         .rs1_value_out(decode_rs1_value),
         .rs2_value_out(decode_rs2_value),
         .rs3_value_out(decode_rs3_value),
@@ -500,6 +506,7 @@ module rv32_core #(
 
         /* data in */
         .pc_in(decode_pc),
+        .pc_incr_in(decode_pc_incr),
         .rs1_value_in(decode_rs1_value),
         .rs2_value_in(decode_rs2_value),
         .rs3_value_in(decode_rs3_value),
