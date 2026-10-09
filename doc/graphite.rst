@@ -22,7 +22,7 @@ Read:
 ===== ============================
 Field Description
 ===== ============================
-[0]   Ready? 
+[0]   Command FIFO can take another word 
 ===== ============================
 
 Write:

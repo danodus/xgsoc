@@ -1,5 +1,5 @@
 PROGRAM = ../../src/test_graphite/program.hex
-GRAPHITE_REF_FRAMES = 5
+GRAPHITE_REF_FRAMES = 20
 GRAPHITE_TEST_PREFIX = out
 
 VERILATOR = verilator
@@ -56,7 +56,7 @@ run: firmware sim
 	ln -f -s $(PROGRAM) .
 	obj_dir/Vtop
 
-# Compare simulator frame dumps against ref_000.tga .. ref_014.tga (good run).
+# Compare simulator frame dumps against ref_000.tga .. ref_019.tga (good run).
 test-graphite-frames: sim $(PROGRAM)
 	@i=0; \
 	while [ $$i -lt $(GRAPHITE_REF_FRAMES) ]; do \

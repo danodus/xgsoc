@@ -410,6 +410,9 @@ module soc_top #(
     logic           graphite_cmd_axis_tvalid;
     logic           graphite_cmd_axis_tready;
     logic [31:0]    graphite_cmd_axis_tdata;
+    // A store holds wr for several cycles (sel, then ready). The FIFO stays
+    // ready, so each of those cycles would enqueue the same command.
+    logic           graphite_wr_seen;
 
     logic graphite_vram_sel;
     logic graphite_vram_wr;
@@ -430,6 +433,7 @@ module soc_top #(
 
     graphite #(
         .FB_ADDRESS(DEFAULT_FB_ADDRESS >> 'd1),
+        .COMMAND_FIFO_DEPTH(256),
     `ifdef ZOOM
         .FB_WIDTH(H_RES/2),
         .FB_HEIGHT(V_RES/2)
@@ -589,15 +593,19 @@ module soc_top #(
             fb_addr <= DEFAULT_FB_ADDRESS;
 `ifdef VIDEO_GRAPHITE
             graphite_cmd_axis_tvalid <= 1'b0;
+            graphite_wr_seen <= 1'b0;
             use_graphite_front_addr <= 1'b0;
 `endif // VIDEO_GRAPHITE
 `endif // VIDEO
             req_flush_cache <= 1'b0;
         end else begin
-`ifdef VIDEO_GRAPHITE
-            graphite_cmd_axis_tvalid <= 1'b0;
-`endif // VIDEO_GRAPHITE
             req_flush_cache <= 1'b0;
+`ifdef VIDEO_GRAPHITE
+            // Hold the beat until Graphite accepts it. A one-cycle pulse is
+            // dropped when the FIFO cannot take it on the following edge.
+            if (graphite_cmd_axis_tvalid && graphite_cmd_axis_tready)
+                graphite_cmd_axis_tvalid <= 1'b0;
+`endif // VIDEO_GRAPHITE
             if(cpu_ce && wr && ioenb) begin
                 if (iowadr == 1)
                     led_o <= outbus[7:0];
@@ -605,8 +613,14 @@ module soc_top #(
                     spiCtrl <= outbus[3:0];
 `ifdef VIDEO_GRAPHITE
                 else if (iowadr == 8) begin
-                    graphite_cmd_axis_tdata  <= outbus[31:0];
-                    graphite_cmd_axis_tvalid <= 1'b1;
+                    // One beat per store. wr stays high until the CPU sees
+                    // mem_ready, and the FIFO ready bit stays high too.
+                    if (!graphite_wr_seen &&
+                        (!graphite_cmd_axis_tvalid || graphite_cmd_axis_tready)) begin
+                        graphite_cmd_axis_tdata  <= outbus[31:0];
+                        graphite_cmd_axis_tvalid <= 1'b1;
+                        graphite_wr_seen <= 1'b1;
+                    end
                     use_graphite_front_addr <= 1'b1;    // Graphite will handle the fb address
                 end
 `endif // VIDEO_GRAPHITE
@@ -623,6 +637,11 @@ module soc_top #(
                 end
 `endif // VIDEO
             end
+`ifdef VIDEO_GRAPHITE
+            // wr falls at the end of the store. Allow the next one.
+            if (!(wr && ioenb && (iowadr == 8)))
+                graphite_wr_seen <= 1'b0;
+`endif // VIDEO_GRAPHITE
         end
     end
 
