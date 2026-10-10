@@ -152,12 +152,11 @@ static inline int64_t solve_gradient_fast(int64_t det, int32_t inv_det_23, int s
     return (num / det) * 1048576LL + ((num % det) * 1048576LL) / det;
 }
 
-// Seed 12.12 color at the first scan pixel from the full-precision plane.
+// Seed 12.20 color at the first scan pixel from the full-precision plane.
 // Narrowing the (0,0) intercept and the gradients separately loses cancellation on slivers.
-static inline int32_t eval_color_12_12(int64_t raw_start, int64_t raw_dx, int64_t raw_dy, int x, int y) {
+static inline int32_t eval_color_12_20(int64_t raw_start, int64_t raw_dx, int64_t raw_dy, int x, int y) {
     int64_t raw = raw_start + (int64_t)x * raw_dx + (int64_t)y * raw_dy + (raw_dx >> 1) + (raw_dy >> 1);
-    int32_t q = (int32_t)(raw >> 20);
-    return (q << 8) >> 8;
+    return (int32_t)(raw >> 12);
 };
 
 void xd_draw_triangle(vec3d p[3], vec2d t[3], vec3d c[3], texture_t* tex, bool clamp_s, bool clamp_t, int texture_scale_x, int texture_scale_y,
@@ -249,14 +248,14 @@ void xd_draw_triangle(vec3d p[3], vec2d t[3], vec3d c[3], texture_t* tex, bool c
     int32_t dv_dx   = (int32_t)(raw_dv_dx   >> 14);
     int32_t dv_dy   = (int32_t)(raw_dt_dy   >> 14);
 
-    int32_t dr_dx   = ((int32_t)(raw_dr_dx   >> 20) << 8) >> 8;
-    int32_t dr_dy   = ((int32_t)(raw_dr_dy   >> 20) << 8) >> 8;
+    int32_t dr_dx   = (int32_t)(raw_dr_dx   >> 12);
+    int32_t dr_dy   = (int32_t)(raw_dr_dy   >> 12);
 
-    int32_t dg_dx   = ((int32_t)(raw_dg_dx   >> 20) << 8) >> 8;
-    int32_t dg_dy   = ((int32_t)(raw_dg_dy   >> 20) << 8) >> 8;
+    int32_t dg_dx   = (int32_t)(raw_dg_dx   >> 12);
+    int32_t dg_dy   = (int32_t)(raw_dg_dy   >> 12);
 
-    int32_t db_dx   = ((int32_t)(raw_db_dx   >> 20) << 8) >> 8;
-    int32_t db_dy   = ((int32_t)(raw_db_dy   >> 20) << 8) >> 8;
+    int32_t db_dx   = (int32_t)(raw_db_dx   >> 12);
+    int32_t db_dy   = (int32_t)(raw_db_dy   >> 12);
 
     // Rasterizer Bounding Box & Pineda Edges setup
     bool sign_bit = det > 0;
@@ -273,9 +272,9 @@ void xd_draw_triangle(vec3d p[3], vec2d t[3], vec3d c[3], texture_t* tex, bool c
     int32_t acc_w_inv = start_w + FAST_MUL32(curr_x, dw_dx) + FAST_MUL32(curr_y, dw_dy) + (dw_dx >> 1) + (dw_dy >> 1);
     int32_t acc_u_w   = start_s + FAST_MUL32(curr_x, du_dx) + FAST_MUL32(curr_y, du_dy) + (du_dx >> 1) + (du_dy >> 1);
     int32_t acc_v_w   = start_t + FAST_MUL32(curr_x, dv_dx) + FAST_MUL32(curr_y, dv_dy) + (dv_dx >> 1) + (dv_dy >> 1);
-    int32_t acc_r_w   = eval_color_12_12(raw_start_r, raw_dr_dx, raw_dr_dy, curr_x, curr_y);
-    int32_t acc_g_w   = eval_color_12_12(raw_start_g, raw_dg_dx, raw_dg_dy, curr_x, curr_y);
-    int32_t acc_b_w   = eval_color_12_12(raw_start_b, raw_db_dx, raw_db_dy, curr_x, curr_y);
+    int32_t acc_r_w   = eval_color_12_20(raw_start_r, raw_dr_dx, raw_dr_dy, curr_x, curr_y);
+    int32_t acc_g_w   = eval_color_12_20(raw_start_g, raw_dg_dx, raw_dg_dy, curr_x, curr_y);
+    int32_t acc_b_w   = eval_color_12_20(raw_start_b, raw_db_dx, raw_db_dy, curr_x, curr_y);
 
 
     uint32_t t2_tri_setup = MEM_READ(TIMER);
