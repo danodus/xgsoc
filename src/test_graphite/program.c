@@ -160,8 +160,11 @@ static inline int32_t eval_color_12_20(int64_t raw_start, int64_t raw_dx, int64_
 };
 
 void xd_draw_triangle(vec3d p[3], vec2d t[3], vec3d c[3], texture_t* tex, bool clamp_s, bool clamp_t, int texture_scale_x, int texture_scale_y,
-                      bool depth_test, bool perspective_correct)                      
+                      bool depth_test, bool perspective_correct, const vec3d* sh, bool depth_only, bool enable_shadow)
 {
+    (void)sh;
+    (void)depth_only;
+    (void)enable_shadow;
     nb_triangles++;
     if (!rasterizer_ena)
         return;
