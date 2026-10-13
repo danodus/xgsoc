@@ -44,6 +44,19 @@
 #define OP_SWAP 26
 #define OP_SET_TEX_ADDR 27
 #define OP_SET_FB_ADDR 28
+#define OP_SET_START_SU 29
+#define OP_SET_START_SV 30
+#define OP_SET_START_SZ 31
+#define OP_SET_DSU_DX 32
+#define OP_SET_DSU_DY 33
+#define OP_SET_DSV_DX 34
+#define OP_SET_DSV_DY 35
+#define OP_SET_DSZ_DX 36
+#define OP_SET_DSZ_DY 37
+#define OP_SET_VIEWPORT 38
+#define OP_SET_ZB_ADDR 39
+#define OP_SET_SHADOW 40
+#define OP_SET_SHADOW_PARAM 41
 
 #define MEM_WRITE(_addr_, _value_) (*((volatile unsigned int *)(_addr_)) = _value_)
 #define MEM_READ(_addr_) *((volatile unsigned int *)(_addr_))
@@ -73,7 +86,8 @@ typedef struct {
     int16_t x, y; // 12.4 fixed-point format
     fixed16 w; 
     fixed16 s, t;
-    fixed16 r, g, b; 
+    fixed16 r, g, b;
+    fixed16 su, sv, sz;
 } Vertex2;
 
 static inline int16_t min3(int16_t a, int16_t b, int16_t c) {
@@ -162,9 +176,6 @@ static inline int32_t eval_color_12_20(int64_t raw_start, int64_t raw_dx, int64_
 void xd_draw_triangle(vec3d p[3], vec2d t[3], vec3d c[3], texture_t* tex, bool clamp_s, bool clamp_t, int texture_scale_x, int texture_scale_y,
                       bool depth_test, bool perspective_correct, const vec3d* sh, bool depth_only, bool enable_shadow)
 {
-    (void)sh;
-    (void)depth_only;
-    (void)enable_shadow;
     nb_triangles++;
     if (!rasterizer_ena)
         return;
@@ -178,6 +189,10 @@ void xd_draw_triangle(vec3d p[3], vec2d t[3], vec3d c[3], texture_t* tex, bool c
     v0.x = FX32_TO_FIXED16(p[0].x) >> 12; v0.y = FX32_TO_FIXED16(p[0].y) >> 12; v0.w = FX32_TO_FIXED16(t[0].w); v0.s = FX32_TO_FIXED16(MUL(t[0].u, FXI(texture_width))); v0.t = FX32_TO_FIXED16(MUL(t[0].v, FXI(texture_height))); v0.r = FX32_TO_FIXED16(MUL(c[0].x, FXI(255))); v0.g = FX32_TO_FIXED16(MUL(c[0].y, FXI(255))); v0.b = FX32_TO_FIXED16(MUL(c[0].z, FXI(255)));
     v1.x = FX32_TO_FIXED16(p[1].x) >> 12; v1.y = FX32_TO_FIXED16(p[1].y) >> 12; v1.w = FX32_TO_FIXED16(t[1].w); v1.s = FX32_TO_FIXED16(MUL(t[1].u, FXI(texture_width))); v1.t = FX32_TO_FIXED16(MUL(t[1].v, FXI(texture_height))); v1.r = FX32_TO_FIXED16(MUL(c[1].x, FXI(255))); v1.g = FX32_TO_FIXED16(MUL(c[1].y, FXI(255))); v1.b = FX32_TO_FIXED16(MUL(c[1].z, FXI(255)));
     v2.x = FX32_TO_FIXED16(p[2].x) >> 12; v2.y = FX32_TO_FIXED16(p[2].y) >> 12; v2.w = FX32_TO_FIXED16(t[2].w); v2.s = FX32_TO_FIXED16(MUL(t[2].u, FXI(texture_width))); v2.t = FX32_TO_FIXED16(MUL(t[2].v, FXI(texture_height))); v2.r = FX32_TO_FIXED16(MUL(c[2].x, FXI(255))); v2.g = FX32_TO_FIXED16(MUL(c[2].y, FXI(255))); v2.b = FX32_TO_FIXED16(MUL(c[2].z, FXI(255)));
+    bool use_shadow = sh != NULL && (depth_only || enable_shadow);
+    v0.su = use_shadow ? FX32_TO_FIXED16(sh[0].x) : 0; v0.sv = use_shadow ? FX32_TO_FIXED16(sh[0].y) : 0; v0.sz = use_shadow ? FX32_TO_FIXED16(sh[0].z) : 0;
+    v1.su = use_shadow ? FX32_TO_FIXED16(sh[1].x) : 0; v1.sv = use_shadow ? FX32_TO_FIXED16(sh[1].y) : 0; v1.sz = use_shadow ? FX32_TO_FIXED16(sh[1].z) : 0;
+    v2.su = use_shadow ? FX32_TO_FIXED16(sh[2].x) : 0; v2.sv = use_shadow ? FX32_TO_FIXED16(sh[2].y) : 0; v2.sz = use_shadow ? FX32_TO_FIXED16(sh[2].z) : 0;
 
     // Sort vertices by Y coordinate
     if (v0.y > v1.y) { Vertex2 t = v0; v0 = v1; v1 = t; }
@@ -279,6 +294,28 @@ void xd_draw_triangle(vec3d p[3], vec2d t[3], vec3d c[3], texture_t* tex, bool c
     int32_t acc_g_w   = eval_color_12_20(raw_start_g, raw_dg_dx, raw_dg_dy, curr_x, curr_y);
     int32_t acc_b_w   = eval_color_12_20(raw_start_b, raw_db_dx, raw_db_dy, curr_x, curr_y);
 
+    int32_t su_at = 0, sv_at = 0, sz_at = 0;
+    int32_t su_dx = 0, su_dy = 0, sv_dx = 0, sv_dy = 0, sz_dx = 0, sz_dy = 0;
+    if (use_shadow) {
+        int64_t raw_dsu_dx = solve_gradient_fast(det, inv_det_23, shift, v1.su - v0.su, dy2, v2.su - v0.su, dy1);
+        int64_t raw_dsv_dx = solve_gradient_fast(det, inv_det_23, shift, v1.sv - v0.sv, dy2, v2.sv - v0.sv, dy1);
+        int64_t raw_dsz_dx = solve_gradient_fast(det, inv_det_23, shift, v1.sz - v0.sz, dy2, v2.sz - v0.sz, dy1);
+        int64_t raw_dsu_dy = solve_gradient_fast(det, inv_det_23, shift, v2.su - v0.su, dx1, v1.su - v0.su, dx2);
+        int64_t raw_dsv_dy = solve_gradient_fast(det, inv_det_23, shift, v2.sv - v0.sv, dx1, v1.sv - v0.sv, dx2);
+        int64_t raw_dsz_dy = solve_gradient_fast(det, inv_det_23, shift, v2.sz - v0.sz, dx1, v1.sz - v0.sz, dx2);
+        int64_t raw_start_su = ((int64_t)v0.su << 16) - mul_shr4(v0.x, raw_dsu_dx) - mul_shr4(v0.y, raw_dsu_dy);
+        int64_t raw_start_sv = ((int64_t)v0.sv << 16) - mul_shr4(v0.x, raw_dsv_dx) - mul_shr4(v0.y, raw_dsv_dy);
+        int64_t raw_start_sz = ((int64_t)v0.sz << 16) - mul_shr4(v0.x, raw_dsz_dx) - mul_shr4(v0.y, raw_dsz_dy);
+        su_dx = (int32_t)(raw_dsu_dx >> 14);
+        su_dy = (int32_t)(raw_dsu_dy >> 14);
+        sv_dx = (int32_t)(raw_dsv_dx >> 14);
+        sv_dy = (int32_t)(raw_dsv_dy >> 14);
+        sz_dx = (int32_t)(raw_dsz_dx >> 12);
+        sz_dy = (int32_t)(raw_dsz_dy >> 12);
+        su_at = (int32_t)(raw_start_su >> 14) + FAST_MUL32(curr_x, su_dx) + FAST_MUL32(curr_y, su_dy) + (su_dx >> 1) + (su_dy >> 1);
+        sv_at = (int32_t)(raw_start_sv >> 14) + FAST_MUL32(curr_x, sv_dx) + FAST_MUL32(curr_y, sv_dy) + (sv_dx >> 1) + (sv_dy >> 1);
+        sz_at = eval_color_12_20(raw_start_sz, raw_dsz_dx, raw_dsz_dy, curr_x, curr_y);
+    }
 
     uint32_t t2_tri_setup = MEM_READ(TIMER);
     t_tri_setup += t2_tri_setup - t1_tri_setup;
@@ -312,6 +349,18 @@ void xd_draw_triangle(vec3d p[3], vec2d t[3], vec3d c[3], texture_t* tex, bool c
     push_32(OP_SET_DB_DX, db_dx);
     push_32(OP_SET_DB_DY, db_dy);
 
+    if (use_shadow) {
+        push_32(OP_SET_START_SU, su_at);
+        push_32(OP_SET_START_SV, sv_at);
+        push_32(OP_SET_START_SZ, sz_at);
+        push_32(OP_SET_DSU_DX, su_dx);
+        push_32(OP_SET_DSU_DY, su_dy);
+        push_32(OP_SET_DSV_DX, sv_dx);
+        push_32(OP_SET_DSV_DY, sv_dy);
+        push_32(OP_SET_DSZ_DX, sz_dx);
+        push_32(OP_SET_DSZ_DY, sz_dy);
+    }
+
     struct Command cmd;
 
     cmd.opcode = OP_DRAW;
@@ -322,6 +371,10 @@ void xd_draw_triangle(vec3d p[3], vec2d t[3], vec3d c[3], texture_t* tex, bool c
 
     cmd.param |= texture_scale_x << 6;
     cmd.param |= texture_scale_y << 9;
+    if (depth_only)
+        cmd.param |= 1u << 12;
+    if (enable_shadow)
+        cmd.param |= 1u << 13;
 
     send_command(&cmd);
 
@@ -355,6 +408,32 @@ void set_texture(int texture)
     send_command(&cmd);
 }
 
+static void push_addr(uint32_t opcode, uint32_t addr)
+{
+    struct Command cmd;
+    cmd.opcode = opcode;
+    cmd.param = addr & 0xFFFF;
+    send_command(&cmd);
+    cmd.param = 0x10000 | ((addr >> 16) & 0xFFFF);
+    send_command(&cmd);
+}
+
+static void set_viewport(int w, int h)
+{
+    struct Command cmd;
+    cmd.opcode = OP_SET_VIEWPORT;
+    cmd.param = ((uint32_t)h << 12) | (uint32_t)w;
+    send_command(&cmd);
+}
+
+static void clear_depth(uint16_t value)
+{
+    struct Command cmd;
+    cmd.opcode = OP_CLEAR;
+    cmd.param = 0x010000u | value;
+    send_command(&cmd);
+}
+
 void swap()
 {
     struct Command cmd;
@@ -367,7 +446,7 @@ void swap()
 void print_help(void)
 {
     printf("[h]: help, [q]: quit, [s]: stats, [SPACE]: rotation,\r\n"
-        "[t]: texture, [l]: lighting, [g]: gouraud shading, [w]: wireframe, [m]: teapot/cube,\r\n"
+        "[t]: texture, [l]: lighting, [g]: gouraud shading, [w]: wireframe, [m]: teapot/cube, [M]: shadow floor,\r\n"
         "[u]: clamp s, [v] clamp t, [r] rasterizer ena, [p]: perspective correct\r\n"
         "[0]: texture 32x32, [1]: texture 64x64\r\n");
 }
@@ -392,6 +471,7 @@ void main(void)
     model_t *teapot_model = load_teapot();
 
     model_t *model = teapot_model;
+    model_t *floor_model = load_shadow_floor();
 
     bool quit = false;
     bool print_stats = false;
@@ -403,6 +483,7 @@ void main(void)
     bool clamp_t = false;
     bool perspective_correct = true;
     bool gouraud_shading = true;
+    bool show_shadow = false;
     int texture = 1;
 
     light_t lights[5];
@@ -451,6 +532,8 @@ void main(void)
                 } else {
                     model = cube_model;
                 }
+            } else if (c == 'M') {
+                show_shadow = !show_shadow;
             } else if (c == 'u') {
                 clamp_s = !clamp_s;
             } else if (c == 'v') {
@@ -487,13 +570,72 @@ void main(void)
         mat_world = matrix_multiply_matrix(&mat_world, &mat_trans);
         uint32_t t2_xform = MEM_READ(TIMER);
 
+        // Word addresses. The framebuffer base is BASE_VIDEO; depth follows the two color buffers.
+        uint32_t fb_pixels = (uint32_t)fb_width * (uint32_t)fb_height;
+        uint32_t depth_addr = (BASE_VIDEO >> 1) + 2u * fb_pixels;
+        uint32_t shadow_addr = (BASE_VIDEO >> 1) + 3u * fb_pixels;
+
+        vec3d light_pos;
+        mat4x4 light_view, light_proj;
+        shadow_draw_t sample_pass = {0};
+        if (show_shadow && rasterizer_ena) {
+            shadow_make_light(&light_pos, &light_view, &light_proj);
+            set_viewport(SHADOW_MAP_SIZE, SHADOW_MAP_SIZE);
+            push_addr(OP_SET_ZB_ADDR, shadow_addr);
+            clear_depth(0xFFFF);
+
+            shadow_draw_t depth_pass = {0};
+            depth_pass.z_near = FX(SHADOW_Z_NEAR);
+            depth_pass.z_far = FX(SHADOW_Z_FAR);
+            depth_pass.depth_only = true;
+            draw_model(SHADOW_MAP_SIZE, SHADOW_MAP_SIZE, &light_pos, model, &mat_world, NULL, &light_proj, &light_view,
+                       NULL, 0, false, NULL, false, false, 0, 0, false, &depth_pass);
+
+            set_viewport(fb_width, fb_height);
+            push_addr(OP_SET_ZB_ADDR, depth_addr);
+            push_addr(OP_SET_SHADOW, shadow_addr);
+            // Width scale: 0 = 32, 1 = 64, 2 = 128, 3 = 256. Bias sits in bits [21:6].
+            int shadow_scale = 0;
+            for (int n = SHADOW_MAP_SIZE; n > 32; n >>= 1)
+                ++shadow_scale;
+            struct Command cmd;
+            cmd.opcode = OP_SET_SHADOW_PARAM;
+            cmd.param = (SHADOW_BIAS << 6) | (shadow_scale << 3) | shadow_scale;
+            send_command(&cmd);
+
+            sample_pass.light_view = &light_view;
+            sample_pass.light_proj = &light_proj;
+            sample_pass.map_size = SHADOW_MAP_SIZE;
+            sample_pass.z_near = FX(SHADOW_Z_NEAR);
+            sample_pass.z_far = FX(SHADOW_Z_FAR);
+            sample_pass.sample = true;
+        }
+
+        // The floor is below the model. Step back and down while it is shown so the shadow is in frame.
+        vec3d eye = vec_camera;
+        mat4x4 view = mat_view;
+        if (show_shadow) {
+            eye = (vec3d){FX(0.0f), FX(-1.2f), FX(-4.0f), FX(1.0f)};
+            vec3d target = {FX(0.0f), FX(-1.2f), FX(0.0f), FX(1.0f)};
+            vec3d up = {FX(0.0f), FX(1.0f), FX(0.0f), FX(1.0f)};
+            mat4x4 cam = matrix_point_at(&eye, &target, &up);
+            view = matrix_quick_inverse(&cam);
+        }
+
         uint32_t t1_draw = MEM_READ(TIMER);
         set_texture(texture);
         texture_t dummy_texture;
         nb_triangles = 0;
         t_tri_setup = 0;
         t_tri_raster = 0;
-        draw_model(fb_width, fb_height, &vec_camera, model, &mat_world, gouraud_shading ? &mat_normal : NULL, &mat_proj, &mat_view, lights, nb_lights, is_wireframe, is_textured ? &dummy_texture : NULL, clamp_s, clamp_t, texture > 0 ? 1 : 0, texture > 0 ? 1 : 0, perspective_correct);
+        draw_model(fb_width, fb_height, &eye, model, &mat_world, gouraud_shading ? &mat_normal : NULL, &mat_proj, &view, lights, nb_lights, is_wireframe, is_textured ? &dummy_texture : NULL, clamp_s, clamp_t, texture > 0 ? 1 : 0, texture > 0 ? 1 : 0, perspective_correct, NULL);
+        if (show_shadow && rasterizer_ena) {
+            // The shared floor is centered at z=2, where the sim places the model.
+            // This scene keeps the model at z=5, so slide the plane with it.
+            mat4x4 mat_floor = matrix_make_translation(FX(0.0f), FX(0.0f), FX(3.0f));
+            draw_model(fb_width, fb_height, &eye, floor_model, &mat_floor, NULL, &mat_proj, &view, NULL, 0,
+                       false, NULL, false, false, 0, 0, perspective_correct, &sample_pass);
+        }
         uint32_t t2_draw = MEM_READ(TIMER);
 
         swap();
