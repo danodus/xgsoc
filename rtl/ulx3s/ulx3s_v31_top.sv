@@ -85,13 +85,14 @@ module ulx3s_v31_top(
     assign clk_pixel = clocks_video[1]; // 25 MHz
 `endif // VIDEO
 
-    logic clk_cpu, clk_sdram;
+    logic clk_cpu, clk_sdram, clk_usb;
     logic pll_main_locked;
 
     pll_main pll_main(
         .clkin(clk_25mhz),
         .clkout0(clk_sdram),
         .clkout1(clk_cpu),
+        .clkout2(clk_usb),
         .locked(pll_main_locked)
     );
 
@@ -115,6 +116,7 @@ module ulx3s_v31_top(
     ) soc_top(
         .clk_cpu(clk_cpu),
         .clk_sdram(clk_sdram),
+        .clk_usb(clk_usb),
 `ifdef VIDEO
         .clk_pixel(clk_pixel),
 `endif // VIDEO

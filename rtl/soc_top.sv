@@ -35,6 +35,7 @@ module soc_top #(
 ) (
     input  wire logic        clk_cpu,
     input  wire logic        clk_sdram,
+    input  wire logic        clk_usb,
 `ifdef VIDEO
     input  wire logic        clk_pixel,
 `endif // VIDEO
@@ -344,9 +345,19 @@ module soc_top #(
     logic [1:0] utmi_linestate, utmi_op_mode, utmi_xcvrselect;
     logic [7:0] utmi_data_out, utmi_data_in;
 
+    // Release reset in the USB clock domain. rst_n is synchronous to clk_cpu.
+    logic [1:0] usb_rst_sync;
+    always_ff @(posedge clk_usb or negedge rst_n) begin
+        if (!rst_n)
+            usb_rst_sync <= 2'b00;
+        else
+            usb_rst_sync <= {usb_rst_sync[0], 1'b1};
+    end
+    wire rst_usb = ~usb_rst_sync[1];
+
     PHY utmi_phy (
-        .clk_i(clk_cpu),
-        .rst_i(~rst_n),
+        .clk_i(clk_usb),
+        .rst_i(rst_usb),
 
         .utmi_data_out_i(utmi_data_out),
         .utmi_txvalid_i(utmi_txvalid),
@@ -372,8 +383,10 @@ module soc_top #(
     );
 
     REGS usb_regs (
-        .clk_i(clk_cpu),
+        .clk_cpu(clk_cpu),
+        .clk_usb(clk_usb),
         .rst_i(~rst_n),
+        .rst_usb_i(rst_usb),
         .led_o(),
 
         .m_sel(ioenb & adr[6]),

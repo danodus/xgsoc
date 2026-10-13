@@ -15,7 +15,7 @@ The documentation is available here: https://danodus.github.io/xgsoc/
 - Graphite 2D/3D graphics accelerator (textured triangles)
 - PS/2 Keyboard
 - PS/2 Mouse
-- USB host for keyboard and mouse (experimental)
+- USB host for keyboard and mouse
 - SD Card with hardware SPI
 
 # Requirements
@@ -86,9 +86,7 @@ The PS/2 keyboard and PS/2 mouse must be connected to USB1 and USB2 respectively
 | g          | Graphite              |
 | k          | PS/2 Keyboard         |
 | m          | PS/2 Mouse            |
-| u          | USB Host (*)          |
-
-(*) Experimental (USB host requires a CPU clock of 48 MHz instead of the default 25 MHz)
+| u          | USB Host              |
 
 By default, the configuration is `bvgkm`.
 

@@ -43,6 +43,7 @@ module top (
     (
         .clk_cpu(clk),
         .clk_sdram(clk_sdram),
+        .clk_usb(clk),
         .clk_pixel(clk),
         .reset_i(reset_i),
 

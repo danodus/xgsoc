@@ -176,6 +176,11 @@ void do_request_step(REQ *req)
             req->len -= (req->len >= req->size) ? req->size : req->len;
             req->buf += req->size;
             req->toggle = 1 - req->toggle;
+            // A short packet ends the transfer. Boot mice send 3 or 4
+            // bytes, so waiting for the full 8-byte request drops a click
+            // until a later movement report fills the buffer.
+            if (req->size < req->maxsz)
+                req->len = 0;
             if (req->len == 0)
                 req->state = rq_next_state(req);
             req->resp = REQ_OK;

@@ -111,27 +111,39 @@ module PHY (
   // TX free-running clock and RX PLL clock
   //-----------------------------------------------------------------
 
-  // When sending the counter is freerunning. When receiving, keep receive
-  // edges close to counter==0. Sample in middle, every 4 clocks for FS and
-  // every 32 clocks for LS
+  // clk_i is 60 MHz: 5x the 12 Mbps full-speed bit clock and 40x the
+  // 1.5 Mbps low-speed bit clock. When sending, the counter free-runs.
+  // When receiving, keep receive edges close to counter==0 and sample
+  // the middle of the bit (phase 2 of 5, or phase 20 of 40).
 
-  reg [4:0] clk_ctr;
+  localparam [5:0] FS_PHASE_MAX = 6'd4;   // 5 clocks per full-speed bit
+  localparam [5:0] LS_PHASE_MAX = 6'd39;  // 40 clocks per low-speed bit
+  localparam [5:0] FS_SAMPLE    = 6'd2;   // middle of 0..4
+  localparam [5:0] LS_SAMPLE    = 6'd20;  // middle of 0..39
+
+  reg [5:0] clk_ctr;
   reg       in_prev;
 
   wire slow_tick = is_LS | (is_PRE & (rx_mode | in_PRE));
-  wire bit_tick  = (slow_tick ? (clk_ctr == 5'd14) : (clk_ctr[1:0] == 2'd1));
-  wire ctr_is_0  =  slow_tick ? (clk_ctr == 5'd0)  : (clk_ctr[1:0] == 2'd0);
+  wire [5:0] phase_max = slow_tick ? LS_PHASE_MAX : FS_PHASE_MAX;
+  wire bit_tick  = (clk_ctr == (slow_tick ? LS_SAMPLE : FS_SAMPLE));
+  wire ctr_is_0  = (clk_ctr == 6'd0);
 
   wire bit_edge  = in_prev ^ rx_J;
 
   always @ (posedge clk_i or posedge rst_i) begin
     if (rst_i) begin
       in_prev <= 1'b0;
-      clk_ctr <= 5'd0;
+      clk_ctr <= 6'd0;
       end
     else begin
       in_prev <= rx_J;
-      clk_ctr <= (bit_edge && (state < S_TX_SYNC)) ? 5'd0 : clk_ctr + 5'd1;
+      if (bit_edge && (state < S_TX_SYNC))
+        clk_ctr <= 6'd0;
+      else if (clk_ctr == phase_max)
+        clk_ctr <= 6'd0;
+      else
+        clk_ctr <= clk_ctr + 6'd1;
     end
   end
 

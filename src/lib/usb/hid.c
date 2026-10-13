@@ -8,6 +8,7 @@
 #include <stdio.h>
 #include <stddef.h>
 #include <stdlib.h>
+#include <string.h>
 
 uint32_t now_ms(void);
 
@@ -47,6 +48,7 @@ void drv_hid(TASK *task, uint8_t *config)
         printf("HID connected\n");
         
         task->data = malloc(sizeof(struct hid_data));
+        memset(task->data, 0, sizeof(struct hid_data));
         while (1) {
             if ((iface = find_desc(config, IFC_ID)) == NULL)
                 break;
@@ -97,8 +99,9 @@ void drv_hid(TASK *task, uint8_t *config)
         task->when = now_ms() + 10;
         if (task->req->resp == REQ_OK) {
             local->ms_toggle = task->req->toggle;
-            printf("MOUSE: ");
-            for(int i=0; i<8; i++) printf("%x ", local->ms_pkt[i]);
+            printf("MOUSE:");
+            for (int i = 0; i < task->req->size && i < 8; i++)
+                printf(" %x", local->ms_pkt[i]);
             printf("\n");
         }
         return;
