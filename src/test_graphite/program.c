@@ -105,6 +105,7 @@ extern uint16_t tex64x64[];
 
 int nb_triangles;
 bool rasterizer_ena = true;
+bool enable_dither = false;
 
 uint32_t t_tri_setup, t_tri_raster;
 
@@ -375,6 +376,8 @@ void xd_draw_triangle(vec3d p[3], vec2d t[3], vec3d c[3], texture_t* tex, bool c
         cmd.param |= 1u << 12;
     if (enable_shadow)
         cmd.param |= 1u << 13;
+    if (enable_dither)
+        cmd.param |= 1u << 22;
 
     send_command(&cmd);
 
@@ -447,7 +450,7 @@ void print_help(void)
 {
     printf("[h]: help, [q]: quit, [s]: stats, [SPACE]: rotation,\r\n"
         "[t]: texture, [l]: lighting, [g]: gouraud shading, [w]: wireframe, [m]: teapot/cube, [M]: shadow floor,\r\n"
-        "[u]: clamp s, [v] clamp t, [r] rasterizer ena, [p]: perspective correct\r\n"
+        "[u]: clamp s, [v] clamp t, [r] rasterizer ena, [p]: perspective correct, [b]: bayer dither\r\n"
         "[0]: texture 32x32, [1]: texture 64x64\r\n");
 }
 
@@ -544,6 +547,8 @@ void main(void)
                 perspective_correct = !perspective_correct;
             } else if (c == 'g') {
                 gouraud_shading = !gouraud_shading;
+            } else if (c == 'b') {
+                enable_dither = !enable_dither;
             } else if (c == '0') {
                 texture = 0;
             } else if (c == '1') {
