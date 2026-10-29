@@ -105,7 +105,6 @@ extern uint16_t tex64x64[];
 
 int nb_triangles;
 bool rasterizer_ena = true;
-bool enable_dither = false;
 
 uint32_t t_tri_setup, t_tri_raster;
 
@@ -175,7 +174,8 @@ static inline int32_t eval_color_12_20(int64_t raw_start, int64_t raw_dx, int64_
 };
 
 void xd_draw_triangle(vec3d p[3], vec2d t[3], vec3d c[3], texture_t* tex, bool clamp_s, bool clamp_t, int texture_scale_x, int texture_scale_y,
-                      bool depth_test, bool perspective_correct, const vec3d* sh, bool depth_only, bool enable_shadow)
+                      bool depth_test, bool perspective_correct, const vec3d* sh, bool depth_only, bool enable_shadow,
+                      bool dither, bool alpha_blend)
 {
     nb_triangles++;
     if (!rasterizer_ena)
@@ -376,8 +376,10 @@ void xd_draw_triangle(vec3d p[3], vec2d t[3], vec3d c[3], texture_t* tex, bool c
         cmd.param |= 1u << 12;
     if (enable_shadow)
         cmd.param |= 1u << 13;
-    if (enable_dither)
+    if (dither)
         cmd.param |= 1u << 22;
+    if (alpha_blend)
+        cmd.param |= 1u << 23;
 
     send_command(&cmd);
 
@@ -449,9 +451,9 @@ void swap()
 void print_help(void)
 {
     printf("[h]: help, [q]: quit, [s]: stats, [SPACE]: rotation,\r\n"
-        "[t]: texture, [l]: lighting, [g]: gouraud shading, [w]: wireframe, [m]: teapot/cube, [M]: shadow floor,\r\n"
-        "[u]: clamp s, [v] clamp t, [r] rasterizer ena, [p]: perspective correct, [b]: bayer dither\r\n"
-        "[0]: texture 32x32, [1]: texture 64x64\r\n");
+        "[1]: cube, [2]: teapot, [m]: shadow floor, [t]: texture, [l]: lighting, [g]: gouraud shading, [w]: wireframe,\r\n"
+        "[u]: clamp s, [v] clamp t, [r] rasterizer ena, [p]: perspective correct, [b]: bayer dither, [n]: alpha blend\r\n"
+        "[5]: texture 32x32, [6]: texture 64x64\r\n");
 }
 
 void main(void)
@@ -473,7 +475,7 @@ void main(void)
     model_t *cube_model = load_cube();
     model_t *teapot_model = load_teapot();
 
-    model_t *model = teapot_model;
+    model_t *model = cube_model;
     model_t *floor_model = load_shadow_floor();
 
     bool quit = false;
@@ -487,6 +489,8 @@ void main(void)
     bool perspective_correct = true;
     bool gouraud_shading = true;
     bool show_shadow = false;
+    bool enable_dither = false;
+    bool enable_alpha_blend = false;
     int texture = 1;
 
     light_t lights[5];
@@ -529,13 +533,11 @@ void main(void)
                 nb_lights = (nb_lights + 1) % 6;
             } else if (c == 'w') {
                 is_wireframe = !is_wireframe;
+            } else if (c == '1') {
+                model = cube_model;
+            } else if (c == '2') {
+                model = teapot_model;
             } else if (c == 'm') {
-                if (model == cube_model) {
-                    model = teapot_model;
-                } else {
-                    model = cube_model;
-                }
-            } else if (c == 'M') {
                 show_shadow = !show_shadow;
             } else if (c == 'u') {
                 clamp_s = !clamp_s;
@@ -549,9 +551,11 @@ void main(void)
                 gouraud_shading = !gouraud_shading;
             } else if (c == 'b') {
                 enable_dither = !enable_dither;
-            } else if (c == '0') {
+            } else if (c == 'n') {
+                enable_alpha_blend = !enable_alpha_blend;
+            } else if (c == '5') {
                 texture = 0;
-            } else if (c == '1') {
+            } else if (c == '6') {
                 texture = 1;
             }
         }
@@ -594,7 +598,7 @@ void main(void)
             depth_pass.z_far = FX(SHADOW_Z_FAR);
             depth_pass.depth_only = true;
             draw_model(SHADOW_MAP_SIZE, SHADOW_MAP_SIZE, &light_pos, model, &mat_world, NULL, &light_proj, &light_view,
-                       NULL, 0, false, NULL, false, false, 0, 0, false, &depth_pass);
+                       NULL, 0, false, NULL, false, false, 0, 0, false, false, false, &depth_pass);
 
             set_viewport(fb_width, fb_height);
             push_addr(OP_SET_ZB_ADDR, depth_addr);
@@ -633,13 +637,13 @@ void main(void)
         nb_triangles = 0;
         t_tri_setup = 0;
         t_tri_raster = 0;
-        draw_model(fb_width, fb_height, &eye, model, &mat_world, gouraud_shading ? &mat_normal : NULL, &mat_proj, &view, lights, nb_lights, is_wireframe, is_textured ? &dummy_texture : NULL, clamp_s, clamp_t, texture > 0 ? 1 : 0, texture > 0 ? 1 : 0, perspective_correct, NULL);
+        draw_model(fb_width, fb_height, &eye, model, &mat_world, gouraud_shading ? &mat_normal : NULL, &mat_proj, &view, lights, nb_lights, is_wireframe, is_textured ? &dummy_texture : NULL, clamp_s, clamp_t, texture > 0 ? 1 : 0, texture > 0 ? 1 : 0, perspective_correct, enable_dither, enable_alpha_blend, NULL);
         if (show_shadow && rasterizer_ena) {
             // The shared floor is centered at z=2, where the sim places the model.
             // This scene keeps the model at z=5, so slide the plane with it.
             mat4x4 mat_floor = matrix_make_translation(FX(0.0f), FX(0.0f), FX(3.0f));
             draw_model(fb_width, fb_height, &eye, floor_model, &mat_floor, NULL, &mat_proj, &view, NULL, 0,
-                       false, NULL, false, false, 0, 0, perspective_correct, &sample_pass);
+                       false, NULL, false, false, 0, 0, perspective_correct, false, false, &sample_pass);
         }
         uint32_t t2_draw = MEM_READ(TIMER);
 
