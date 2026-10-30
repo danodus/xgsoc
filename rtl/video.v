@@ -36,6 +36,13 @@ module video #(
 ) (
     input clk, pclk, ce,
     input [31:0] viddata,
+`ifdef HDMI
+    // Transmitter beam. rgb during cycle cx is what the encoder emits as
+    // screen pixel cx-1, so the line is prefetched one pixel early.
+    input [CORDW-1:0] cx,
+    input [CORDW-1:0] cy,
+    input vid_ready,       // pixel FIFO has a word
+`endif
     output reg req,  // SRAM read request
     output hsync, vsync,  // to display
     output de,
@@ -45,14 +52,21 @@ module video #(
   localparam H_TOTAL = H_RES + H_FP + H_SYNC + H_BP;
   localparam V_TOTAL = V_RES + V_FP + V_SYNC + V_BP;
 
+`ifdef HDMI
+wire [CORDW-1:0] hcnt = cx;
+wire [CORDW-1:0] vcnt = cy;
+`else
 reg [CORDW-1:0] hcnt;
 reg [CORDW-1:0] vcnt;
+`endif
 reg hword;  // from hcnt, but latched in the clk domain
 reg [31:0] vidbuf, pixbuf;
 reg hblank;
 wire hend, vend, vblank, xfer;
 wire [15:0] vid;
+`ifndef HDMI
 reg [1:0] init_req_counter;
+`endif
 
 assign de = !(hblank|vblank);
 
@@ -68,6 +82,41 @@ assign xfer = hcnt[0];
 assign vid = (~hblank & ~vblank) ? pixbuf[15:0] : 16'd0;
 assign RGB = vid;
 
+`ifdef HDMI
+// The beam free-runs. An empty FIFO repeats the last pixel instead of
+// stalling, which would unlock the transmitter. The FIFO is refilled from
+// framebuffer address 0 during vertical blank (see soc_top), and the first
+// word of each line is popped on the last blanking pixel so screen pixel 0
+// is framebuffer pixel 0.
+wire next_line_active = (vcnt == V_TOTAL-1) || (vcnt < V_RES-1);
+wire prefetch = (hcnt == H_TOTAL-2) && next_line_active;
+`ifdef ZOOM
+// Four output pixels per FIFO word: each source pixel is doubled.
+wire pair = ~vblank && (hcnt[1:0] == 2'b10) && (hcnt <= H_RES-6);
+`else
+wire pair = ~vblank && ~hcnt[0] && (hcnt <= H_RES-4);
+`endif
+wire want = prefetch || pair;
+
+always @(posedge pclk) begin
+  hblank <= (hcnt == 0) ? 1'b0 : ((hcnt >= H_RES) ? 1'b1 : hblank);
+  hword <= xfer;
+  if (want && !vid_ready) begin
+    req <= 1'b0;
+  end else begin
+    req <= want;
+    vidbuf <= req ? viddata : vidbuf;
+`ifdef ZOOM
+    if (hcnt[1:0] == 2'b00)
+      pixbuf <= vidbuf;
+    else if (hcnt[1:0] == 2'b10)
+      pixbuf <= {16'd0, pixbuf[31:16]};
+`else
+    pixbuf <= hcnt[0] ? {16'd0, pixbuf[31:16]} : vidbuf;
+`endif
+  end
+end
+`else
 always @(posedge pclk) if(ce && init_req_counter == 2'd0) begin  // pixel clock domain
   hcnt <= hend ? 0 : hcnt+1;
   vcnt <= hend ? (vend ? 0 : (vcnt+1)) : vcnt;
@@ -98,5 +147,6 @@ end else begin
   req <= 0;
   init_req_counter <= 2'd2;
 end
+`endif
 
 endmodule

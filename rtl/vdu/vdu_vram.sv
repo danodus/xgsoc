@@ -7,6 +7,9 @@ module vdu_vram #(
     parameter INIT_FILE = ""
     ) (
     input  wire logic        clk,
+`ifdef HDMI
+    input  wire logic        clk_pix,
+`endif
     input  wire logic        sel_i,
     input  wire logic        wr_en_i,
     input  wire logic [3:0]  wr_mask_i,
@@ -52,7 +55,15 @@ module vdu_vram #(
             end
             data_out_o <= mem_array[addr];
         end
+`ifndef HDMI
+        sec_data_out_o <= mem_array[sec_addr];
+`endif
+    end
+
+`ifdef HDMI
+    always_ff @(posedge clk_pix) begin
         sec_data_out_o <= mem_array[sec_addr];
     end
+`endif
 
 endmodule

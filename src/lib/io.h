@@ -20,6 +20,7 @@
 #define PS2_MOUSE_DATA   (BASE_IO + 48)
 #define PS2_MOUSE_STATUS (BASE_IO + 52)
 #define CONFIG4          (BASE_IO + 56)
+#define PCM              (BASE_IO + 60)
 
 #define MEM_WRITE(_addr_, _value_) (*((volatile unsigned int *)(_addr_)) = _value_)
 #define MEM_READ(_addr_) *((volatile unsigned int *)(_addr_))

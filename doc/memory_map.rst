@@ -25,5 +25,6 @@ CONFIG (2)          BASE_IO + 40
 CONFIG (3)          BASE_IO + 44
 PS2_MOUSE           BASE_IO + 48
 CONFIG (4)          BASE_IO + 56
+PCM                 BASE_IO + 60
 USB                 BASE_IO + 64
 ==================  ===============

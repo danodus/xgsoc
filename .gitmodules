@@ -1,3 +1,6 @@
 [submodule "external/graphite"]
 	path = external/graphite
 	url = https://github.com/danodus/graphite
+[submodule "external/ecp5_hdmi_audio_video"]
+	path = external/ecp5_hdmi_audio_video
+	url = https://github.com/danodus/ecp5_hdmi_audio_video

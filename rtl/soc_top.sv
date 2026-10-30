@@ -38,6 +38,15 @@ module soc_top #(
     input  wire logic        clk_usb,
 `ifdef VIDEO
     input  wire logic        clk_pixel,
+`ifdef HDMI
+    input  wire logic [11:0] beam_x_i,
+    input  wire logic [11:0] beam_y_i,
+`endif // HDMI
+`ifdef AUDIO
+    input  wire logic        sample_strobe_i,
+    output      logic [15:0] audio_l_o,
+    output      logic [15:0] audio_r_o,
+`endif // AUDIO
 `endif // VIDEO
     input  wire logic        reset_i,
     // UART
@@ -104,8 +113,9 @@ module soc_top #(
     // 12 PS2 mouse data / --
     // 13 PS2 mouse status / --
     // 14 hw configuration / --
+    // 15 PCM sample / PCM status
 
-    logic is_simulation, is_graphite_avail, is_usb_avail, is_ps2_mouse_avail, is_ps2_kbd_avail, is_video_avail;
+    logic is_simulation, is_graphite_avail, is_usb_avail, is_ps2_mouse_avail, is_ps2_kbd_avail, is_video_avail, is_audio_avail;
 `ifndef SYNTHESIS
     assign is_simulation = 1;
 `else
@@ -135,6 +145,11 @@ module soc_top #(
     assign is_video_avail = 1;
 `else
     assign is_video_avail = 0;
+`endif
+`ifdef AUDIO
+    assign is_audio_avail = 1;
+`else
+    assign is_audio_avail = 0;
 `endif
 
 `ifdef VIDEO_FB    
@@ -318,7 +333,16 @@ module soc_top #(
         .V_BP(33)     // vertical back porch
 `endif
     )video(.clk(clk_cpu), .ce(qready), .pclk(clk_pixel), .req(dspreq),
-    .viddata(inbusvid), .de(de), .RGB(RGB565), .hsync(vga_hsync), .vsync(vga_vsync));
+    .viddata(inbusvid),
+`ifdef HDMI
+`ifdef VIDEO_1080P
+    .cx(beam_x_i), .cy(beam_y_i),
+`else
+    .cx(beam_x_i[10:0]), .cy(beam_y_i[10:0]),
+`endif
+    .vid_ready(!empty),
+`endif // HDMI
+    .de(de), .RGB(RGB565), .hsync(vga_hsync), .vsync(vga_vsync));
 `endif // VIDEO
 
 `ifdef PS2_KBD
@@ -478,6 +502,11 @@ module soc_top #(
     vdu vdu(
         .clk(clk_cpu),
         .reset_i(~rst_n),
+`ifdef HDMI
+        .clk_pix(clk_pixel),
+        .cx(beam_x_i),
+        .cy(beam_y_i),
+`endif
 
         .sel_i(vdu_sel),
         .wr_en_i(cpu_we),
@@ -499,6 +528,42 @@ module soc_top #(
 
 `endif // VIDEO_VDU
 
+`ifdef AUDIO
+    logic pcm_full;
+    logic pcm_empty;
+    logic [31:0] pcm_rd_data;
+    wire pcm_wr = cpu_ce && wr && ioenb && (iowadr == 5'd15) && !pcm_full;
+    wire pcm_rd = sample_strobe_i && !pcm_empty;
+
+    pcm_fifo pcm_fifo_inst (
+        .clk_wr(clk_cpu),
+        .clk_rd(clk_pixel),
+        .rst_n(rst_n),
+        .wr_en(pcm_wr),
+        .wr_data(outbus),
+        .full(pcm_full),
+        .rd_en(pcm_rd),
+        .rd_data(pcm_rd_data),
+        .empty(pcm_empty)
+    );
+
+    // sample_strobe captures the sample already on audio_* (same edge as hdmi).
+    // Load the following sample, or silence when the FIFO is empty.
+    always_ff @(posedge clk_pixel or negedge rst_n) begin
+        if (!rst_n) begin
+            audio_l_o <= 16'd0;
+            audio_r_o <= 16'd0;
+        end else if (sample_strobe_i) begin
+            if (!pcm_empty) begin
+                audio_l_o <= pcm_rd_data[15:0];
+                audio_r_o <= pcm_rd_data[31:16];
+            end else begin
+                audio_l_o <= 16'd0;
+                audio_r_o <= 16'd0;
+            end
+        end
+    end
+`endif // AUDIO
 
     assign inbus = ~ioenb ? inbus0 :
     ((iowadr == 0) ? cnt1 :
@@ -540,7 +605,10 @@ module soc_top #(
         (iowadr == 12) ? {32'b0} :
         (iowadr == 13) ? {32'b0} :
 `endif // PS2_MOUSE
-        (iowadr == 14) ? {is_simulation, 26'b0, is_graphite_avail, is_usb_avail, is_ps2_mouse_avail, is_ps2_kbd_avail, is_video_avail} :
+`ifdef AUDIO
+        (iowadr == 15) ? {31'b0, ~pcm_full} :
+`endif // AUDIO
+        (iowadr == 14) ? {is_simulation, 25'b0, is_audio_avail, is_graphite_avail, is_usb_avail, is_ps2_mouse_avail, is_ps2_kbd_avail, is_video_avail} :
 `ifdef USB
         (iowadr >= 16 && iowadr < 32) ? sie_di :
 `endif // USB
@@ -795,6 +863,25 @@ module soc_top #(
     logic [15:0] video_din;
     logic        vd1 = 1'b0;
     logic        almost_empty, almost_empty2;
+`ifdef HDMI
+    // The transmitter restarts at (0,0) on reset while this FIFO keeps its
+    // phase, so the picture origin changed every time reset was released.
+    // Once per frame, at the start of vertical blank, discard the FIFO and
+    // read the framebuffer from address 0 again before active video.
+    localparam logic [1:0] VID_RUN   = 2'd0;
+    localparam logic [1:0] VID_DRAIN = 2'd1;
+    localparam logic [1:0] VID_RESET = 2'd2;
+    localparam logic [1:0] VID_HOLD  = 2'd3;
+    logic [1:0] vid_phase = VID_RUN;
+    logic [1:0] vid_flush_sync;
+    logic [1:0] vid_quiet;
+    logic       vid_flush_req = 1'b0;
+    logic       vid_flush_hold = 1'b0;
+    logic       vid_wr_reset = 1'b0;
+    logic       vid_rd_reset = 1'b0;
+    logic       vid_hold_meta, vid_hold_sync;
+    logic [1:0] vid_rd_rst_cnt = 2'd0;
+`endif
     vqueue #(
        .almost_empty(128),
        .almost_empty2(512),
@@ -811,9 +898,34 @@ module soc_top #(
       .AlmostFull(),
       .AlmostEmpty(almost_empty), // output prog_empty
       .AlmostEmpty2(almost_empty2),
-      .Reset(),
-      .RPReset()
+`ifdef HDMI
+      .Reset(vid_wr_reset),
+      .RPReset(vid_rd_reset)
+`else
+      .Reset(1'b0),
+      .RPReset(1'b0)
+`endif
     );
+
+`ifdef HDMI
+    always_ff @(posedge clk_pixel) begin
+        vid_hold_meta <= vid_flush_hold;
+        vid_hold_sync <= vid_hold_meta;
+        if (!vid_hold_sync) begin
+            vid_rd_rst_cnt <= 2'd0;
+            vid_rd_reset <= 1'b0;
+        end else if (vid_rd_rst_cnt != 2'd2) begin
+            vid_rd_reset <= 1'b1;
+            vid_rd_rst_cnt <= vid_rd_rst_cnt + 2'd1;
+        end else begin
+            vid_rd_reset <= 1'b0;
+        end
+        if (beam_y_i == 12'(V_RES) && beam_x_i == 12'd0)
+            vid_flush_req <= 1'b1;
+        else if (vid_hold_sync && vid_rd_rst_cnt == 2'd2)
+            vid_flush_req <= 1'b0;
+    end
+`endif
 
 `ifdef ZOOM
     logic [10:0] col_counter = 11'd0;
@@ -833,7 +945,54 @@ module soc_top #(
     always_ff @(posedge clk_sdram) begin
         nop <= sys_cmd_ack == 2'b00;
 `ifdef VIDEO_FB
-        if(almost_empty2) cntrl0_user_command_register <= 2'b10;		// read 32 bytes VGA
+`ifdef HDMI
+        vid_flush_sync <= {vid_flush_sync[0], vid_flush_req};
+        case (vid_phase)
+            VID_RUN: begin
+                vid_quiet <= 2'd0;
+                vid_flush_hold <= 1'b0;
+                vid_wr_reset <= 1'b0;
+                if (vid_flush_sync[1])
+                    vid_phase <= VID_DRAIN;
+            end
+            VID_DRAIN: begin
+                vid_flush_hold <= 1'b0;
+                vid_wr_reset <= 1'b0;
+                if ((sys_cmd_ack == 2'b10) || (sys_rd_data_valid && !crw))
+                    vid_quiet <= 2'd0;
+                else if (vid_quiet != 2'd3)
+                    vid_quiet <= vid_quiet + 2'd1;
+                if (vid_quiet == 2'd3)
+                    vid_phase <= VID_RESET;
+            end
+            VID_RESET: begin
+                vid_phase <= VID_HOLD;
+                vid_flush_hold <= 1'b1;
+                vid_wr_reset <= 1'b1;
+                vid_quiet <= 2'd0;
+                vidadr <= 20'd0;
+`ifdef ZOOM
+                col_counter <= 11'd0;
+                line_counter <= 11'd0;
+                line_vidadr <= 20'd0;
+`endif
+            end
+            default: begin
+                vid_wr_reset <= 1'b0;
+                vid_quiet <= 2'd0;
+                if (!vid_flush_sync[1]) begin
+                    vid_phase <= VID_RUN;
+                    vid_flush_hold <= 1'b0;
+                end else begin
+                    vid_flush_hold <= 1'b1;
+                end
+            end
+        endcase
+        if (vid_phase == VID_RUN && almost_empty2)
+`else
+        if(almost_empty2)
+`endif
+            cntrl0_user_command_register <= 2'b10;		// read 32 bytes VGA
         else
 `endif // VIDEO_FB
         if(ddr_wr) cntrl0_user_command_register <= 2'b01;		// write 256 bytes cache
@@ -844,6 +1003,9 @@ module soc_top #(
 `ifdef VIDEO_FB
             2'b10: begin
                 crw <= 1'b0;	// VGA read
+`ifdef HDMI
+                if (vid_phase == VID_RUN) begin
+`endif
 `ifdef ZOOM
                 if (col_counter == 11'd0)
                     line_vidadr <= vidadr;
@@ -865,6 +1027,9 @@ module soc_top #(
                 if(vidadr == 20'(H_RES*V_RES*2/32-1)) vidadr <= 20'd0;
                 else vidadr <= vidadr + 20'b1;
 `endif // ZOOM
+`ifdef HDMI
+                end
+`endif
             end
 `endif // VIDEO_FB
             2'b01, 2'b11: crw <= 1'b1;	// cache read/write			
@@ -873,10 +1038,19 @@ module soc_top #(
         endcase
 
 `ifdef VIDEO_FB
+`ifdef HDMI
+        if (vid_phase == VID_RUN && !crw && sys_rd_data_valid) begin
+            vd1 <= !vd1;
+            video_din <= sys_DOUT;
+        end else if (vid_phase != VID_RUN) begin
+            vd1 <= 1'b0;
+        end
+`else
         if(!crw && sys_rd_data_valid) begin
             vd1 <= !vd1;
             video_din <= sys_DOUT;
         end
+`endif
 `endif // VIDEO_FB
     end
     

@@ -19,6 +19,7 @@ XGSoC
    ps2_kbd.rst
    graphite.rst
    config.rst
+   audio.rst
    ps2_mouse.rst
 
 Indices and tables

@@ -9,8 +9,8 @@ module vqueue
   input RdClock,
   input WrEn,
   input RdEn,
-  input Reset, // unused
-  input RPReset, // unused
+  input Reset,
+  input RPReset,
   input [31:0] Data, 
   output [31:0] Q, 
   output Empty,
@@ -24,7 +24,9 @@ module vqueue
 
   always @(posedge WrClock)
   begin
-    if(WrEn == 1'b1)
+    if (Reset)
+      wraddr <= 0;
+    else if (WrEn == 1'b1)
       wraddr <= wraddr + 1;
   end
   
@@ -36,7 +38,9 @@ module vqueue
 
   always @(posedge RdClock)
   begin
-    if(RdEn == 1'b1 && addr_diff != 0)
+    if (RPReset)
+      rdaddr <= 0;
+    else if (RdEn == 1'b1 && addr_diff != 0)
       rdaddr <= rdaddr_next;
   end
 

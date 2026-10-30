@@ -12,3 +12,4 @@ Features
 - PS/2 Mouse
 - USB host for keyboard and mouse (experimental)
 - SD Card with hardware SPI
+- HDMI stereo PCM audio (48 kHz)

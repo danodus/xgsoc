@@ -101,6 +101,11 @@ module ulx3s_v31_top(
 `ifdef VIDEO
     logic vga_hsync, vga_vsync, vga_blank;
     logic [7:0] vga_r, vga_g, vga_b;
+    logic [11:0] beam_x, beam_y;
+`ifdef AUDIO
+    logic        sample_strobe;
+    logic [15:0] audio_l, audio_r;
+`endif // AUDIO
 `endif // VIDEO
 
     logic pll_locked;
@@ -140,6 +145,13 @@ module ulx3s_v31_top(
         .vga_r_o(vga_r),
         .vga_g_o(vga_g),
         .vga_b_o(vga_b),
+        .beam_x_i(beam_x),
+        .beam_y_i(beam_y),
+`ifdef AUDIO
+        .sample_strobe_i(sample_strobe),
+        .audio_l_o(audio_l),
+        .audio_r_o(audio_r),
+`endif // AUDIO
 `endif // VIDEO
 `ifdef PS2_KBD
         // PS/2 keyboard
@@ -171,18 +183,30 @@ module ulx3s_v31_top(
     );
 
 `ifdef VIDEO
-    // VGA to digital video converter
-    hdmi_interface hdmi_interface_instance(
-      .pixel_clk(clk_pixel),
-      .pixel_clk_x5(clk_shift),
-      .red(vga_r),
-      .green(vga_g),
-      .blue(vga_b),
-      .vde(~vga_blank),
-      .hsync(vga_hsync),
-      .vsync(vga_vsync),
-      .gpdi_dp(gpdi_dp),
-      .gpdi_dn()
+    hdmi_av #(
+        .CLK_HZ(pixel_clock_hz),
+`ifdef AUDIO
+        .DVI_OUTPUT(1'b0)
+`else
+        .DVI_OUTPUT(1'b1)
+`endif
+    ) hdmi_av_inst (
+        .clk_pixel(clk_pixel),
+        .clk_pixel_x5(clk_shift),
+        .reset(!pll_locked | ~btn[0]),
+        .rgb({vga_r, vga_g, vga_b}),
+`ifdef AUDIO
+        .audio_left(audio_l),
+        .audio_right(audio_r),
+        .sample_strobe(sample_strobe),
+`else
+        .audio_left(16'd0),
+        .audio_right(16'd0),
+        .sample_strobe(),
+`endif
+        .gpdi_dp(gpdi_dp),
+        .cx(beam_x),
+        .cy(beam_y)
     );
 `endif // VIDEO
 

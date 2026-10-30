@@ -81,6 +81,7 @@ Field   Description
 [2]     Is PS/2 mouse available?
 [3]     Is USB host available?
 [4]     Is Graphite available?
+[5]     Is HDMI PCM audio available?
 [31]    Is simulation?
 ======= ============================
 

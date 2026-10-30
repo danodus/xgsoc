@@ -38,7 +38,6 @@ SRC = \
   ../vdu/vdu.sv \
   ../vdu/vdu_vram.sv \
   ../vdu/vdu_display_timings.sv \
-  ../dvi/hdmi_interface.v \
   ../../external/graphite/rtl/graphite.sv \
   ../../external/graphite/rtl/graphite_command_processor.sv \
   ../../external/graphite/rtl/graphite_rasterizer.v \
@@ -48,7 +47,7 @@ SRC = \
 DEFINES =
 
 ifneq (,$(findstring v,$(CONF)))
-  DEFINES += -DVIDEO
+  DEFINES += -DVIDEO -DHDMI
 
   ifneq (,$(findstring d,$(CONF)))
     DEFINES += -DVIDEO_VDU
@@ -80,6 +79,20 @@ ifneq (,$(findstring v,$(CONF)))
   DEFINES += -DVIDEO_1080P
   endif
 
+  SRC += \
+    ../hdmi_av.sv \
+    ../../external/ecp5_hdmi_audio_video/rtl/hdmi.v \
+    ../../external/ecp5_hdmi_audio_video/rtl/hdmi_audio_clk_gen.v \
+    ../../external/ecp5_hdmi_audio_video/rtl/hdmi_audio_clock_regeneration_packet.v \
+    ../../external/ecp5_hdmi_audio_video/rtl/hdmi_audio_info_frame.v \
+    ../../external/ecp5_hdmi_audio_video/rtl/hdmi_audio_sample_packet.v \
+    ../../external/ecp5_hdmi_audio_video/rtl/hdmi_auxiliary_video_information_info_frame.v \
+    ../../external/ecp5_hdmi_audio_video/rtl/hdmi_packet_assembler.v \
+    ../../external/ecp5_hdmi_audio_video/rtl/hdmi_packet_picker.v \
+    ../../external/ecp5_hdmi_audio_video/rtl/hdmi_serializer_ecp5.v \
+    ../../external/ecp5_hdmi_audio_video/rtl/hdmi_source_product_description_info_frame.v \
+    ../../external/ecp5_hdmi_audio_video/rtl/hdmi_tmds_channel.v
+
 endif
 
 ifneq (,$(findstring k,$(CONF)))
@@ -88,6 +101,16 @@ endif
 
 ifneq (,$(findstring m,$(CONF)))
   DEFINES += -DPS2_MOUSE
+endif
+
+# PCM playback needs the framebuffer path (letter v, not the VDU letter d).
+ifneq (,$(findstring v,$(CONF)))
+ifneq (,$(findstring a,$(CONF)))
+ifeq (,$(findstring d,$(CONF)))
+  DEFINES += -DAUDIO
+  SRC += ../pcm_fifo.sv
+endif
+endif
 endif
 
 all: firmware top.bin

@@ -17,6 +17,7 @@ The documentation is available here: https://danodus.github.io/xgsoc/
 - PS/2 Mouse
 - USB host for keyboard and mouse
 - SD Card with hardware SPI
+- HDMI stereo PCM audio (48 kHz)
 
 # Requirements
 
@@ -87,6 +88,7 @@ The PS/2 keyboard and PS/2 mouse must be connected to USB1 and USB2 respectively
 | k          | PS/2 Keyboard         |
 | m          | PS/2 Mouse            |
 | u          | USB Host              |
+| a          | HDMI PCM audio        |
 
 By default, the configuration is `bvgkm`.
 
@@ -141,6 +143,7 @@ The following programs are available:
 | test_usb        | Test USB host                                       | `bu`          |
 | test_video      | Test video display                                  | `bv`          |
 | test_graphite   | Test graphite subsystem                             | `bvg`         |
+| test_audio      | Stereo PCM tone on HDMI (440 Hz / 880 Hz)           | `bva`         |
 
 # Write Bootable Image
 

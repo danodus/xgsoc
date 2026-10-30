@@ -5,6 +5,11 @@
 module vdu(
     input wire  logic        clk,
     input wire  logic        reset_i,
+`ifdef HDMI
+    input wire  logic        clk_pix,
+    input wire  logic [11:0] cx,
+    input wire  logic [11:0] cy,
+`endif
 
     input  wire logic        sel_i,
     input  wire logic        wr_en_i,
@@ -24,9 +29,41 @@ module vdu(
 
     // display timings
     localparam CORDW = 16;
+`ifdef HDMI
+    // Same porch order as vdu_display_timings, counted from the HDMI beam:
+    // active pixels first, then blanking. `line` pulses at the first blanking
+    // pixel of the line that is about to become active.
+`ifdef VIDEO_480P
+    localparam [11:0] FRAME_H = 12'd517;
+`elsif VIDEO_720P
+    localparam [11:0] FRAME_H = 12'd750;
+`elsif VIDEO_1080P
+    localparam [11:0] FRAME_H = 12'd1125;
+`else
+    localparam [11:0] FRAME_H = 12'd525;
+`endif
+    wire de = (cx < 12'd640) && (cy < 12'd480);
+    wire [11:0] next_line = (cy == FRAME_H - 12'd1) ? 12'd0 : cy + 12'd1;
+    wire line = (cx == 12'd640) && (next_line < 12'd480);
+    wire frame = (cx == 12'd640) && (cy == 12'd479);
+    wire sy0 = next_line[0];
+    wire sx0 = cx[0];
+
+    logic [1:0] disp_rst_sync;
+    always_ff @(posedge clk_pix or posedge reset_i) begin
+        if (reset_i)
+            disp_rst_sync <= 2'b11;
+        else
+            disp_rst_sync <= {disp_rst_sync[0], 1'b0};
+    end
+    wire disp_reset = disp_rst_sync[1];
+`else
     logic signed [CORDW-1:0] sx, sy;
     logic hsync, vsync, de, frame, line;
-    
+    wire sy0 = sy[0];
+    wire sx0 = sx[0];
+    wire disp_reset = reset_i;
+
     vdu_display_timings display_timings(
         .clk_pix(clk),
         .rst(reset_i),
@@ -38,6 +75,7 @@ module vdu(
         .frame(frame),
         .line(line)
     );
+`endif
 
     // palette
     logic [23:0] palette[256];
@@ -88,22 +126,31 @@ module vdu(
     end
 
     // video display
+`ifdef HDMI
+    always_ff @(posedge clk_pix) begin
+`else
     always_ff @(posedge clk) begin
-        if (reset_i) begin
+`endif
+        if (disp_reset) begin
             base_address <= 15'h0;
             line_address <= 15'h0;
             pixel_counter <= 2'd0;
             data <= 32'h0;
         end else begin
+`ifdef HDMI
+            vga_hsync_o <= (cx >= 12'd656) && (cx < 12'd752);
+            vga_vsync_o <= (cy >= 12'd490) && (cy < 12'd492);
+`else
             vga_hsync_o <= hsync;
             vga_vsync_o <= vsync;
+`endif
             vga_de_o    <= de;
             if (frame) begin
                 base_address <= 15'h0;
                 line_address <= 15'h0;
             end
             if (line) begin
-                if (sy[0]) begin
+                if (sy0) begin
                     base_address <= base_address + 320/4;
                     line_address <= base_address;
                 end else begin
@@ -111,7 +158,7 @@ module vdu(
                 end
             end
             if (de) begin
-                if (!sx[0]) begin
+                if (!sx0) begin
                     pixel_counter <= pixel_counter + 1;
                     if (pixel_counter == 2'd0) begin
                         data <= data_out;
@@ -127,9 +174,12 @@ module vdu(
     end
 
     vdu_vram #(
-        .SIZE(128*1024/4)
+        .SIZE(75*1024/4)
     ) vram(
         .clk(clk),
+`ifdef HDMI
+        .clk_pix(clk_pix),
+`endif
         .sel_i(sel_i & ~address_in_i[15]),
         .wr_en_i(wr_en_i),
         .wr_mask_i(wr_mask_i),

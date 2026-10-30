@@ -75,6 +75,8 @@ void main(void)
         print("m");
     if (hw_conf & 0x8)
         print("u");
+    if (hw_conf & 0x20)
+        print("a");
 
     print("\r\n\r\n");
 
