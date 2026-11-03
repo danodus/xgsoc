@@ -3,6 +3,7 @@
 
 `include "rv32_alu.sv"
 `include "rv32_branch.sv"
+`include "rv32_csrs.sv"
 `include "rv32_fpu.sv"
 
 module rv32_execute #(
@@ -81,6 +82,9 @@ module rv32_execute #(
     input [31:0] imm_value_in,
     input [11:0] csr_in,
     input [31:2] instr_fpu_in,
+    input [2:0] frm_in,
+    input [2:0] frm_bypass_in,
+    input frm_bypass_en_in,
 
     /* data in (from writeback) */
     input [31:0] writeback_rd_value_in,
@@ -116,7 +120,9 @@ module rv32_execute #(
     output logic [31:0] rs2_value_out,
     output logic [31:0] imm_value_out,
     output logic [11:0] csr_out,
-    output logic [31:0] branch_pc_out
+    output logic [31:0] branch_pc_out,
+    output logic [4:0] fflags_out,
+    output logic fflags_valid_out
 );
     /* bypassing */
     logic [31:0] rs1_value;
@@ -177,7 +183,19 @@ module rv32_execute #(
                            (alu_src2_in == `RV32_ALU_SRC2_FOUR) &&
                            rd_write_in;
 
-    assign fpu_wr = fpu_en_in && rd_write_in && !external_stall_in && !fpu_hold && !alu_div_busy;
+    /* Dynamic rm uses frm. A reserved frm is illegal before the FPU starts,
+     * so the op raises no flags. */
+    wire [2:0] frm_eff = frm_bypass_en_in ? frm_bypass_in : frm_in;
+    wire fused_fp = (instr_fpu_in[6:5] == 2'b10) && !instr_fpu_in[4];
+    wire op_fp_rm = instr_fpu_in[4] && (instr_fpu_in[6:5] == 2'b10) &&
+                    ((instr_fpu_in[31:27] == 5'b00000) || (instr_fpu_in[31:27] == 5'b00001) ||
+                     (instr_fpu_in[31:27] == 5'b00010) || (instr_fpu_in[31:27] == 5'b00011) ||
+                     (instr_fpu_in[31:27] == 5'b01011) || (instr_fpu_in[31:27] == 5'b11000) ||
+                     (instr_fpu_in[31:27] == 5'b11010));
+    wire fpu_rm_bad = fpu_en_in && (fused_fp || op_fp_rm) &&
+                      (instr_fpu_in[14:12] == 3'b111) && (frm_eff > 3'd4);
+
+    assign fpu_wr = fpu_en_in && rd_write_in && !external_stall_in && !fpu_hold && !alu_div_busy && !fpu_rm_bad;
     /* Stall for the wr cycle and while the unit is working. The cycle after
      * busy falls has fpu_hold still set and alu_was_busy=1 for commit. */
     assign fpu_busy_for_hazard = fpu_wr || (fpu_hold && fpu_busy);
@@ -248,16 +266,22 @@ module rv32_execute #(
         .busy_out(alu_div_busy)
     );
 
+    logic [4:0] fpu_fflags;
+
     rv32_fpu fpu (
         .clk(clk),
+        .reset(reset),
         .ce(ce_i),
         .wr(fpu_wr),
         .instr(instr_fpu_in),
+        .frm(frm_eff),
         .rs1(rs1_value),
         .rs2(rs2_value),
         .rs3(rs3_value_in),
         .busy(fpu_busy),
-        .out(fpu_out)
+        .out(fpu_out),
+        .fflags(fpu_fflags),
+        .fflags_valid()
     );
 
     /* branch target calculation */
@@ -298,6 +322,8 @@ module rv32_execute #(
                 mret_out <= 0;
                 rd_write_out <= 0;
                 rd_fp_out <= 0;
+                fflags_out <= 0;
+                fflags_valid_out <= 0;
             end else if (stall_in && !external_stall_in) begin
                 /* Bubble EX→MEM while multi-cycle op runs. Clear rd_write so
                  * MEM does not retire a stale result (FPU 0+4 / old ALU). Hazard
@@ -317,14 +343,21 @@ module rv32_execute #(
                 mret_out <= 0;
                 rd_write_out <= 0;
                 rd_fp_out <= 0;
+                fflags_out <= 0;
+                fflags_valid_out <= 0;
             end else if (!stall_in) begin
                 if (alu_was_busy || (fpu_hold && !fpu_busy && was_fpu_saved)) begin
-                    /* Div/FPU commit: only this cycle should write the regfile. */
+                    /* Div/FPU commit: only this cycle should write the regfile.
+                     * fflags stays registered in the FPU after fflags_valid's
+                     * one-cycle pulse, so a stalled commit still samples it. */
                     result_out <= was_fpu_saved ? fpu_out : alu_result;
                     rd_out <= rd_out_saved;
                     rd_write_out <= rd_write_out_saved;
                     rd_fp_out <= rd_fp_saved;
+                    fflags_out <= was_fpu_saved ? fpu_fflags : 5'b0;
+                    fflags_valid_out <= was_fpu_saved;
                     valid_out <= 1;
+                    exception_out <= 0;
                     mem_read_out <= 0;
                     mem_write_out <= 0;
                     csr_read_out <= 0;
@@ -333,6 +366,39 @@ module rv32_execute #(
                     ecall_out <= 0;
                     ebreak_out <= 0;
                     mret_out <= 0;
+                end else if (fpu_rm_bad) begin
+                    /* Same retire as a normal instruction, then trap. Do not
+                     * use the FPU bubble path: that clears exception and pc. */
+                    branch_predicted_taken_out <= branch_predicted_taken_in;
+                    branch_misaligned_out <= branch_misaligned;
+                    valid_out <= 0;
+                    exception_out <= 1;
+                    exception_cause_out <= `RV32_MCAUSE_INSTR_ILLEGAL_EXCEPTION;
+                    mem_read_out <= 0;
+                    mem_write_out <= 0;
+                    mem_width_out <= mem_width_in;
+                    mem_zero_extend_out <= mem_zero_extend_in;
+                    mem_fence_out <= 0;
+                    csr_read_out <= 0;
+                    csr_write_out <= 0;
+                    csr_write_op_out <= csr_write_op_in;
+                    csr_src_out <= csr_src_in;
+                    branch_op_out <= `RV32_BRANCH_OP_NEVER;
+                    ecall_out <= 0;
+                    ebreak_out <= 0;
+                    mret_out <= 0;
+                    rd_out <= rd_in;
+                    rd_write_out <= 0;
+                    rd_fp_out <= 0;
+                    pc_out <= pc_in;
+                    rs1_value_out <= rs1_value;
+                    rs2_value_out <= rs2_value;
+                    imm_value_out <= imm_value_in;
+                    csr_out <= csr_in;
+                    branch_pc_out <= branch_pc;
+                    result_out <= 0;
+                    fflags_out <= 0;
+                    fflags_valid_out <= 0;
                 end else if (fpu_en_in && rd_write_in) begin
                     /* Must not fall through to alu_result (0+4 canary). Bubble;
                      * fpu_wr/hold should prevent this path — safety net only. */
@@ -349,6 +415,8 @@ module rv32_execute #(
                     mret_out <= 0;
                     rd_write_out <= 0;
                     rd_fp_out <= 0;
+                    fflags_out <= 0;
+                    fflags_valid_out <= 0;
                 end else begin
 `ifdef RISCV_FORMAL
                     intr_out <= intr_in;
@@ -388,6 +456,8 @@ module rv32_execute #(
                     /* ZERO+FOUR is only the FPU inert ALU placeholder (JAL adds
                      * pc_incr). Never retire 0+4 if OP-FP lost fpu_en. */
                     result_out <= fpu_alu_inert ? fpu_out : alu_result;
+                    fflags_out <= 0;
+                    fflags_valid_out <= 0;
                 end
             end
         end
@@ -410,6 +480,8 @@ module rv32_execute #(
             rd_out <= 0;
             rd_write_out <= 0;
             rd_fp_out <= 0;
+            fflags_out <= 0;
+            fflags_valid_out <= 0;
             rs2_value_out <= 0;
             branch_pc_out <= 0;
             result_out <= 0;

@@ -182,6 +182,10 @@ module rv32_csrs (
     /* control in (from writeback) */
     input instr_retired_in,
 
+    /* accrued FP flags for the instruction retiring in this stage */
+    input fflags_acc_in,
+    input [4:0] fflags_in,
+
     /* data in */
     input [31:0] pc_in,
     input [11:0] csr_in,
@@ -194,7 +198,12 @@ module rv32_csrs (
     /* data out */
     output logic [31:0] read_value_out,
     output logic [31:0] trap_pc_out,
-    output logic [63:0] cycle_out
+    output logic [63:0] cycle_out,
+
+    /* frm for a younger FP op still in execute */
+    output logic [2:0] frm_out,
+    output logic [2:0] frm_bypass_out,
+    output logic frm_bypass_en_out
 );
     logic [31:0] write_value;
     logic [31:0] new_value;
@@ -216,15 +225,22 @@ module rv32_csrs (
     logic mip_msip;
     logic [63:0] cycle;
     logic [63:0] instret;
+    logic [4:0] fflags;
+    logic [2:0] frm;
 
     assign write_value = src_in ? rs1_value_in : imm_value_in;
     assign cycle_out = cycle;
+    assign frm_out = frm;
+    /* A CSR write of frm/fcsr is visible to an FP op issued in the same cycle. */
+    assign frm_bypass_en_out = write_in && !stall_in && !flush_in &&
+                               ((csr_in == `RV32_CSR_FRM) || (csr_in == `RV32_CSR_FCSR));
+    assign frm_bypass_out = (csr_in == `RV32_CSR_FCSR) ? new_value[7:5] : new_value[2:0];
 
     always_comb begin
         case (csr_in)
-            `RV32_CSR_FFLAGS:         read_value_out = 32'b0;
-            `RV32_CSR_FRM:            read_value_out = 32'b0;
-            `RV32_CSR_FCSR:           read_value_out = 32'b0;
+            `RV32_CSR_FFLAGS:         read_value_out = {27'b0, fflags};
+            `RV32_CSR_FRM:            read_value_out = {29'b0, frm};
+            `RV32_CSR_FCSR:           read_value_out = {24'b0, frm, fflags};
             `RV32_CSR_MSTATUS:        read_value_out = {19'b0, 2'b11, 3'b0, mstatus_mpie, 3'b0, mstatus_mie, 3'b0};
             `RV32_CSR_MISA:           read_value_out = `RV32_MISA_VALUE;
             `RV32_CSR_MIE:            read_value_out = {20'b0, mie_meie, 3'b0, mie_mtie, 3'b0, mie_msie, 3'b0};
@@ -386,6 +402,9 @@ module rv32_csrs (
             if (!stall_in && !flush_in) begin
                 if (write_in) begin
                     case (csr_in)
+                        `RV32_CSR_FFLAGS:   fflags <= new_value[4:0];
+                        `RV32_CSR_FRM:      frm <= new_value[2:0];
+                        `RV32_CSR_FCSR:     {frm, fflags} <= new_value[7:0];
                         `RV32_CSR_MSTATUS:  {mstatus_mpie, mstatus_mie} <= {new_value[7], new_value[3]};
                         `RV32_CSR_MIE:      {mie_meie, mie_mtie, mie_msie} <= {new_value[11], new_value[7], new_value[3]};
                         `RV32_CSR_MTVEC:    {mtvec_base, mtvec_mode} <= {new_value[31:2], new_value[0]};
@@ -395,6 +414,12 @@ module rv32_csrs (
                         `RV32_CSR_MTVAL:    mtval <= new_value;
                     endcase
                 end
+
+                /* Accrue after a CSR write so a same-instruction write wins.
+                 * An FP op is never also a write of fflags/fcsr. */
+                if (fflags_acc_in &&
+                    !(write_in && ((csr_in == `RV32_CSR_FFLAGS) || (csr_in == `RV32_CSR_FCSR))))
+                    fflags <= fflags | fflags_in;
 
                 if (exception_in) begin
                     mepc <= pc_in[31:1];
@@ -416,6 +441,8 @@ module rv32_csrs (
             mstatus_mie <= 0;
             mcause_interrupt <= 0;
             mcause_code <= 0;
+            fflags <= 5'b0;
+            frm <= 3'b000;
         end
     end
 endmodule

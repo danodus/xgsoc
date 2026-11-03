@@ -187,6 +187,11 @@ module rv32_core #(
     logic [31:0] execute_imm_value;
     logic [11:0] execute_csr;
     logic [31:0] execute_branch_pc;
+    logic [4:0] execute_fflags;
+    logic execute_fflags_valid;
+    logic [2:0] frm;
+    logic [2:0] frm_bypass;
+    logic frm_bypass_en;
 
 `ifdef RISCV_FORMAL
     /* mem -> writeback debug control */
@@ -513,6 +518,9 @@ module rv32_core #(
         .imm_value_in(decode_imm_value),
         .csr_in(decode_csr),
         .instr_fpu_in(decode_instr_fpu),
+        .frm_in(frm),
+        .frm_bypass_in(frm_bypass),
+        .frm_bypass_en_in(frm_bypass_en),
 
         /* data in (from writeback) */
         .writeback_rd_value_in(mem_rd_value),
@@ -548,7 +556,9 @@ module rv32_core #(
         .rs2_value_out(execute_rs2_value),
         .imm_value_out(execute_imm_value),
         .csr_out(execute_csr),
-        .branch_pc_out(execute_branch_pc)
+        .branch_pc_out(execute_branch_pc),
+        .fflags_out(execute_fflags),
+        .fflags_valid_out(execute_fflags_valid)
     );
 
     rv32_mem mem (
@@ -622,6 +632,8 @@ module rv32_core #(
         .rs2_value_in(execute_rs2_value),
         .imm_value_in(execute_imm_value),
         .csr_in(execute_csr),
+        .fflags_valid_in(execute_fflags_valid),
+        .fflags_in(execute_fflags),
         .branch_pc_in(execute_branch_pc),
 
         /* data in (from memory bus) */
@@ -650,7 +662,11 @@ module rv32_core #(
         .data_write_value_out(data_write_value_out),
 
         /* data out (to timer) */
-        .cycle_out(cycle_out)
+        .cycle_out(cycle_out),
+
+        .frm_out(frm),
+        .frm_bypass_out(frm_bypass),
+        .frm_bypass_en_out(frm_bypass_en)
     );
 
     rv32_writeback writeback (

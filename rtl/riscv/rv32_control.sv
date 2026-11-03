@@ -709,7 +709,28 @@ module rv32_control_unit (
                             (instr_in[31:28] == 4'b1111);
             end
         endcase
+
+        /* Reserved static rounding modes are illegal. Dynamic rm is checked
+         * in execute, once frm is known. */
+        if (fp_uses_rm(instr_in) &&
+            ((instr_in[14:12] == 3'b101) || (instr_in[14:12] == 3'b110)))
+            valid_out = 0;
     end
+
+    function automatic logic fp_uses_rm(input [31:0] instr);
+        logic fused;
+        logic op_fp_rm;
+        begin
+            fused = (instr[6:0] == 7'b1000011) || (instr[6:0] == 7'b1000111) ||
+                    (instr[6:0] == 7'b1001011) || (instr[6:0] == 7'b1001111);
+            op_fp_rm = (instr[6:0] == 7'b1010011) &&
+                       ((instr[31:27] == 5'b00000) || (instr[31:27] == 5'b00001) ||
+                        (instr[31:27] == 5'b00010) || (instr[31:27] == 5'b00011) ||
+                        (instr[31:27] == 5'b01011) || (instr[31:27] == 5'b11000) ||
+                        (instr[31:27] == 5'b11010));
+            fp_uses_rm = fused || op_fp_rm;
+        end
+    endfunction
 endmodule
 
 `endif

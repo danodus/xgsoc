@@ -1,0 +1,4 @@
+obj_dir/
+softfloat/build/Linux-x86_64-GCC/*.o
+softfloat/build/Linux-x86_64-GCC/*.d
+softfloat/build/Linux-x86_64-GCC/*.a

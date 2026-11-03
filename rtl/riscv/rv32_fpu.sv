@@ -1,854 +1,933 @@
-// Based on FemtoRV32 PetitBateau available here: https://github.com/BrunoLevy/learn-fpga/blob/master/FemtoRV/RTL/PROCESSOR/petitbateau.v
-// Copyright (c) 2020-2021, Bruno Levy
-// License: BSD 3-Clause
-
-// A simple single-precision RISC-V FPU
-//   Mission statement: achieve a good area/performance ratio, by
-//   implementing a full-precision FMA (48 bits), and micro-programmed
-//   Newton-Raphson for FDIV and FSQRT (that reuse the FMA).
-// 
-// Rounding works as follows:
-// - all subnormals are flushed to zero
-// - FADD, FSUB, FMUL, FMADD, FMSUB, FNMADD, FNMSUB: IEEE754 round to zero
-// - FDIV and FSQRT do not have correct rounding
-//   if PRECISE_DIV is set (default), then FDIV rounding is validated in 
-//      tinyraytracer test. Complete proof remains to be done
+// RISC-V F / IEEE 754-2008 binary32 FPU.
 //
-// [TODO] add FPU CSR (and instret for perf stat)]
-// [TODO] correct IEEE754 round to zero for FDIV and FSQRT
-// [TODO] support IEEE754 denormals
-// [TODO] NaNs propagation and infinity
-// [TODO] support all IEEE754 rounding modes
-// TODO: instead of mux between A,B,C and FMA, make FMA always compute
-//       A*B+C and mux rs1,rs2,rs3,1.0,0.0 to A,B,C based on instr (mux
-//       will be more complicated but will probably reduce overall
-//       critical path) ?
-// TODO: there are too many different paths between the internal registers,
-//       maybe micro-instructions could be redesigned with this in mind.
-//       A could be the MSBs of X, avoiding all MV_A_X instructions.
-// TODO: the necessity to copy rs1 in E without flushing denormals for
-//       the int-to-fp instructions is unelegant.
+// Five rounding modes (RNE, RTZ, RDN, RUP, RMM), subnormals, signed zeros,
+// infinities, RISC-V canonical NaNs, and accrued exception flags.
+// Division and square root are restoring significand digit recurrences.
+// Arithmetic NaNs are the canonical quiet NaN 0x7fc00000. No exception traps.
+//
+// The pipeline contract matches the previous unit: wr starts an operation,
+// busy is high while it runs, and out/fflags stay valid through the commit
+// cycle after busy falls.
 
 `ifndef RV32_FPU
 `define RV32_FPU
 
-// Check condition and display message in simulation
-`ifdef BENCH
- `define ASSERT(cond,msg) if(!(cond)) $display msg
- `define ASSERT_NOT_REACHED(msg) $display msg
-`else
- `define ASSERT(cond,msg)
- `define ASSERT_NOT_REACHED(msg)
-`endif
-
-module rv32_fpu(
-   input 	     clk,
-   input         ce,
-   input 	     wr,    // write strobe, starts computation
-   input [31:2]      instr, // current riscv instruction		   
-
-   // operands		   
-   input [31:0]      rs1,
-   input [31:0]      rs2,
-   input [31:0]      rs3,
-
-   // outputs		   
-   output 	 busy,
-   output [31:0] out 	
+module rv32_fpu (
+    input             clk,
+    input             reset,
+    input             ce,
+    input             wr,
+    input      [31:2] instr,
+    input      [2:0]  frm,
+    input      [31:0] rs1,
+    input      [31:0] rs2,
+    input      [31:0] rs3,
+    output            busy,
+    output     [31:0] out,
+    output     [4:0]  fflags,
+    output            fflags_valid
 );
 
-   // Set to 1 for higher-precision FDIV (costs 30 additional cycles per FDIV)
-   parameter PRECISE_DIV = 1;
-
-   
-   // Uncomment the line below to emulate all FPU instructions in Verilator
-   // (useful to test instruction decoder and implementations of micro-instr
-   // in C++). See SIM/FPU_funcs.{h,cpp}
-//`define FPU_EMUL
-
-   // Two high-resolution registers for the FMA, that computes X+Y
-   // Register X has the accumulator / shifters / leading zero counter
-   // Normalized if first bit set is bit 47
-   // Represented number is +/- frac * 2^(exp-127-47)
-   
-   reg X_sign; reg signed [8:0] X_exp; reg signed [49:0] X_frac;
-   reg Y_sign; reg signed [8:0] Y_exp; reg signed [49:0] Y_frac;
-   
-   // FPU output = 32 MSBs of X register (see below)
-   // A macro to easily write to it (`X <= ...),
-   // used when FPU output is an integer.
-   `define X {X_sign, X_exp[7:0], X_frac[46:24]}
-   assign out = `X;
-   
-   // Five single-precision floating-point registers for internal use.
-   // A,B,C are wired to the FMA that computes either A*B+C or A+B
-   // D,E are temporaries used by FDIV and FSQRT
-   // Following IEEE754, represented number is +/- frac * 2^(exp-127-23)
-   // (127: bias  23: position of first bit set for normalized numbers)
-   reg A_sign; reg [7:0] A_exp; reg [23:0] A_frac;
-   reg B_sign; reg [7:0] B_exp; reg [23:0] B_frac;
-   reg C_sign; reg [7:0] C_exp; reg [23:0] C_frac;
-   reg D_sign; reg [7:0] D_exp; reg [23:0] D_frac;
-   reg E_sign; reg [7:0] E_exp; reg [23:0] E_frac;
-   
-   /*************************************************************************/
-
-   // Load a 32-bit value in RD
-   // RD:  one of A,B,C,D,E
-   // VAL: a 32-bit value
-   `define FP_LD32(RD,VAL)         \
-         {RD``_sign, RD``_exp, RD``_frac[22:0]} <= VAL; RD``_frac[23] <= 1'b1
-	 
-   // Load floating point value in RD by sign, exponent, fraction
-   // RD: one of A,B,C,D,E
-   // sign: 1'b1 (-) or 1'b0 (+)
-   // exp: 8-bits, biased exponent
-   // frac: 24-bit fraction
-   `define FP_LD(RD,sign,eexp,frac) \
-         {RD``_sign, RD``_exp, RD``_frac} <= {sign,eexp,frac}
-	 
-   // RD <= RS
-   // RD,RS: one of A,B,C,D,E
-   `define FP_MV(RD,RS)            \
-         {RD``_sign, RD``_exp, RD``_frac} <= {RS``_sign, RS``_exp, RS``_frac}
-
-   /** FPU micro-instructions and ROM ****************************************/
-
-   
-   localparam FPMI_READY           = 0; 
-   localparam FPMI_LOAD_XY         = 1;   // X <- A; Y <- B
-   localparam FPMI_LOAD_XY_MUL     = 2;   // X <- norm(A*B); Y <- C
-   localparam FPMI_ADD_SWAP        = 3;   // if |X|>|Y| swap(X,Y);
-                                          // if sign(X) != sign(Y) X <- -X
-   localparam FPMI_ADD_SHIFT       = 4;   // shift X to match Y exponent
-   localparam FPMI_ADD_ADD         = 5;   // X <- X + Y   
-   localparam FPMI_ADD_NORM        = 6;   // X <- norm(X) (after ADD_ADD)
-   
-   localparam FPMI_CMP             = 7;   // X <- test X,Y (FEQ,FLE,FLT)
-
-   localparam FPMI_MV_A_X          =  8;  // A <- X
-   localparam FPMI_MV_B_D          =  9;  // B <- D
-   localparam FPMI_MV_B_NH_D       = 10;  // B <- -0.5*|D|
-   localparam FPMI_MV_B_E          = 11;  // B <- E
-   localparam FPMI_MV_C_A          = 12;  // C <- A
-   localparam FPMI_MV_E_X          = 13;  // E <- X
-
-   localparam FPMI_FRCP_PROLOG     = 14;  // init reciprocal (1/x) 
-   localparam FPMI_FRCP_ITER1      = 15;  // iteration for reciprocal
-   localparam FPMI_FRCP_ITER2      = 16;  // iteration for reciprocal   
-   localparam FPMI_FRCP_EPILOG     = 17;  // epilog for reciprocal
-   localparam FPMI_FDIV_EPILOG     = 18;  // epilog for fdiv IEEE-754 rounding
-   
-   localparam FPMI_FRSQRT_PROLOG   = 19;  // init recipr sqr root (1/sqrt(x))
-   
-   localparam FPMI_FP_TO_INT       = 20;  // fpuOut <- fpoint_to_int(A)
-   localparam FPMI_INT_TO_FP       = 21;  // X <- int_to_fpoint(X)
-   localparam FPMI_MIN_MAX         = 22;  // fpuOut <- min/max(X,Y) 
-
-   localparam FPMI_LOAD_Y_ROUND    = 23;  // Y <- round to nearest
-   
-   localparam FPMI_NB              = 24;
-
-   // Instruction exit flag (if set in current micro-instr, exit microprogram)
-   localparam FPMI_EXIT_FLAG_bit   = 1+$clog2(FPMI_NB);
-   localparam FPMI_EXIT_FLAG       = 1 << FPMI_EXIT_FLAG_bit;
-   
-   reg [6:0] 	             fpmi_PC;    // current micro-instruction pointer
-   reg [1+$clog2(FPMI_NB):0] fpmi_instr; // current micro-instruction
-
-   // current micro-instruction as 1-hot: fpmi_instr == NNN <=> fpmi_is[NNN]
-   (* onehot *)
-   wire [FPMI_NB-1:0] fpmi_is = 1 << fpmi_instr[$clog2(FPMI_NB):0]; 
-   initial fpmi_PC = 0;
-   initial fpmi_instr = FPMI_READY;
-   assign busy = !fpmi_is[FPMI_READY];
-
-   // Generate a micro-instructions in ROM 
-   task fpmi_gen; input [6:0] instr; begin
-      fpmi_ROM[I] = instr;
-      I = I + 1;
-   end endtask   
-
-   // Generate a FMA sequence in ROM.
-   // Use fpmi_gen_fma(0) in the middle of a micro-program
-   // Use fpmi_gen_fma(FPMI_EXIT_FLAG) if last instruction of micro-program
-   task fpmi_gen_fma; input [6:0] flags; begin
-      fpmi_gen(FPMI_LOAD_XY_MUL);      // X <- norm(A*B), Y <- C  
-      fpmi_gen(FPMI_ADD_SWAP);         // if(|X| > |Y|) swap(X,Y) (and sgn)
-      fpmi_gen(FPMI_ADD_SHIFT);        // shift X according to Y exp
-      fpmi_gen(FPMI_ADD_ADD);          // X <- X + Y
-      fpmi_gen(FPMI_ADD_NORM | flags); // X <- normalize(X)
-   end endtask
-   
-   integer I;    // current ROM location in initialization
-   integer iter; // iteration variable for generate Newton-Raphson (FDIV,FSQRT)
-   localparam FPMI_ROM_SIZE=82 + (12 + 18)*PRECISE_DIV; 
-   reg [1+$clog2(FPMI_NB):0] fpmi_ROM[0:FPMI_ROM_SIZE-1];
-   
-   // Microprograms start addresses
-   // Programatically determined when generating the ROM ('initial' block below)
-   integer FPMPROG_CMP, FPMPROG_ADD, FPMPROG_MUL, FPMPROG_MADD, FPMPROG_DIV;
-   integer FPMPROG_FP_TO_INT, FPMPROG_INT_TO_FP, FPMPROG_SQRT, FPMPROG_MIN_MAX;
-
-   // Start the definition of a microprogram (determines start address)
-   `define FPMPROG_BEGIN(prg) prg = I
-
-   // Ends the definition of a microprogram (displays stats in Verilator)
-   `ifdef BENCH
-    `define FPMPROG_END(prg) \
-        $display("#  %3d microinstructions used by %d:%s",I-prg,prg,`"prg`")
-   `else
-    `define FPMPROG_END(prg) 
-   `endif
-
-   /******************** Generate microprograms in ROM **********************/
-   initial begin
-
-   `ifdef BENCH
-      $display("#  Generating FPMI ROM...");
-   `endif
-      I = 0;
-      fpmi_gen(FPMI_READY | FPMI_EXIT_FLAG);
-
-      // ******************** FLT, FLE, FEQ *********************************
-      `FPMPROG_BEGIN(FPMPROG_CMP);
-      fpmi_gen(FPMI_LOAD_XY);              // X <- A, Y <- B
-      fpmi_gen(FPMI_CMP | FPMI_EXIT_FLAG); // X <- compare(X,Y)
-      `FPMPROG_END(FPMPROG_CMP);
-      
-      // ******************** FADD, FSUB ************************************
-      `FPMPROG_BEGIN(FPMPROG_ADD);
-      fpmi_gen(FPMI_LOAD_XY);               // X <- A, Y <- B
-      fpmi_gen(FPMI_ADD_SWAP);              // if(|X| > |Y|) swap(X,Y) (,sgn)
-      fpmi_gen(FPMI_ADD_SHIFT);             // shift X according to Y exp
-      fpmi_gen(FPMI_ADD_ADD);               // X <- X + Y
-      fpmi_gen(FPMI_ADD_NORM | FPMI_EXIT_FLAG); // X <- normalize(X)
-      `FPMPROG_END(FPMPROG_ADD);
-      
-      // ******************** FMUL ******************************************
-      `FPMPROG_BEGIN(FPMPROG_MUL);
-      fpmi_gen(FPMI_LOAD_XY_MUL | FPMI_EXIT_FLAG); // X <- A*B
-      `FPMPROG_END(FPMPROG_MUL);
-
-      // ******************** FMADD, FMSUB, FNMADD, FNMSUB ******************
-      `FPMPROG_BEGIN(FPMPROG_MADD);
-      fpmi_gen_fma(FPMI_EXIT_FLAG); // X <- A*B+C (5 cycles)
-      `FPMPROG_END(FPMPROG_MADD);      
-
-      // ******************** FDIV ******************************************
-      // https://en.wikipedia.org/wiki/Division_algorithm
-      // https://stackoverflow.com/questions/24792966/
-      // error-using-newton-raphson-iteration-method-for-
-      // floating-point-division
-      //
-      `FPMPROG_BEGIN(FPMPROG_DIV);      
-      // D' = denominator (rs2) normalized between [0.5,1] (set exp to 126)
-      fpmi_gen(FPMI_FRCP_PROLOG); // D<-A; E<-B; A<-(-D'); B<-32/17; C<-48/17
-      fpmi_gen_fma(0);            // X <- A*B+C (= -D'*32/17 + 48/17)
-      for(iter=0; iter<3; iter=iter+1) begin
-	 if(PRECISE_DIV) begin
-	    // X <- X + X*(1-D'*X)
-	    // (slower more precise iter, but not IEEE754 compliant yet...)
-	    fpmi_gen(FPMI_FRCP_ITER1); // A <- -D'; B <- X; C <- 1.0f
-	    fpmi_gen_fma(0);           // X <- A*B+C (5 cycles)
-	    fpmi_gen(FPMI_FRCP_ITER2); // A <- X; C <- B
-	    fpmi_gen_fma(0);           // X <- A*B+C (5 cycles)
-	 end else begin
-	    //  X <- X * (-X*D' + 2)
-	    // (faster but less precise)
-	    fpmi_gen(FPMI_FRCP_ITER1);  // A <- -D'; B <- X; C <- 2.0f    
-	    fpmi_gen_fma(0);            // X <- A*B+C (5 cycles)
-	    fpmi_gen(FPMI_MV_A_X);      // A <- X
-	    fpmi_gen(FPMI_LOAD_XY_MUL); // X <- A*B; Y <- C
-	 end
-      end 
-      if(PRECISE_DIV) begin             // round X to nearest
-	 fpmi_gen(FPMI_LOAD_Y_ROUND);
-	 fpmi_gen(FPMI_ADD_ADD);
-	 fpmi_gen(FPMI_ADD_NORM);
-      end      
-      fpmi_gen(FPMI_FRCP_EPILOG); // A <- (E_sign,frcp_exp,X_frac); B <- D
-      if(PRECISE_DIV) begin // error correction
-	 fpmi_gen(FPMI_LOAD_XY_MUL); // X <- A*B
-	 fpmi_gen(FPMI_FDIV_EPILOG); // B <- -E; C <- D; D <- A
-	 fpmi_gen(FPMI_MV_A_X);
-	 fpmi_gen_fma(0);
-	 fpmi_gen(FPMI_MV_C_A);
-	 fpmi_gen(FPMI_MV_B_D);
-	 fpmi_gen(FPMI_MV_A_X);
-	 fpmi_gen_fma(FPMI_EXIT_FLAG);
-      end else begin
-	 fpmi_gen(FPMI_LOAD_XY_MUL | FPMI_EXIT_FLAG); // X <- A*B
-      end
-      `FPMPROG_END(FPMPROG_DIV);      
-      
-      // ******************** FCVT.W.S, FCVT.WU.S ***************************
-      `FPMPROG_BEGIN(FPMPROG_FP_TO_INT);
-      fpmi_gen(FPMI_LOAD_XY);
-      fpmi_gen(FPMI_FP_TO_INT | FPMI_EXIT_FLAG);
-      `FPMPROG_END(FPMPROG_FP_TO_INT);      
-      
-      // ******************** FCVT.S.W, FCVT.S.WU ***************************
-      `FPMPROG_BEGIN(FPMPROG_INT_TO_FP); // Compute A+0 (use CLZ plugged on X)
-      fpmi_gen(FPMI_INT_TO_FP);                 // X <- 0; Y <- A
-      fpmi_gen(FPMI_ADD_ADD);                   // X <- X + Y
-      fpmi_gen(FPMI_ADD_NORM | FPMI_EXIT_FLAG); // X <- normalize(X)
-      `FPMPROG_END(FPMPROG_INT_TO_FP);
-      
-      // ******************** FSQRT *****************************************
-      // Using Doom's fast inverse square root algorithm:
-      // https://en.wikipedia.org/wiki/Fast_inverse_square_root
-      // http://www.lomont.org/papers/2003/InvSqrt.pdf
-      // TODO: IEEE754-compliant version
-      // See https://t.co/V1SWQ6N6xD?amp=1 (Method of Switching Constants)
-      // See simple effective fast inverse square root with two magic 
-      // constants.
-      //
-      `FPMPROG_BEGIN(FPMPROG_SQRT);
-      // D<-rs1; E,A,B<-(doom_magic - (A >> 1)); C<-3/2
-      fpmi_gen(FPMI_FRSQRT_PROLOG);
-      for(iter=0; iter<2; iter=iter+1) begin
-	 // X <- X * (3/2 - (0.5*rs1*X*X))      	 
-	 fpmi_gen(FPMI_LOAD_XY_MUL);  // X <- A*B; Y <- C
-	 fpmi_gen(FPMI_MV_A_X);       // A <- X
-         fpmi_gen(FPMI_MV_B_NH_D);    // B <- -0.5*|D|
-	 fpmi_gen_fma(0);             // X <- A*B+C
-	 fpmi_gen(FPMI_MV_A_X);       // A <- X
-	 fpmi_gen(FPMI_MV_B_E);       // B <- E
-	 fpmi_gen(FPMI_LOAD_XY_MUL);  // X <- A*B; Y <- C
-	 if(iter==0) begin
-	    fpmi_gen(FPMI_MV_E_X);    // E <- X
-	    fpmi_gen(FPMI_MV_A_X);    // A <- X
-	    fpmi_gen(FPMI_MV_B_E);    // B <- E
-	 end
-      end // X contains 1/sqrt(rs1), now compute rs1*X to get sqrt(rs1)
-      fpmi_gen(FPMI_MV_A_X);                       // A <- X
-      fpmi_gen(FPMI_MV_B_D);                       // B <- D
-      fpmi_gen(FPMI_LOAD_XY_MUL | FPMI_EXIT_FLAG); // X <- A*B; Y <- C
-      `FPMPROG_END(FPMPROG_SQRT);
-      
-      // ******************** FMIN, FMAX ************************************
-      `FPMPROG_BEGIN(FPMPROG_MIN_MAX);
-      fpmi_gen(FPMI_LOAD_XY);
-      fpmi_gen(FPMI_MIN_MAX | FPMI_EXIT_FLAG);
-      `FPMPROG_END(FPMPROG_MIN_MAX);
-      
-`ifdef BENCH      
-      $display("#  FPMI ROM max address:%d",I-1);
-      $display("#  FPMI ROM size       :%d",FPMI_ROM_SIZE);      
-      `ASSERT(I <= FPMI_ROM_SIZE,("!!!!!!! FPMI ROM SIZE exceeded !!!!!!!"));
-`endif      
-   end
-
-`ifndef FPU_EMUL
-
-   // determine microprogram to be called based on decoded instruction
-   reg [6:0] fpmprog;
-   always_comb begin
-      (* parallel_case, full_case *)
-      case(1'b1)
-	isFLT   | isFLE   | isFEQ               : fpmprog = FPMPROG_CMP[6:0];
-	isFADD  | isFSUB                        : fpmprog = FPMPROG_ADD[6:0];
-	isFMUL                                  : fpmprog = FPMPROG_MUL[6:0];
-	isFMADD | isFMSUB | isFNMADD | isFNMSUB : fpmprog = FPMPROG_MADD[6:0];
-	isFDIV                                  : fpmprog = FPMPROG_DIV[6:0];
-	isFSQRT                                 : fpmprog = FPMPROG_SQRT[6:0];
-	isFCVTWS | isFCVTWUS  : fpmprog = FPMPROG_FP_TO_INT[6:0];
-	isFCVTSW | isFCVTSWU  : fpmprog = FPMPROG_INT_TO_FP[6:0];
-	isFMIN   | isFMAX     : fpmprog = FPMPROG_MIN_MAX[6:0];
-	default               : fpmprog = 0;
-      endcase
-   end
-   
-   // next micro-instruction program counter
-   wire [6:0] fpmi_PC_next = 
-               wr                             ? fpmprog   :
-	       fpmi_instr[FPMI_EXIT_FLAG_bit] ? 0         : 
-                                                fpmi_PC+1 ;
-   always_ff @(posedge clk) if (ce) begin
-          fpmi_PC <= fpmi_PC_next;
-          fpmi_instr <= fpmi_ROM[fpmi_PC_next];
-   end
-   
-
-   always_ff @(posedge clk) if (ce) begin
-      if(wr) begin
-         // Denormals are flushed to zero
-         `FP_LD(A, rs1[31], rs1[30:23], (|rs1[30:23]?{1'b1,rs1[22:0]}:24'b0));
-         `FP_LD(B, rs2[31], rs2[30:23], (|rs2[30:23]?{1'b1,rs2[22:0]}:24'b0));
-         `FP_LD(C, rs3[31], rs3[30:23], (|rs3[30:23]?{1'b1,rs3[22:0]}:24'b0));
-
-	 // Backup rs1 in E without flushing to zero (for int2fp instructions)
-         `FP_LD32(E, rs1);	 
-
-         // Single-cycle instructions
-	 (* parallel_case *)
-	 case(1'b1)
-	   isFSGNJ           : `X <= {         rs2[31], rs1[30:0]};
-	   isFSGNJN          : `X <= {        !rs2[31], rs1[30:0]};
-	   isFSGNJX          : `X <= { rs1[31]^rs2[31], rs1[30:0]};
-	   isFCLASS          : `X <= fclass;
-           isFMVXW | isFMVWX : `X <= rs1;
-	 endcase 
-      end else if(busy) begin 
-
-	 // Implementation of the micro-instructions	 
-	 (* parallel_case *)	 
-	 case(1'b1)
-	   // X <- A ; Y <- B
-	   fpmi_is[FPMI_LOAD_XY]: begin
-	      X_sign <= A_sign;
-	      X_frac <= {2'b0, A_frac, 24'd0};
-	      X_exp  <= {1'b0, A_exp}; 
-	      Y_sign <= B_sign ^ isFSUB;
-	      Y_frac <= {2'b0, B_frac, 24'd0};
-	      Y_exp  <= {1'b0, B_exp}; 
-	   end
-
-	   // X <- (+/-) normalize(A*B);  Y <- (+/-)C
-	   fpmi_is[FPMI_LOAD_XY_MUL]: begin
-	      X_sign <= A_sign ^ B_sign ^ (isFNMSUB | isFNMADD);
-	      X_frac <= prod_Z ? 0 :  
-                          (prod_frac[47] ? prod_frac : {prod_frac[48:0],1'b0}); 
-	      X_exp  <= prod_Z ? 0 : prod_exp_norm;
-	      Y_sign <= C_sign ^ (isFMSUB | isFNMADD);
-	      Y_frac <= {2'b0, C_frac, 24'd0};
-	      Y_exp  <= {1'b0, C_exp};
-	   end
-
-	   // if(|X| > |Y|) swap(X,Y)
-	   // if X_sign != Y_sign X <- -X
-	   // We always *add*, but replace X_frac with -X_frac if the
-	   // sign of the operands differ, THEN we shift (signed shift). In
-	   // this way, rounding is correct, even when subtracting a
-	   // low magnitude numner from a large magnitude one.
-	   fpmi_is[FPMI_ADD_SWAP]: begin
-	      if(fabsY_LT_fabsX) begin
-		 X_frac <= (X_sign ^ Y_sign) ? -Y_frac : Y_frac; 
-		 Y_frac <= X_frac;
-		 X_exp  <= Y_exp;  Y_exp  <= X_exp;
-		 X_sign <= Y_sign; Y_sign <= X_sign;
-	      end else if(X_sign ^ Y_sign) begin
-		 X_frac <= -X_frac;
-	      end
-	   end
-
-	   // shift A in order to make it match B exponent
-	   fpmi_is[FPMI_ADD_SHIFT]: begin
-	      `ASSERT(!fabsY_LT_fabsX, ("ADD_SHIFT: incorrect order"));
-	      X_frac <= X_frac >>> exp_diff; // note the signed shift !
-	      X_exp <= Y_exp;
-	   end
-
-	   // A <- A (+/-) B
-	   fpmi_is[FPMI_ADD_ADD]: begin
-	      X_frac      <= frac_sum[49:0];
-	      X_sign      <= Y_sign;
-	      // normalization left shamt = 47 - first_bit_set = clz - 16
-	      norm_lshamt <= frac_sum_clz - 16;
-	      // Exponent of X once normalized = X_exp + first_bit_set - 47
-	      //                 = X_exp + 63 - clz - 47 = X_exp + 16 - clz
-	      X_exp_norm <= X_exp + 16 - {3'b000,frac_sum_clz};
-	   end
-
-	   // X <- normalize(X) (after ADD_ADD -> norm_lshamt and A_exp_norm)
-	   fpmi_is[FPMI_ADD_NORM]: begin
-	      if(X_exp_norm <= 0 || (X_frac == 0)) begin
-		 X_frac <= 0;
-		 X_exp <= 0;
-	      end else begin
-		 X_frac <= X_frac[48] ? (X_frac >> 1) : X_frac << norm_lshamt;
-		 X_exp  <= X_exp_norm;
-	      end
-	   end
-
-	   fpmi_is[FPMI_LOAD_Y_ROUND]: begin
-	      Y_sign <= X_sign;
-	      Y_exp  <= X_exp;
-	      Y_frac <= X_frac[23] ? (1 << 24) : 50'd0; 
-	   end
-	   
-	   // X <- result of comparison between X and Y
-	   fpmi_is[FPMI_CMP]: begin
-	      `X <= { 31'b0, 
-			    isFLT && X_LT_Y || 
-			    isFLE && X_LE_Y || 
-			    isFEQ && X_EQ_Y
-                          };
-	   end
-
-	   fpmi_is[FPMI_MV_B_D] : `FP_MV(B,D);
-	   fpmi_is[FPMI_MV_B_E] : `FP_MV(B,E);
-	   fpmi_is[FPMI_MV_A_X] : `FP_LD(A,X_sign,X_exp[7:0],X_frac[47:24]);
-	   fpmi_is[FPMI_MV_C_A] : `FP_MV(C,A);
-	   fpmi_is[FPMI_MV_E_X] : `FP_LD(E,X_sign,X_exp[7:0],X_frac[47:24]);
-	   
-	   // B <= -|D| / 2.0
-	   fpmi_is[FPMI_MV_B_NH_D]: 
-	                {B_sign, B_exp, B_frac} <= {1'b1,D_exp-8'd1,D_frac};
-
-	   fpmi_is[FPMI_FRCP_PROLOG]: begin
-	      `FP_MV(D,A);
-	      `FP_MV(E,B);
-	       // A <= -D', that is, -(B normalized in [0.5,1])	      
-	      `FP_LD(A,1'b1,8'd126, B_frac); 
-	      `FP_LD32(B, 32'h3FF0F0F1); // 32/17
-	      `FP_LD32(C, 32'h4034B4B5); // 48/17
-	   end
-	   
-	   fpmi_is[FPMI_FRCP_ITER1]: begin
-	      `FP_LD(A,1'b1,8'd126, E_frac);             // A <= -D'
-	      `FP_LD(B,X_sign,X_exp[7:0],X_frac[47:24]); // B <= X
-	       //                           1.0            2.0
-	      `FP_LD32(C, PRECISE_DIV ? 32'h3f800000 : 32'h40000000); 
-	   end
-
-	   // This one is used only if PRECISE_DIV is set
-	   fpmi_is[FPMI_FRCP_ITER2]: begin
-	      `FP_LD(A,X_sign,X_exp[7:0],X_frac[47:24]); // A <= X
-	      `FP_MV(C,B);
-	   end
-	   
-	   fpmi_is[FPMI_FRCP_EPILOG]: begin
-	      `FP_LD(A,E_sign,frcp_exp[7:0],X_frac[47:24]);
-	      `FP_MV(B,D);
-	   end
-
-	   // This one is used only if PRECISE_DIV is set
-	   fpmi_is[FPMI_FDIV_EPILOG]: begin
-	      `FP_LD(B,!E_sign, E_exp, E_frac); // B <= -E
-	      `FP_MV(C,D);
-	      `FP_MV(D,A);
-	   end
-	   
-	   fpmi_is[FPMI_FRSQRT_PROLOG]: begin
-	      `FP_LD32(D, rs1);
-	      `FP_LD32(E, rsqrt_doom_magic);
-	      `FP_LD32(A, rsqrt_doom_magic);
-	      `FP_LD32(B, rsqrt_doom_magic);
-	      `FP_LD32(C, 32'h3fc00000); // 1.5
-	   end
-	   
-	   fpmi_is[FPMI_FP_TO_INT]: begin
-	      // TODO: check overflow
-	      `X <= 
-               (isFCVTWUS | !X_sign) ? X_fcvt_ftoi_shifted 
-                                     : -$signed(X_fcvt_ftoi_shifted);
-	   end
-
-	   fpmi_is[FPMI_INT_TO_FP]: begin
-	      // TODO: rounding
-	      // We do a fake addition with zero, to prepare normalization
-	      // (uses CLZ plugged on the adder).
-	      X_frac <= 0;
-	      // 127+23: standard exponent bias
-	      // +6 because it is bit 29 of rs1 that overwrites 
-	      //    bit 47 of A_frac, instead of bit 23 (and 29-23 = 6).
-	      X_exp  <= 127+23+6;
-	      Y_frac <= 
-	         (isFCVTSWU | !E_sign) ? {E_sign, E_exp, E_frac[22:0], 18'd0}
-                           : {-$signed({E_sign, E_exp, E_frac[22:0]}), 18'd0};
-	      Y_sign <= isFCVTSW & E_sign;
-	   end 
-	   
-	   fpmi_is[FPMI_MIN_MAX]: begin
-	      `X <=  (X_LT_Y ^ isFMAX)
-		                 ? {X_sign, X_exp[7:0], X_frac[46:24]}
-	 	                 : {Y_sign, Y_exp[7:0], Y_frac[46:24]};
-	   end
-	 endcase 
-      end
-   end
-`endif   
-
-   // Some circuitry used by the FPU micro-instructions:
-
-   // ******************* Comparisons ******************************************
-   // Exponent adder
-   wire signed [8:0]  exp_sum   = Y_exp + X_exp;
-   wire signed [8:0]  exp_diff  = Y_exp - X_exp;
-   
-   wire expX_EQ_expY   = (exp_diff  == 0);
-   wire fracX_EQ_fracY = (frac_diff == 0);
-   wire fabsX_EQ_fabsY = (expX_EQ_expY && fracX_EQ_fracY);
-   wire fabsX_LT_fabsY = (!exp_diff[8] && !expX_EQ_expY) || 
-                           (expX_EQ_expY && !fracX_EQ_fracY && !frac_diff[50]);
-
-   wire fabsX_LE_fabsY = (!exp_diff[8] && !expX_EQ_expY) || 
-                                              (expX_EQ_expY && !frac_diff[50]);
-   
-   wire fabsY_LT_fabsX = exp_diff[8] || (expX_EQ_expY && frac_diff[50]);
-
-   wire fabsY_LE_fabsX = exp_diff[8] || 
-                           (expX_EQ_expY && (frac_diff[50] || fracX_EQ_fracY));
-
-   wire X_LT_Y = X_sign && !Y_sign ||
-	         X_sign &&  Y_sign && fabsY_LT_fabsX ||
- 		!X_sign && !Y_sign && fabsX_LT_fabsY ;
-
-   wire X_LE_Y = X_sign && !Y_sign ||
-		 X_sign &&  Y_sign && fabsY_LE_fabsX ||
- 	        !X_sign && !Y_sign && fabsX_LE_fabsY ;
-   
-   wire X_EQ_Y = fabsX_EQ_fabsY && (X_sign == Y_sign);
-
-   // ****************** Addition, subtraction *********************************
-   wire signed [50:0] frac_sum  = Y_frac + X_frac;
-   wire signed [50:0] frac_diff = Y_frac - X_frac;
-
-   // ****************** Product ***********************************************
-   wire [49:0] prod_frac = A_frac * B_frac; // TODO: check overflows
-
-   // exponent of product, once normalized
-   // (obtained by writing expression of product and inspecting exponent)
-   // Two cases: first bit set = 47 or 46 (only possible cases with normals)
-   wire signed [8:0] prod_exp_norm = A_exp+B_exp-127+{7'b0,prod_frac[47]};
-
-   // detect null product and underflows (all denormals are flushed to zero)
-   wire prod_Z = (prod_exp_norm <= 0) || !(|prod_frac[47:46]);
-
-   // ****************** Normalization *****************************************
-   // Count leading zeroes in A+B
-   // Note1: CLZ only work with power of two width (hence 13'b0 padding).
-   // Note2: first bit set = 63 - CLZ (of course !)
-   wire [5:0] 	              frac_sum_clz;
-   CLZ clz2({13'b0,frac_sum}, frac_sum_clz);
-   reg [5:0] 		      norm_lshamt; // shift amount for ADD normalization
-
-   // Exponent of A once normalized = X_exp + first_bit_set - 47
-   //                               = X_exp + 63 - clz - 47 = X_exp + 16 - clz
-   // X_exp_norm <= X_exp + 16 - {3'b000,A_clz};
-   reg signed [8:0] X_exp_norm;
-
-   // ****************** Reciprocal (1/x), used by FDIV ************************
-   // Exponent for reciprocal (1/x)
-   // Initial value of x kept in E.
-   wire signed [8:0]  frcp_exp  = 9'd126 + X_exp - $signed({1'b0, E_exp});
-
-   // ****************** Reciprocal square root (1/sqrt(x)) ********************
-   // https://en.wikipedia.org/wiki/Fast_inverse_square_root
-   wire [31:0] rsqrt_doom_magic = 32'h5f3759df - {1'b0,A_exp, A_frac[22:1]};
-
-   // ****************** Float to Integer conversion ***************************
-   // -127-23 is standard exponent bias
-   // -6 because it is bit 29 of X that corresponds to bit 47 of X_frac,
-   //    instead of bit 23 (and 23-29 = -6).
-   wire signed [8:0]  fcvt_ftoi_shift = A_exp - 9'd127 - 9'd23 - 9'd6; 
-   wire signed [8:0]  neg_fcvt_ftoi_shift = -fcvt_ftoi_shift;
-   
-   wire [31:0] 	X_fcvt_ftoi_shifted =  fcvt_ftoi_shift[8] ? // R or L shift
-                        (|neg_fcvt_ftoi_shift[8:5]  ?  0 :  // underflow
-                     ({X_frac[49:18]} >> neg_fcvt_ftoi_shift[4:0])) : 
-                     ({X_frac[49:18]} << fcvt_ftoi_shift[4:0]);
-   
-   // ******************* Classification ***************************************
-
-   wire rs1_exp_Z   = (rs1[30:23] == 0  );
-   wire rs1_exp_255 = (rs1[30:23] == 255);
-   wire rs1_frac_Z  = (rs1[22:0]  == 0  );
-   
-   wire [31:0] fclass = {
-      22'b0,				    
-      rs1_exp_255 &  rs1[22],                         // 9: quiet NaN
-      rs1_exp_255 & !rs1[22] & (|rs1[21:0]),          // 8: sig   NaN
-              !rs1[31] &  rs1_exp_255 & rs1_frac_Z,   // 7: +infinity
-              !rs1[31] & !rs1_exp_Z   & !rs1_exp_255, // 6: +normal
-              !rs1[31] &  rs1_exp_Z   & !rs1_frac_Z,  // 5: +subnormal
-              !rs1[31] &  rs1_exp_Z   & rs1_frac_Z,   // 4: +0  
-               rs1[31] &  rs1_exp_Z   & rs1_frac_Z,   // 3: -0
-               rs1[31] &  rs1_exp_Z   & !rs1_frac_Z,  // 2: -subnormal
-               rs1[31] & !rs1_exp_Z   & !rs1_exp_255, // 1: -normal
-               rs1[31] &  rs1_exp_255 & rs1_frac_Z    // 0: -infinity
-   };
-
-   /************************************************************************/
-   
-   // RV32F instruction decoder
-   // See table p133 (RV32G instruction listings)
-   // Notes:
-   //  - FLW/FSW handled by LOAD/STORE in femtorv32 (instr[2] set if FLW/FSW)
-   //  - For all other F instructions, instr[6:5] == 2'b10
-   //  - FMADD/FMSUB/FNMADD/FNMSUB: instr[4] = 1'b0
-   //  - For all remaining F instructions, instr[4] = 1'b1
-   //  - FMV.X.W and FCLASS have same funct7 (7'b1110000),
-   //      (discriminated by instr[12])
-   //  - there is a big gotcha in the official doc for RV32F:
-   //        the doc says FNMADD computes -rs1*rs2-rs3
-   //          (yes, with *minus* rs3)
-   //        it should have said FNMADD computes -(rs1*rs2+rs3)
-   //                        and FNMSUB compures -(rs1*rs2-rs3)
-   //        they probably did not put the parentheses because when
-   //        you implement it, you change the sign of rs1 and rs3 according
-   //        to the operation rather than the sign of the whole result
-   //        (here, it is done by the FPMI_LOAD_XY_MUL micro instruction).
-
-   reg isFMADD, isFMSUB, isFNMSUB, isFNMADD;
-   reg isFADD, isFSUB, isFMUL, isFDIV, isFSQRT;
-   reg isFSGNJ, isFSGNJN, isFSGNJX;
-   reg isFMIN, isFMAX;
-   reg isFEQ, isFLT, isFLE;
-   reg isFCLASS, isFCVTWS, isFCVTWUS;
-   reg isFCVTSW, isFCVTSWU;
-   reg isFMVXW, isFMVWX;
-
-   always_comb begin
-      isFMADD   = (instr[4:2] == 3'b000); // rd <-   rs1*rs2+rs3
-      isFMSUB   = (instr[4:2] == 3'b001); // rd <-   rs1*rs2-rs3
-      isFNMSUB  = (instr[4:2] == 3'b010); // rd <- -(rs1*rs2-rs3) 
-      isFNMADD  = (instr[4:2] == 3'b011); // rd <- -(rs1*rs2+rs3) 
-
-      isFADD    = (instr[4] && (instr[31:27] == 5'b00000));
-      isFSUB    = (instr[4] && (instr[31:27] == 5'b00001));
-      isFMUL    = (instr[4] && (instr[31:27] == 5'b00010));
-      isFDIV    = (instr[4] && (instr[31:27] == 5'b00011));
-      isFSQRT   = (instr[4] && (instr[31:27] == 5'b01011));   
-
-      isFSGNJ  = (instr[4] && (instr[31:27]==5'b00100)&&(instr[13:12]==2'b00));
-      isFSGNJN = (instr[4] && (instr[31:27]==5'b00100)&&(instr[13:12]==2'b01));
-      isFSGNJX = (instr[4] && (instr[31:27]==5'b00100)&&(instr[13:12]==2'b10));
-
-      isFMIN    = (instr[4] && (instr[31:27] == 5'b00101) && !instr[12]);
-      isFMAX    = (instr[4] && (instr[31:27] == 5'b00101) &&  instr[12]);
-
-      isFEQ =(instr[4] && (instr[31:27]==5'b10100) && (instr[13:12] == 2'b10));
-      isFLT =(instr[4] && (instr[31:27]==5'b10100) && (instr[13:12] == 2'b01));
-      isFLE =(instr[4] && (instr[31:27]==5'b10100) && (instr[13:12] == 2'b00));
-   
-      isFCLASS  = (instr[4] && (instr[31:27] == 5'b11100) &&  instr[12]); 
-   
-      isFCVTWS  = (instr[4] && (instr[31:27] == 5'b11000) && !instr[20]);
-      isFCVTWUS = (instr[4] && (instr[31:27] == 5'b11000) &&  instr[20]);
-      
-      isFCVTSW  = (instr[4] && (instr[31:27] == 5'b11010) && !instr[20]);
-      isFCVTSWU = (instr[4] && (instr[31:27] == 5'b11010) &&  instr[20]);
-      
-      isFMVXW   = (instr[4] && (instr[31:27] == 5'b11100) && !instr[12]);
-      isFMVWX   = (instr[4] && (instr[31:27] == 5'b11110));
-   end
-
-`ifdef FPU_EMUL
- `define FPU_EMUL1(op) `X <= $c32(op,"(",rs1,")")
- `define FPU_EMUL2(op) `X <= $c32(op,"(",rs1,",",rs2,")")
- `define FPU_EMUL3(op) `X <= $c32(op,"(",rs1,",",rs2,",",rs3,")")
-   always_ff @(posedge clk) if (ce) begin
-      if(wr) begin
-	 (* parallel_case *)
-	 case(1'b1)
-	   isFMUL   : `FPU_EMUL2("FMUL");
-	   isFADD   : `FPU_EMUL2("FADD");
-	   isFSUB   : `FPU_EMUL2("FSUB");
-	   isFDIV   : `FPU_EMUL2("FDIV");
-	   isFSQRT  : `FPU_EMUL1("FSQRT");	   
-	   isFMADD  : `FPU_EMUL3("FMADD");	  
-	   isFMSUB  : `FPU_EMUL3("FMSUB");	  
-	   isFNMADD : `FPU_EMUL3("FNMADD");	  
-	   isFNMSUB : `FPU_EMUL3("FNMSUB");	  
-	   isFEQ    : `FPU_EMUL2("FEQ");
-	   isFLT    : `FPU_EMUL2("FLT");
-	   isFLE    : `FPU_EMUL2("FLE");
-	   isFCVTWS : `FPU_EMUL1("FCVTWS"); 
-	   isFCVTWUS: `FPU_EMUL1("FCVTWUS");
-	   isFCVTSW : `FPU_EMUL1("FCVTSW"); 
-	   isFCVTSWU: `FPU_EMUL1("FCVTSWU"); 
-	   isFMIN   : `FPU_EMUL2("FMIN");
-	   isFMAX   : `FPU_EMUL2("FMAX");
-	   isFCLASS : `FPU_EMUL1("FCLASS");
-	   isFSGNJ  : `FPU_EMUL2("FSGNJ");
-	   isFSGNJN : `FPU_EMUL2("FSGNJN");
-	   isFSGNJX : `FPU_EMUL2("FSGNJX");
-           isFMVXW | isFMVWX : `X <= rs1;
-         endcase		     
-      end		     
-   end
-`endif
-
-/****************************************************************************/
-// When doing simulations, compare the result of all operations with
-// what's computed on the host CPU. 
-// Note: my FDIV and FSQRT are not IEEE754 compliant (yet) ! 
-// (checks commented-out for now)
-
-`ifdef NRV_FEMTORV32_PETITBATEAU // makes sure we are in the learn-FPGA fmwk
-`ifdef VERILATOR   
-
- `define FPU_CHECK1(op) \
-       z <= $c32("CHECK_",op,"(",`X,",",rs1,")")
- `define FPU_CHECK2(op) \
-       z <= $c32("CHECK_",op,"(",`X,",",rs1,",",rs2,")")
- `define FPU_CHECK3(op) \
-       z <= $c32("CHECK_",op,"(",`X,",",rs1,",",rs2,",",rs3,")")
-   
-   reg [31:0] z;
-   reg 	      active;
-   
-   always_ff @(posedge clk) if (ce) begin
-      
-      if(wr) begin
-	 active  <= 1'b1;
-      end
-      
-      if(active && !busy) begin
-	 active <= 1'b0;
-	 case(1'b1)
-	   isFMUL :   `FPU_CHECK2("FMUL");
-	   isFADD :   `FPU_CHECK2("FADD");
-	   isFSUB :   `FPU_CHECK2("FSUB");
-	   isFDIV :   `FPU_CHECK2("FDIV");  
-	   // isFSQRT:   `FPU_CHECK1("FSQRT"); // yes I know, not IEEE754 yet
-	   isFMADD:   `FPU_CHECK3("FMADD");	  
-	   isFMSUB:   `FPU_CHECK3("FMSUB");	  
-	   isFNMADD:  `FPU_CHECK3("FNMADD");	  
-	   isFNMSUB:  `FPU_CHECK3("FNMSUB");	  
-	   isFEQ:     `FPU_CHECK2("FEQ");
-	   isFLT:     `FPU_CHECK2("FLT");
-	   isFLE:     `FPU_CHECK2("FLE");
-	   isFCVTWS : `FPU_CHECK1("FCVTWS"); 
-	   isFCVTWUS: `FPU_CHECK1("FCVTWUS");
-	   isFCVTSW : `FPU_CHECK1("FCVTSW"); 
-	   isFCVTSWU: `FPU_CHECK1("FCVTSWU"); 
-	   isFMIN:    `FPU_CHECK2("FMIN");
-	   isFMAX:    `FPU_CHECK2("FMAX");
-	 endcase
-      end
-   end 
-
-`endif
-`endif
-
-endmodule   
-   
-/**********************************************************************/
-
-// FPU Normalization needs to detect the position of the first bit set 
-// in the A_frac register. It is easier to count the number of leading 
-// zeroes (CLZ for Count Leading Zeroes), as follows. See:
-// https://electronics.stackexchange.com/questions/196914/
-//    verilog-synthesize-high-speed-leading-zero-count
-// TODO: test also Dean Gaudet's algorithm (see Hackers Delights p. 110)
+    localparam [4:0] F_NX = 5'b00001;
+    localparam [4:0] F_UF = 5'b00010;
+    localparam [4:0] F_OF = 5'b00100;
+    localparam [4:0] F_DZ = 5'b01000;
+    localparam [4:0] F_NV = 5'b10000;
+    localparam [31:0] CANON_NAN = 32'h7fc00000;
+
+    localparam [3:0] ST_IDLE  = 4'd0;
+    localparam [3:0] ST_ALIGN = 4'd1;
+    localparam [3:0] ST_ADD   = 4'd2;
+    localparam [3:0] ST_NORM  = 4'd3;
+    localparam [3:0] ST_PACK  = 4'd4;
+    localparam [3:0] ST_MUL   = 4'd5;
+    localparam [3:0] ST_DIV   = 4'd6;
+    localparam [3:0] ST_SQRT  = 4'd7;
+
+    localparam [2:0] RM_RNE = 3'b000;
+    localparam [2:0] RM_RTZ = 3'b001;
+    localparam [2:0] RM_RDN = 3'b010;
+    localparam [2:0] RM_RUP = 3'b011;
+    localparam [2:0] RM_RMM = 3'b100;
+
+    reg isFMADD, isFMSUB, isFNMSUB, isFNMADD;
+    reg isFADD, isFSUB, isFMUL, isFDIV, isFSQRT;
+    reg isFSGNJ, isFSGNJN, isFSGNJX;
+    reg isFMIN, isFMAX;
+    reg isFEQ, isFLT, isFLE;
+    reg isFCLASS, isFCVTWS, isFCVTWUS;
+    reg isFCVTSW, isFCVTSWU;
+    reg isFMVXW, isFMVWX;
+
+    always_comb begin
+        isFMADD   = (instr[4:2] == 3'b000);
+        isFMSUB   = (instr[4:2] == 3'b001);
+        isFNMSUB  = (instr[4:2] == 3'b010);
+        isFNMADD  = (instr[4:2] == 3'b011);
+        isFADD    = (instr[4] && (instr[31:27] == 5'b00000));
+        isFSUB    = (instr[4] && (instr[31:27] == 5'b00001));
+        isFMUL    = (instr[4] && (instr[31:27] == 5'b00010));
+        isFDIV    = (instr[4] && (instr[31:27] == 5'b00011));
+        isFSQRT   = (instr[4] && (instr[31:27] == 5'b01011));
+        isFSGNJ   = (instr[4] && (instr[31:27] == 5'b00100) && (instr[13:12] == 2'b00));
+        isFSGNJN  = (instr[4] && (instr[31:27] == 5'b00100) && (instr[13:12] == 2'b01));
+        isFSGNJX  = (instr[4] && (instr[31:27] == 5'b00100) && (instr[13:12] == 2'b10));
+        isFMIN    = (instr[4] && (instr[31:27] == 5'b00101) && !instr[12]);
+        isFMAX    = (instr[4] && (instr[31:27] == 5'b00101) &&  instr[12]);
+        isFEQ     = (instr[4] && (instr[31:27] == 5'b10100) && (instr[13:12] == 2'b10));
+        isFLT     = (instr[4] && (instr[31:27] == 5'b10100) && (instr[13:12] == 2'b01));
+        isFLE     = (instr[4] && (instr[31:27] == 5'b10100) && (instr[13:12] == 2'b00));
+        isFCLASS  = (instr[4] && (instr[31:27] == 5'b11100) &&  instr[12]);
+        isFCVTWS  = (instr[4] && (instr[31:27] == 5'b11000) && !instr[20]);
+        isFCVTWUS = (instr[4] && (instr[31:27] == 5'b11000) &&  instr[20]);
+        isFCVTSW  = (instr[4] && (instr[31:27] == 5'b11010) && !instr[20]);
+        isFCVTSWU = (instr[4] && (instr[31:27] == 5'b11010) &&  instr[20]);
+        isFMVXW   = (instr[4] && (instr[31:27] == 5'b11100) && !instr[12]);
+        isFMVWX   = (instr[4] && (instr[31:27] == 5'b11110));
+    end
+
+    function automatic logic is_snan(input [31:0] v);
+        is_snan = (v[30:23] == 8'hff) && !v[22] && (v[21:0] != 0);
+    endfunction
+
+    function automatic logic is_qnan(input [31:0] v);
+        is_qnan = (v[30:23] == 8'hff) && v[22];
+    endfunction
+
+    function automatic logic is_nan(input [31:0] v);
+        is_nan = (v[30:23] == 8'hff) && (v[22:0] != 0);
+    endfunction
+
+    function automatic logic is_inf(input [31:0] v);
+        is_inf = (v[30:23] == 8'hff) && (v[22:0] == 0);
+    endfunction
+
+    function automatic logic is_zero(input [31:0] v);
+        is_zero = (v[30:0] == 0);
+    endfunction
+
+    /* True biased exponent and 24-bit significand. Subnormals are normalized.
+     * A zero yields sig=0 and exp=0. Infinities and NaNs are not unpacked. */
+    function automatic void unpack(input [31:0] v, output logic sign,
+                                   output logic signed [15:0] exp, output logic [23:0] sig);
+        integer msb;
+        integer sh;
+        integer i;
+        begin
+            sign = v[31];
+            if (v[30:23] == 0) begin
+                if (v[22:0] == 0) begin
+                    exp = 0;
+                    sig = 0;
+                end else begin
+                    msb = 0;
+                    for (i = 0; i < 23; i = i + 1)
+                        if (v[i]) msb = i;
+                    sh = 23 - msb;
+                    sig = {1'b0, v[22:0]} << sh;
+                    exp = 16'sd1 - 16'(sh);
+                end
+            end else begin
+                exp = {8'b0, v[30:23]};
+                sig = {1'b1, v[22:0]};
+            end
+        end
+    endfunction
+
+    function automatic [31:0] shr_jam32(input [31:0] a, input [15:0] amt);
+        begin
+            if (amt == 0)
+                shr_jam32 = a;
+            else if (amt >= 16'd31)
+                shr_jam32 = {31'b0, a != 0};
+            else
+                shr_jam32 = (a >> amt) | {31'b0, |(a & ~({32{1'b1}} << amt))};
+        end
+    endfunction
+
+    function automatic [63:0] shr_jam64(input [63:0] a, input [15:0] amt);
+        begin
+            if (amt == 0)
+                shr_jam64 = a;
+            else if (amt >= 16'd64)
+                shr_jam64 = {63'b0, a != 0};
+            else
+                shr_jam64 = (a >> amt) | {63'b0, |(a & ~({64{1'b1}} << amt))};
+        end
+    endfunction
+
+    /* {shifted[95:0], sticky}. amt>=96 collapses to a sticky bit. */
+    function automatic [96:0] shr96(input [95:0] a, input [15:0] amt);
+        logic [95:0] s;
+        begin
+            if (amt == 0)
+                shr96 = {a, 1'b0};
+            else if (amt >= 16'd96)
+                shr96 = {96'b0, |a};
+            else begin
+                s = a >> amt;
+                shr96 = {s, |(a & ~({96{1'b1}} << amt))};
+            end
+        end
+    endfunction
+
+    /* SoftFloat roundPackToF32. exp is the biased exponent minus one, and
+     * sig bit 30 is the hidden bit. Low 7 bits are the round residue.
+     * Returns {flags[4:0], result[31:0]}. */
+    function automatic [36:0] round_pack(input logic sign, input logic signed [15:0] exp_in,
+                                         input logic [31:0] sig_in, input logic [2:0] rm);
+        logic round_near_even;
+        logic [7:0] round_inc;
+        logic [6:0] round_bits;
+        logic signed [15:0] exp;
+        logic [31:0] sig;
+        logic [32:0] sig_inc;
+        logic is_tiny;
+        logic [4:0] flags;
+        logic [31:0] ui;
+        logic [15:0] sh;
+        begin
+            round_near_even = (rm == RM_RNE);
+            round_inc = 8'h40;
+            if (!round_near_even && (rm != RM_RMM)) begin
+                if (rm == (sign ? RM_RDN : RM_RUP))
+                    round_inc = 8'h7f;
+                else
+                    round_inc = 8'h00;
+            end
+            exp = exp_in;
+            sig = sig_in;
+            flags = 5'b0;
+            round_bits = sig[6:0];
+            round_pack = 37'b0;
+            if ((exp >= 16'sd253) &&
+                ((exp > 16'sd253) ||
+                 (({1'b0, sig} + {25'b0, round_inc}) >= 33'h80000000))) begin
+                ui = {sign, 8'hff, 23'b0};
+                if (round_inc == 0)
+                    ui = ui - 32'd1;
+                round_pack = {F_OF | F_NX, ui};
+            end else begin
+                if (exp < 0) begin
+                    sig_inc = {1'b0, sig} + {25'b0, round_inc};
+                    is_tiny = (exp < -16'sd1) || (sig_inc < 33'h80000000);
+                    sh = -exp;
+                    sig = shr_jam32(sig, sh);
+                    exp = 0;
+                    round_bits = sig[6:0];
+                    if (is_tiny && (round_bits != 0))
+                        flags = flags | F_UF;
+                end
+                sig = ({1'b0, sig} + {25'b0, round_inc}) >> 7;
+                if (round_bits != 0)
+                    flags = flags | F_NX;
+                if (round_near_even && (round_bits == 7'h40))
+                    sig[0] = 1'b0;
+                if (sig == 0)
+                    exp = 0;
+                ui = {sign, exp[7:0], 23'b0} + sig;
+                round_pack = {flags, ui};
+            end
+        end
+    endfunction
+
+    function automatic [31:0] wide_sig(input [95:0] frac, input sticky);
+        logic [31:0] sig;
+        begin
+            sig = {1'b0, frac[47:17]};
+            if (sticky || (|frac[16:0]))
+                sig[0] = 1'b1;
+            wide_sig = sig;
+        end
+    endfunction
+
+    function automatic logic mag_less_raw(input [31:0] a, input [31:0] b);
+        begin
+            if (a[30:23] != b[30:23])
+                mag_less_raw = a[30:23] < b[30:23];
+            else
+                mag_less_raw = a[22:0] < b[22:0];
+        end
+    endfunction
+
+    function automatic logic flt_raw(input [31:0] a, input [31:0] b);
+        begin
+            if (is_zero(a) && is_zero(b))
+                flt_raw = 1'b0;
+            else if (a[31] != b[31])
+                flt_raw = a[31];
+            else if (a[31])
+                flt_raw = mag_less_raw(b, a);
+            else
+                flt_raw = mag_less_raw(a, b);
+        end
+    endfunction
+
+    function automatic [31:0] fclass_of(input [31:0] v);
+        logic exp_z, exp_ff, frac_z;
+        begin
+            exp_z = (v[30:23] == 0);
+            exp_ff = (v[30:23] == 8'hff);
+            frac_z = (v[22:0] == 0);
+            fclass_of = {
+                22'b0,
+                exp_ff & v[22],
+                exp_ff & ~v[22] & (|v[21:0]),
+                ~v[31] & exp_ff & frac_z,
+                ~v[31] & ~exp_z & ~exp_ff,
+                ~v[31] & exp_z & ~frac_z,
+                ~v[31] & exp_z & frac_z,
+                v[31] & exp_z & frac_z,
+                v[31] & exp_z & ~frac_z,
+                v[31] & ~exp_z & ~exp_ff,
+                v[31] & exp_ff & frac_z
+            };
+        end
+    endfunction
+
+    /* Float to signed or unsigned int. Mirrors SoftFloat f32_to_{i,ui}32. */
+    function automatic [36:0] cvt_f2i(input [31:0] a, input unsign, input [2:0] rm);
+        logic sign;
+        logic [7:0] exp;
+        logic [23:0] sig;
+        logic [63:0] sig64;
+        logic signed [15:0] shift_dist;
+        logic [15:0] round_inc;
+        logic [11:0] round_bits;
+        logic [63:0] sig2;
+        logic [31:0] mag;
+        logic [31:0] z;
+        logic [4:0] flags;
+        logic early;
+        begin
+            sign = a[31];
+            exp = a[30:23];
+            sig = {1'b0, a[22:0]};
+            early = 1'b0;
+            flags = 5'b0;
+            z = 32'b0;
+            if ((exp == 8'hff) && (a[22:0] != 0)) begin
+                flags = F_NV;
+                z = unsign ? 32'hffffffff : 32'h7fffffff;
+                early = 1'b1;
+            end
+            if (!early) begin
+                if (exp != 0)
+                    sig[23] = 1'b1;
+                sig64 = {8'b0, sig, 32'b0};
+                shift_dist = 16'sh00aa - {8'b0, exp};
+                if (shift_dist > 0)
+                    sig64 = shr_jam64(sig64, shift_dist[15:0]);
+                round_inc = 16'h0800;
+                if ((rm != RM_RMM) && (rm != RM_RNE)) begin
+                    round_inc = 16'h0000;
+                    if (unsign) begin
+                        if (sign) begin
+                            if (sig64 == 0) begin
+                                z = 0;
+                                early = 1'b1;
+                            end else if (rm == RM_RDN) begin
+                                flags = F_NV;
+                                z = 32'h00000000;
+                                early = 1'b1;
+                            end
+                        end else if (rm == RM_RUP) begin
+                            round_inc = 16'h0fff;
+                        end
+                    end else if (sign ? (rm == RM_RDN) : (rm == RM_RUP)) begin
+                        round_inc = 16'h0fff;
+                    end
+                end
+            end
+            if (!early) begin
+                round_bits = sig64[11:0];
+                sig2 = sig64 + {48'b0, round_inc};
+                if (|sig2[63:44]) begin
+                    flags = F_NV;
+                    if (unsign)
+                        z = sign ? 32'h00000000 : 32'hffffffff;
+                    else
+                        z = sign ? 32'h80000000 : 32'h7fffffff;
+                end else begin
+                    mag = sig2[43:12];
+                    if ((round_bits == 12'h800) && (rm == RM_RNE))
+                        mag[0] = 1'b0;
+                    if (unsign) begin
+                        if (sign && (mag != 0)) begin
+                            flags = F_NV;
+                            z = 32'h00000000;
+                        end else begin
+                            z = mag;
+                            if (round_bits != 0)
+                                flags = flags | F_NX;
+                        end
+                    end else begin
+                        z = sign ? (~mag + 32'd1) : mag;
+                        if ((z != 0) && (z[31] ^ sign)) begin
+                            flags = F_NV;
+                            z = sign ? 32'h80000000 : 32'h7fffffff;
+                        end else if (round_bits != 0) begin
+                            flags = flags | F_NX;
+                        end
+                    end
+                end
+            end
+            cvt_f2i = {flags, z};
+        end
+    endfunction
+
+    function automatic [5:0] clz32(input [31:0] a);
+        integer i;
+        begin
+            clz32 = 6'd32;
+            for (i = 31; i >= 0; i = i - 1)
+                if (a[i] && (clz32 == 6'd32))
+                    clz32 = 6'(31 - i);
+        end
+    endfunction
+
+    /* Integer to binary32, via the same packer. */
+    function automatic [36:0] cvt_i2f(input [31:0] a, input unsign, input [2:0] rm);
+        logic sign;
+        logic [31:0] mag;
+        logic [5:0] lz;
+        logic signed [15:0] bit_i;
+        logic signed [15:0] sh;
+        logic [31:0] sig;
+        logic signed [15:0] exp;
+        begin
+            if (a == 0) begin
+                cvt_i2f = {5'b0, 32'b0};
+            end else if (!unsign && (a == 32'h80000000)) begin
+                cvt_i2f = {5'b0, 32'hcf000000};
+            end else begin
+                if (!unsign && a[31]) begin
+                    sign = 1'b1;
+                    mag = ~a + 32'd1;
+                end else begin
+                    sign = 1'b0;
+                    mag = a;
+                end
+                lz = clz32(mag);
+                bit_i = 16'sd31 - {10'b0, lz};
+                sh = 16'sd30 - bit_i;
+                exp = bit_i + 16'sd126;
+                if (sh >= 0)
+                    sig = mag << sh[4:0];
+                else
+                    sig = shr_jam32(mag, (-sh));
+                cvt_i2f = round_pack(sign, exp, sig, rm);
+            end
+        end
+    endfunction
+
+    reg [3:0] state;
+    reg [31:0] result_q;
+    reg [4:0] flags_q;
+    reg flags_pulse;
+
+    reg x_sign, y_sign;
+    reg signed [15:0] x_exp, y_exp;
+    reg [95:0] x_frac, y_frac;
+    reg x_sticky;
+    reg do_sub;
+
+    reg [95:0] sum_frac;
+    reg sum_sticky;
+    reg sum_sign;
+    reg signed [15:0] sum_exp;
+
+    reg pack_sign;
+    reg signed [15:0] pack_exp;
+    reg [31:0] pack_sig;
+    reg [2:0] rm_q;
+    reg fma_pend;
+
+    reg [54:0] div_rem;
+    reg [23:0] div_b;
+    reg [31:0] div_quot;
+    reg [5:0] div_bit;
+    reg div_sign;
+    reg signed [15:0] div_exp;
+
+    reg [51:0] sqrt_rad;
+    reg [63:0] sqrt_rem;
+    reg [25:0] sqrt_root;
+    reg [5:0] sqrt_left;
+    reg signed [15:0] sqrt_exp;
+
+    reg [95:0] norm_frac;
+    wire [6:0] norm_clz;
+    CLZ #(.W_IN(128)) clz_norm (
+        .in({32'b0, norm_frac}),
+        .out(norm_clz)
+    );
+
+    assign busy = (state != ST_IDLE);
+    assign out = result_q;
+    assign fflags = flags_q;
+    assign fflags_valid = flags_pulse;
+
+    wire [2:0] rm_now = (instr[14:12] == 3'b111) ? frm : instr[14:12];
+
+    always_ff @(posedge clk) begin
+        if (reset) begin
+            state <= ST_IDLE;
+            result_q <= 32'b0;
+            flags_q <= 5'b0;
+            flags_pulse <= 1'b0;
+        end else if (ce) begin
+            flags_pulse <= 1'b0;
+            if (wr && (state == ST_IDLE)) begin
+                rm_q <= rm_now;
+                fma_pend <= 1'b0;
+                begin : issue
+                    logic a_sign, b_sign, c_sign;
+                    logic signed [15:0] a_exp, b_exp, c_exp;
+                    logic [23:0] a_sig, b_sig, c_sig;
+                    logic b_sign_eff, c_sign_eff, p_sign;
+                    logic [4:0] fl;
+                    logic [31:0] res;
+                    logic done;
+                    logic [36:0] packw;
+
+                    unpack(rs1, a_sign, a_exp, a_sig);
+                    unpack(rs2, b_sign, b_exp, b_sig);
+                    unpack(rs3, c_sign, c_exp, c_sig);
+                    b_sign_eff = b_sign ^ isFSUB;
+                    c_sign_eff = c_sign ^ (isFMSUB | isFNMADD);
+                    p_sign = a_sign ^ b_sign ^ (isFNMSUB | isFNMADD);
+                    done = 1'b1;
+                    fl = 5'b0;
+                    res = 32'b0;
+
+                    if (isFSGNJ) begin
+                        res = {rs2[31], rs1[30:0]};
+                    end else if (isFSGNJN) begin
+                        res = {~rs2[31], rs1[30:0]};
+                    end else if (isFSGNJX) begin
+                        res = {rs1[31] ^ rs2[31], rs1[30:0]};
+                    end else if (isFMVXW || isFMVWX) begin
+                        res = rs1;
+                    end else if (isFCLASS) begin
+                        res = fclass_of(rs1);
+                    end else if (isFEQ || isFLT || isFLE) begin
+                        if (is_nan(rs1) || is_nan(rs2)) begin
+                            res = 32'b0;
+                            if (isFEQ)
+                                fl = (is_snan(rs1) || is_snan(rs2)) ? F_NV : 5'b0;
+                            else
+                                fl = F_NV;
+                        end else if (isFEQ) begin
+                            res = {31'b0, (is_zero(rs1) && is_zero(rs2)) || (rs1 == rs2)};
+                        end else if (isFLT) begin
+                            res = {31'b0, flt_raw(rs1, rs2)};
+                        end else begin
+                            res = {31'b0, flt_raw(rs1, rs2) ||
+                                          ((is_zero(rs1) && is_zero(rs2)) || (rs1 == rs2))};
+                        end
+                    end else if (isFMIN || isFMAX) begin
+                        if (is_nan(rs1) && is_nan(rs2)) begin
+                            res = CANON_NAN;
+                            fl = (is_snan(rs1) || is_snan(rs2)) ? F_NV : 5'b0;
+                        end else if (is_nan(rs1)) begin
+                            res = rs2;
+                            fl = is_snan(rs1) ? F_NV : 5'b0;
+                        end else if (is_nan(rs2)) begin
+                            res = rs1;
+                            fl = is_snan(rs2) ? F_NV : 5'b0;
+                        end else if (is_zero(rs1) && is_zero(rs2)) begin
+                            res = isFMIN ? ({31'b0, rs1[31] | rs2[31]} << 31) : 32'b0;
+                        end else if (isFMIN) begin
+                            res = flt_raw(rs1, rs2) ? rs1 : rs2;
+                        end else begin
+                            res = flt_raw(rs2, rs1) ? rs1 : rs2;
+                        end
+                    end else if (isFCVTWS || isFCVTWUS) begin
+                        packw = cvt_f2i(rs1, isFCVTWUS, rm_now);
+                        fl = packw[36:32];
+                        res = packw[31:0];
+                    end else if (isFCVTSW || isFCVTSWU) begin
+                        packw = cvt_i2f(rs1, isFCVTSWU, rm_now);
+                        fl = packw[36:32];
+                        res = packw[31:0];
+                    end else if (isFADD || isFSUB) begin
+                        if (is_snan(rs1) || is_snan(rs2)) begin
+                            res = CANON_NAN;
+                            fl = F_NV;
+                        end else if (is_qnan(rs1) || is_qnan(rs2)) begin
+                            res = CANON_NAN;
+                        end else if (is_inf(rs1) && is_inf(rs2) && (a_sign != b_sign_eff)) begin
+                            res = CANON_NAN;
+                            fl = F_NV;
+                        end else if (is_inf(rs1)) begin
+                            res = {a_sign, 8'hff, 23'b0};
+                        end else if (is_inf(rs2)) begin
+                            res = {b_sign_eff, 8'hff, 23'b0};
+                        end else if ((a_sig == 0) && (b_sig == 0)) begin
+                            res = {((a_sign == b_sign_eff) ? b_sign_eff : (rm_now == RM_RDN)), 31'b0};
+                        end else begin
+                            done = 1'b0;
+                            x_sign <= a_sign;
+                            y_sign <= b_sign_eff;
+                            x_exp <= a_exp;
+                            y_exp <= b_exp;
+                            x_frac <= (a_sig == 0) ? 96'b0 : {48'b0, a_sig, 24'b0};
+                            y_frac <= (b_sig == 0) ? 96'b0 : {48'b0, b_sig, 24'b0};
+                            x_sticky <= 1'b0;
+                            state <= ST_ALIGN;
+                        end
+                    end else if (isFMUL || isFMADD || isFMSUB || isFNMADD || isFNMSUB) begin
+                        if (is_snan(rs1) || is_snan(rs2) ||
+                            ((isFMADD || isFMSUB || isFNMADD || isFNMSUB) && is_snan(rs3))) begin
+                            res = CANON_NAN;
+                            fl = F_NV;
+                        end else if (is_qnan(rs1) || is_qnan(rs2) ||
+                                     ((isFMADD || isFMSUB || isFNMADD || isFNMSUB) && is_qnan(rs3))) begin
+                            /* 0*inf is invalid even when the addend is a quiet NaN. */
+                            if ((isFMADD || isFMSUB || isFNMADD || isFNMSUB) &&
+                                ((is_inf(rs1) && (b_sig == 0) && !is_nan(rs2) && !is_inf(rs2)) ||
+                                 (is_inf(rs2) && (a_sig == 0) && !is_nan(rs1) && !is_inf(rs1))))
+                                fl = F_NV;
+                            res = CANON_NAN;
+                        end else if (is_inf(rs1) || is_inf(rs2)) begin
+                            if ((is_inf(rs1) && (b_sig == 0) && !is_inf(rs2)) ||
+                                (is_inf(rs2) && (a_sig == 0) && !is_inf(rs1))) begin
+                                res = CANON_NAN;
+                                fl = F_NV;
+                            end else if (isFMUL) begin
+                                res = {p_sign, 8'hff, 23'b0};
+                            end else if (is_inf(rs3) && (p_sign != c_sign_eff)) begin
+                                res = CANON_NAN;
+                                fl = F_NV;
+                            end else begin
+                                res = {p_sign, 8'hff, 23'b0};
+                            end
+                        end else if (isFMUL && ((a_sig == 0) || (b_sig == 0))) begin
+                            res = {p_sign, 31'b0};
+                        end else if ((isFMADD || isFMSUB || isFNMADD || isFNMSUB) &&
+                                     ((a_sig == 0) || (b_sig == 0))) begin
+                            if (is_inf(rs3))
+                                res = {c_sign_eff, 8'hff, 23'b0};
+                            else if (c_sig == 0)
+                                res = {((p_sign == c_sign_eff) ? c_sign_eff : (rm_now == RM_RDN)), 31'b0};
+                            else
+                                res = {c_sign_eff, rs3[30:0]};
+                        end else if ((isFMADD || isFMSUB || isFNMADD || isFNMSUB) && is_inf(rs3)) begin
+                            res = {c_sign_eff, 8'hff, 23'b0};
+                        end else begin
+                            done = 1'b0;
+                            x_sign <= p_sign;
+                            x_exp <= a_exp;
+                            y_exp <= b_exp;
+                            x_frac <= {72'b0, a_sig};
+                            y_frac <= {72'b0, b_sig};
+                            state <= ST_MUL;
+                            fma_pend <= isFMADD | isFMSUB | isFNMADD | isFNMSUB;
+                            /* Park the addend in the Y fields after the multiply overwrites them.
+                             * Saved below into sum_* as a side channel until MUL completes. */
+                            sum_sign <= c_sign_eff;
+                            sum_exp <= c_exp;
+                            sum_frac <= (c_sig == 0) ? 96'b0 : {48'b0, c_sig, 24'b0};
+                            sum_sticky <= 1'b0;
+                        end
+                    end else if (isFDIV) begin
+                        if (is_snan(rs1) || is_snan(rs2)) begin
+                            res = CANON_NAN;
+                            fl = F_NV;
+                        end else if (is_qnan(rs1) || is_qnan(rs2)) begin
+                            res = CANON_NAN;
+                        end else if ((is_inf(rs1) && is_inf(rs2)) || ((a_sig == 0) && (b_sig == 0))) begin
+                            res = CANON_NAN;
+                            fl = F_NV;
+                        end else if (is_inf(rs1)) begin
+                            res = {a_sign ^ b_sign, 8'hff, 23'b0};
+                        end else if (is_inf(rs2)) begin
+                            res = {a_sign ^ b_sign, 31'b0};
+                        end else if (b_sig == 0) begin
+                            res = {a_sign ^ b_sign, 8'hff, 23'b0};
+                            fl = F_DZ;
+                        end else if (a_sig == 0) begin
+                            res = {a_sign ^ b_sign, 31'b0};
+                        end else begin
+                            done = 1'b0;
+                            div_sign <= a_sign ^ b_sign;
+                            div_b <= b_sig;
+                            div_quot <= 32'b0;
+                            div_bit <= 6'd31;
+                            if (a_sig < b_sig) begin
+                                div_rem <= {a_sig, 31'b0};
+                                div_exp <= a_exp - b_exp + 16'sd126 - 16'sd1;
+                            end else begin
+                                div_rem <= {a_sig, 30'b0};
+                                div_exp <= a_exp - b_exp + 16'sd126;
+                            end
+                            state <= ST_DIV;
+                        end
+                    end else if (isFSQRT) begin
+                        if (is_snan(rs1)) begin
+                            res = CANON_NAN;
+                            fl = F_NV;
+                        end else if (is_qnan(rs1)) begin
+                            res = CANON_NAN;
+                        end else if (is_zero(rs1)) begin
+                            res = {a_sign, 31'b0};
+                        end else if (is_inf(rs1) && !a_sign) begin
+                            res = {1'b0, 8'hff, 23'b0};
+                        end else if (a_sign) begin
+                            res = CANON_NAN;
+                            fl = F_NV;
+                        end else begin
+                            done = 1'b0;
+                            sqrt_exp <= ((a_exp - 16'sd127) >>> 1) + 16'sd126;
+                            /* Unbiased exponent LSB selects the even/odd radicand. */
+                            if (((a_exp - 16'sd127) & 16'sd1) != 0)
+                                sqrt_rad <= {a_sig, 28'b0};
+                            else
+                                sqrt_rad <= {1'b0, a_sig, 27'b0};
+                            sqrt_rem <= 64'b0;
+                            sqrt_root <= 26'b0;
+                            sqrt_left <= 6'd26;
+                            state <= ST_SQRT;
+                        end
+                    end
+
+                    if (done) begin
+                        result_q <= res;
+                        flags_q <= fl;
+                        flags_pulse <= 1'b1;
+                        state <= ST_IDLE;
+                    end
+                end
+            end else if (state == ST_ALIGN) begin
+                logic x_zero, y_zero, x_bigger;
+                logic signed [15:0] big_exp, small_exp, diff;
+                logic big_sign, small_sign;
+                logic [95:0] big_frac, small_frac;
+                logic [96:0] sh;
+                x_zero = (x_frac == 0);
+                y_zero = (y_frac == 0);
+                x_bigger = 1'b0;
+                if (y_zero && !x_zero)
+                    x_bigger = 1'b1;
+                else if (!x_zero && !y_zero) begin
+                    if (x_exp > y_exp)
+                        x_bigger = 1'b1;
+                    else if ((x_exp == y_exp) && (x_frac > y_frac))
+                        x_bigger = 1'b1;
+                end
+                if (x_bigger) begin
+                    big_frac = x_frac;
+                    big_exp = x_exp;
+                    big_sign = x_sign;
+                    small_frac = y_frac;
+                    small_exp = y_exp;
+                    small_sign = y_sign;
+                end else begin
+                    big_frac = y_frac;
+                    big_exp = y_exp;
+                    big_sign = y_sign;
+                    small_frac = x_frac;
+                    small_exp = x_exp;
+                    small_sign = x_sign;
+                end
+                diff = big_exp - small_exp;
+                if ((small_frac == 0) || (diff < 0))
+                    diff = 0;
+                sh = shr96(small_frac, diff);
+                y_frac <= big_frac;
+                y_exp <= big_exp;
+                y_sign <= big_sign;
+                x_frac <= sh[96:1];
+                x_sticky <= sh[0];
+                x_sign <= small_sign;
+                x_exp <= big_exp;
+                do_sub <= big_sign ^ small_sign;
+                state <= ST_ADD;
+            end else if (state == ST_ADD) begin
+                logic [96:0] acc;
+                logic [95:0] mag;
+                logic st;
+                logic signed [15:0] expn;
+                if (do_sub) begin
+                    acc = {1'b0, y_frac} - {1'b0, x_frac};
+                    if (x_sticky) begin
+                        if (acc == 0) begin
+                            mag = 96'b0;
+                            expn = y_exp;
+                            st = 1'b1;
+                        end else begin
+                            mag = acc[95:0] - 96'd1;
+                            expn = y_exp;
+                            st = 1'b1;
+                        end
+                    end else begin
+                        mag = acc[95:0];
+                        expn = y_exp;
+                        st = 1'b0;
+                    end
+                end else begin
+                    acc = {1'b0, y_frac} + {1'b0, x_frac};
+                    mag = acc[95:0];
+                    expn = y_exp;
+                    st = x_sticky;
+                end
+                norm_frac <= mag;
+                sum_sticky <= st;
+                sum_sign <= y_sign;
+                sum_exp <= expn;
+                state <= ST_NORM;
+            end else if (state == ST_NORM) begin
+                logic signed [15:0] sh;
+                logic [95:0] shifted;
+                logic st;
+                logic [96:0] shs;
+                if ((norm_frac == 0) && !sum_sticky) begin
+                    result_q <= {do_sub ? (rm_q == RM_RDN) : sum_sign, 31'b0};
+                    flags_q <= 5'b0;
+                    flags_pulse <= 1'b1;
+                    state <= ST_IDLE;
+                end else if (norm_frac == 0) begin
+                    pack_sign <= sum_sign;
+                    pack_exp <= -16'sd200;
+                    pack_sig <= 32'h00000001;
+                    state <= ST_PACK;
+                end else begin
+                    sh = {9'b0, norm_clz} - 16'sd80;
+                    if (sh > 0) begin
+                        shifted = norm_frac << sh[6:0];
+                        st = sum_sticky;
+                    end else if (sh < 0) begin
+                        shs = shr96(norm_frac, -sh);
+                        shifted = shs[96:1];
+                        st = sum_sticky | shs[0];
+                    end else begin
+                        shifted = norm_frac;
+                        st = sum_sticky;
+                    end
+                    pack_sign <= sum_sign;
+                    /* sum_exp is the true biased exponent of bit 47. Pack wants that minus 1. */
+                    pack_exp <= sum_exp - sh - 16'sd1;
+                    pack_sig <= wide_sig(shifted, st);
+                    state <= ST_PACK;
+                end
+            end else if (state == ST_PACK) begin
+                logic [36:0] packw;
+                packw = round_pack(pack_sign, pack_exp, pack_sig, rm_q);
+                result_q <= packw[31:0];
+                flags_q <= packw[36:32];
+                flags_pulse <= 1'b1;
+                state <= ST_IDLE;
+            end else if (state == ST_MUL) begin
+                logic [47:0] prod;
+                logic signed [15:0] expm;
+                logic [95:0] frac;
+                prod = x_frac[23:0] * y_frac[23:0];
+                if (prod[47]) begin
+                    frac = {48'b0, prod};
+                    expm = x_exp + y_exp - 16'sd126;
+                end else begin
+                    frac = {48'b0, prod[46:0], 1'b0};
+                    expm = x_exp + y_exp - 16'sd127;
+                end
+                if (fma_pend) begin
+                    x_frac <= frac;
+                    x_exp <= expm;
+                    x_sticky <= 1'b0;
+                    y_sign <= sum_sign;
+                    y_exp <= sum_exp;
+                    y_frac <= sum_frac;
+                    state <= ST_ALIGN;
+                end else begin
+                    pack_sign <= x_sign;
+                    pack_exp <= expm - 16'sd1;
+                    pack_sig <= wide_sig(frac, 1'b0);
+                    state <= ST_PACK;
+                end
+            end else if (state == ST_DIV) begin
+                logic [54:0] sub;
+                logic [54:0] rem_n;
+                logic [31:0] quot_n;
+                logic [31:0] sig;
+                sub = {31'b0, div_b} << div_bit;
+                rem_n = div_rem;
+                quot_n = div_quot;
+                if (rem_n >= sub) begin
+                    rem_n = rem_n - sub;
+                    quot_n[div_bit] = 1'b1;
+                end
+                div_rem <= rem_n;
+                div_quot <= quot_n;
+                if (div_bit == 0) begin
+                    sig = quot_n;
+                    if ((sig[5:0] == 0) && (rem_n != 0))
+                        sig[0] = 1'b1;
+                    pack_sign <= div_sign;
+                    pack_exp <= div_exp;
+                    pack_sig <= sig;
+                    state <= ST_PACK;
+                end else begin
+                    div_bit <= div_bit - 6'd1;
+                end
+            end else if (state == ST_SQRT) begin
+                logic [1:0] top;
+                logic [63:0] rem_n;
+                logic [51:0] rad_n;
+                logic [25:0] root_n;
+                logic [63:0] trial;
+                logic [31:0] sig;
+                top = sqrt_rad[51:50];
+                rad_n = {sqrt_rad[49:0], 2'b0};
+                rem_n = {sqrt_rem[61:0], top};
+                trial = {36'b0, sqrt_root, 2'b01};
+                if (rem_n >= trial) begin
+                    rem_n = rem_n - trial;
+                    root_n = {sqrt_root[24:0], 1'b1};
+                end else begin
+                    root_n = {sqrt_root[24:0], 1'b0};
+                end
+                sqrt_rad <= rad_n;
+                sqrt_rem <= rem_n;
+                sqrt_root <= root_n;
+                if (sqrt_left == 6'd1) begin
+                    sig = {1'b0, root_n[25:1], 6'b0};
+                    if (root_n[0] || (rem_n != 0))
+                        sig[0] = 1'b1;
+                    pack_sign <= 1'b0;
+                    pack_exp <= sqrt_exp;
+                    pack_sig <= sig;
+                    state <= ST_PACK;
+                end else begin
+                    sqrt_left <= sqrt_left - 6'd1;
+                end
+            end
+        end
+    end
+endmodule
+
+/* Count leading zeros. W_IN must be a power of two. */
 module CLZ #(
-   parameter W_IN = 64, // must be power of 2, >= 2
-   parameter W_OUT = $clog2(W_IN)	     
+    parameter W_IN = 64,
+    parameter W_OUT = $clog2(W_IN)
 ) (
-   input wire [W_IN-1:0]   in,
-   output wire [W_OUT-1:0] out
+    input  wire [W_IN-1:0]  in,
+    output wire [W_OUT-1:0] out
 );
-  generate
-     if(W_IN == 2) begin
-	assign out = !in[1];
-     end else begin
-	wire [W_OUT-2:0] half_count;
-	wire [W_IN/2-1:0] lhs = in[W_IN/2 +: W_IN/2];
-	wire [W_IN/2-1:0] rhs = in[0      +: W_IN/2];
-	wire left_empty = ~|lhs;
-	CLZ #(
-	  .W_IN(W_IN/2)
-        ) inner(
-           .in(left_empty ? rhs : lhs),
-           .out(half_count)		
-	);
-	assign out = {left_empty, half_count};
-     end
-  endgenerate
-endmodule   
+    generate
+        if (W_IN == 2) begin
+            assign out = !in[1];
+        end else begin
+            wire [W_OUT-2:0] half_count;
+            wire [W_IN/2-1:0] lhs = in[W_IN/2 +: W_IN/2];
+            wire [W_IN/2-1:0] rhs = in[0 +: W_IN/2];
+            wire left_empty = ~|lhs;
+            CLZ #(.W_IN(W_IN/2)) inner (
+                .in(left_empty ? rhs : lhs),
+                .out(half_count)
+            );
+            assign out = {left_empty, half_count};
+        end
+    endgenerate
+endmodule
 
 `endif

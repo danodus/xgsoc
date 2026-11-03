@@ -80,6 +80,8 @@ module rv32_mem (
     input [31:0] imm_value_in,
     input [31:0] branch_pc_in,
     input [11:0] csr_in,
+    input fflags_valid_in,
+    input [4:0] fflags_in,
 
     /* data in (from data memory bus) */
     input [31:0] data_read_value_in,
@@ -107,7 +109,12 @@ module rv32_mem (
     output logic [31:0] data_write_value_out,
 
     /* data out (to timer) */
-    output logic [63:0] cycle_out
+    output logic [63:0] cycle_out,
+
+    /* frm, including a same-cycle bypass of a write in this stage */
+    output logic [2:0] frm_out,
+    output logic [2:0] frm_bypass_out,
+    output logic frm_bypass_en_out
 );
     logic branch_mispredicted;
     logic branch_taken;
@@ -318,6 +325,8 @@ module rv32_mem (
         .rs1_value_in(rs1_value_in),
         .imm_value_in(imm_value_in),
         .csr_in(csr_in),
+        .fflags_acc_in(fflags_valid_in && valid_in && !exception),
+        .fflags_in(fflags_in),
 
         /* control out */
         .trap_out(trap_unreg_out),
@@ -325,6 +334,9 @@ module rv32_mem (
         /* data out */
         .read_value_out(csr_read_value),
         .trap_pc_out(trap_pc_out),
+        .frm_out(frm_out),
+        .frm_bypass_out(frm_bypass_out),
+        .frm_bypass_en_out(frm_bypass_en_out),
 
         /* data out (to timer) */
         .cycle_out(cycle_out)
