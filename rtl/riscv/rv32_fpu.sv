@@ -43,6 +43,7 @@ module rv32_fpu (
     localparam [3:0] ST_MUL   = 4'd5;
     localparam [3:0] ST_DIV   = 4'd6;
     localparam [3:0] ST_SQRT  = 4'd7;
+    localparam [3:0] ST_F2I   = 4'd8;
 
     localparam [2:0] RM_RNE = 3'b000;
     localparam [2:0] RM_RTZ = 3'b001;
@@ -171,66 +172,6 @@ module rv32_fpu (
         end
     endfunction
 
-    /* SoftFloat roundPackToF32. exp is the biased exponent minus one, and
-     * sig bit 30 is the hidden bit. Low 7 bits are the round residue.
-     * Returns {flags[4:0], result[31:0]}. */
-    function automatic [36:0] round_pack(input logic sign, input logic signed [15:0] exp_in,
-                                         input logic [31:0] sig_in, input logic [2:0] rm);
-        logic round_near_even;
-        logic [7:0] round_inc;
-        logic [6:0] round_bits;
-        logic signed [15:0] exp;
-        logic [31:0] sig;
-        logic [32:0] sig_inc;
-        logic is_tiny;
-        logic [4:0] flags;
-        logic [31:0] ui;
-        logic [15:0] sh;
-        begin
-            round_near_even = (rm == RM_RNE);
-            round_inc = 8'h40;
-            if (!round_near_even && (rm != RM_RMM)) begin
-                if (rm == (sign ? RM_RDN : RM_RUP))
-                    round_inc = 8'h7f;
-                else
-                    round_inc = 8'h00;
-            end
-            exp = exp_in;
-            sig = sig_in;
-            flags = 5'b0;
-            round_bits = sig[6:0];
-            round_pack = 37'b0;
-            if ((exp >= 16'sd253) &&
-                ((exp > 16'sd253) ||
-                 (({1'b0, sig} + {25'b0, round_inc}) >= 33'h80000000))) begin
-                ui = {sign, 8'hff, 23'b0};
-                if (round_inc == 0)
-                    ui = ui - 32'd1;
-                round_pack = {F_OF | F_NX, ui};
-            end else begin
-                if (exp < 0) begin
-                    sig_inc = {1'b0, sig} + {25'b0, round_inc};
-                    is_tiny = (exp < -16'sd1) || (sig_inc < 33'h80000000);
-                    sh = -exp;
-                    sig = shr_jam32(sig, sh);
-                    exp = 0;
-                    round_bits = sig[6:0];
-                    if (is_tiny && (round_bits != 0))
-                        flags = flags | F_UF;
-                end
-                sig = ({1'b0, sig} + {25'b0, round_inc}) >> 7;
-                if (round_bits != 0)
-                    flags = flags | F_NX;
-                if (round_near_even && (round_bits == 7'h40))
-                    sig[0] = 1'b0;
-                if (sig == 0)
-                    exp = 0;
-                ui = {sign, exp[7:0], 23'b0} + sig;
-                round_pack = {flags, ui};
-            end
-        end
-    endfunction
-
     function automatic [31:0] wide_sig(input [95:0] frac, input sticky);
         logic [31:0] sig;
         begin
@@ -285,17 +226,15 @@ module rv32_fpu (
         end
     endfunction
 
-    /* Float to signed or unsigned int. Mirrors SoftFloat f32_to_{i,ui}32. */
-    function automatic [36:0] cvt_f2i(input [31:0] a, input unsign, input [2:0] rm);
+    /* Float to int, shift half. Mirrors SoftFloat f32_to_{i,ui}32 up to the
+     * rounding add. Bit 117 set means {flags,z} is already final. */
+    function automatic [117:0] f2i_align(input [31:0] a, input unsign, input [2:0] rm);
         logic sign;
         logic [7:0] exp;
         logic [23:0] sig;
         logic [63:0] sig64;
         logic signed [15:0] shift_dist;
         logic [15:0] round_inc;
-        logic [11:0] round_bits;
-        logic [63:0] sig2;
-        logic [31:0] mag;
         logic [31:0] z;
         logic [4:0] flags;
         logic early;
@@ -303,6 +242,8 @@ module rv32_fpu (
             sign = a[31];
             exp = a[30:23];
             sig = {1'b0, a[22:0]};
+            sig64 = 64'b0;
+            round_inc = 16'b0;
             early = 1'b0;
             flags = 5'b0;
             z = 32'b0;
@@ -339,40 +280,7 @@ module rv32_fpu (
                     end
                 end
             end
-            if (!early) begin
-                round_bits = sig64[11:0];
-                sig2 = sig64 + {48'b0, round_inc};
-                if (|sig2[63:44]) begin
-                    flags = F_NV;
-                    if (unsign)
-                        z = sign ? 32'h00000000 : 32'hffffffff;
-                    else
-                        z = sign ? 32'h80000000 : 32'h7fffffff;
-                end else begin
-                    mag = sig2[43:12];
-                    if ((round_bits == 12'h800) && (rm == RM_RNE))
-                        mag[0] = 1'b0;
-                    if (unsign) begin
-                        if (sign && (mag != 0)) begin
-                            flags = F_NV;
-                            z = 32'h00000000;
-                        end else begin
-                            z = mag;
-                            if (round_bits != 0)
-                                flags = flags | F_NX;
-                        end
-                    end else begin
-                        z = sign ? (~mag + 32'd1) : mag;
-                        if ((z != 0) && (z[31] ^ sign)) begin
-                            flags = F_NV;
-                            z = sign ? 32'h80000000 : 32'h7fffffff;
-                        end else if (round_bits != 0) begin
-                            flags = flags | F_NX;
-                        end
-                    end
-                end
-            end
-            cvt_f2i = {flags, z};
+            f2i_align = {early, flags, z, round_inc, sig64};
         end
     endfunction
 
@@ -386,8 +294,9 @@ module rv32_fpu (
         end
     endfunction
 
-    /* Integer to binary32, via the same packer. */
-    function automatic [36:0] cvt_i2f(input [31:0] a, input unsign, input [2:0] rm);
+    /* Integer to binary32, before round_pack. Returns {sign, exp[15:0], sig[31:0]}.
+     * Rounding happens on the following cycle from the pack registers. */
+    function automatic [48:0] i2f_align(input [31:0] a, input unsign);
         logic sign;
         logic [31:0] mag;
         logic [5:0] lz;
@@ -396,28 +305,22 @@ module rv32_fpu (
         logic [31:0] sig;
         logic signed [15:0] exp;
         begin
-            if (a == 0) begin
-                cvt_i2f = {5'b0, 32'b0};
-            end else if (!unsign && (a == 32'h80000000)) begin
-                cvt_i2f = {5'b0, 32'hcf000000};
+            if (!unsign && a[31]) begin
+                sign = 1'b1;
+                mag = ~a + 32'd1;
             end else begin
-                if (!unsign && a[31]) begin
-                    sign = 1'b1;
-                    mag = ~a + 32'd1;
-                end else begin
-                    sign = 1'b0;
-                    mag = a;
-                end
-                lz = clz32(mag);
-                bit_i = 16'sd31 - {10'b0, lz};
-                sh = 16'sd30 - bit_i;
-                exp = bit_i + 16'sd126;
-                if (sh >= 0)
-                    sig = mag << sh[4:0];
-                else
-                    sig = shr_jam32(mag, (-sh));
-                cvt_i2f = round_pack(sign, exp, sig, rm);
+                sign = 1'b0;
+                mag = a;
             end
+            lz = clz32(mag);
+            bit_i = 16'sd31 - {10'b0, lz};
+            sh = 16'sd30 - bit_i;
+            exp = bit_i + 16'sd126;
+            if (sh >= 0)
+                sig = mag << sh[4:0];
+            else
+                sig = shr_jam32(mag, (-sh));
+            i2f_align = {sign, exp, sig};
         end
     endfunction
 
@@ -457,6 +360,27 @@ module rv32_fpu (
     reg signed [15:0] sqrt_exp;
 
     reg [95:0] norm_frac;
+    reg [63:0] f2i_sig;
+    reg [15:0] f2i_inc;
+    reg f2i_sign;
+    reg f2i_uns;
+
+    /* Rounding stays in its own module so synth cannot share those adders
+     * with the cache/address cone and bypass these registers. */
+    wire [36:0] pack_rounded;
+    wire [36:0] f2i_rounded;
+    fpu_finish finish (
+        .pack_sign(pack_sign),
+        .pack_exp(pack_exp),
+        .pack_sig(pack_sig),
+        .rm(rm_q),
+        .f2i_sig(f2i_sig),
+        .f2i_inc(f2i_inc),
+        .f2i_sign(f2i_sign),
+        .f2i_uns(f2i_uns),
+        .pack_out(pack_rounded),
+        .f2i_out(f2i_rounded)
+    );
     wire [6:0] norm_clz;
     CLZ #(.W_IN(128)) clz_norm (
         .in({32'b0, norm_frac}),
@@ -489,7 +413,6 @@ module rv32_fpu (
                     logic [4:0] fl;
                     logic [31:0] res;
                     logic done;
-                    logic [36:0] packw;
 
                     unpack(rs1, a_sign, a_exp, a_sig);
                     unpack(rs2, b_sign, b_exp, b_sig);
@@ -544,13 +467,33 @@ module rv32_fpu (
                             res = flt_raw(rs2, rs1) ? rs1 : rs2;
                         end
                     end else if (isFCVTWS || isFCVTWUS) begin
-                        packw = cvt_f2i(rs1, isFCVTWUS, rm_now);
-                        fl = packw[36:32];
-                        res = packw[31:0];
+                        logic [117:0] al;
+                        al = f2i_align(rs1, isFCVTWUS, rm_now);
+                        if (al[117]) begin
+                            fl = al[116:112];
+                            res = al[111:80];
+                        end else begin
+                            done = 1'b0;
+                            f2i_sig <= al[63:0];
+                            f2i_inc <= al[79:64];
+                            f2i_sign <= rs1[31];
+                            f2i_uns <= isFCVTWUS;
+                            state <= ST_F2I;
+                        end
                     end else if (isFCVTSW || isFCVTSWU) begin
-                        packw = cvt_i2f(rs1, isFCVTSWU, rm_now);
-                        fl = packw[36:32];
-                        res = packw[31:0];
+                        logic [48:0] al;
+                        if (rs1 == 0) begin
+                            res = 32'b0;
+                        end else if (!isFCVTSWU && (rs1 == 32'h80000000)) begin
+                            res = 32'hcf000000;
+                        end else begin
+                            al = i2f_align(rs1, isFCVTSWU);
+                            done = 1'b0;
+                            pack_sign <= al[48];
+                            pack_exp <= al[47:32];
+                            pack_sig <= al[31:0];
+                            state <= ST_PACK;
+                        end
                     end else if (isFADD || isFSUB) begin
                         if (is_snan(rs1) || is_snan(rs2)) begin
                             res = CANON_NAN;
@@ -812,10 +755,13 @@ module rv32_fpu (
                     state <= ST_PACK;
                 end
             end else if (state == ST_PACK) begin
-                logic [36:0] packw;
-                packw = round_pack(pack_sign, pack_exp, pack_sig, rm_q);
-                result_q <= packw[31:0];
-                flags_q <= packw[36:32];
+                result_q <= pack_rounded[31:0];
+                flags_q <= pack_rounded[36:32];
+                flags_pulse <= 1'b1;
+                state <= ST_IDLE;
+            end else if (state == ST_F2I) begin
+                result_q <= f2i_rounded[31:0];
+                flags_q <= f2i_rounded[36:32];
                 flags_pulse <= 1'b1;
                 state <= ST_IDLE;
             end else if (state == ST_MUL) begin
@@ -928,6 +874,148 @@ module CLZ #(
             assign out = {left_empty, half_count};
         end
     endgenerate
+endmodule
+
+/* Kept out of rv32_fpu so the rounding adders cannot be shared with the
+ * cache and address datapath. Inlining this puts that cone back on the
+ * CPU clock. */
+(* noflatten *)
+module fpu_finish (
+    input             pack_sign,
+    input signed [15:0] pack_exp,
+    input      [31:0] pack_sig,
+    input      [2:0]  rm,
+    input      [63:0] f2i_sig,
+    input      [15:0] f2i_inc,
+    input             f2i_sign,
+    input             f2i_uns,
+    output     [36:0] pack_out,
+    output     [36:0] f2i_out
+);
+    localparam [4:0] F_NX = 5'b00001;
+    localparam [4:0] F_UF = 5'b00010;
+    localparam [4:0] F_OF = 5'b00100;
+    localparam [4:0] F_NV = 5'b10000;
+    localparam [2:0] RM_RNE = 3'b000;
+    localparam [2:0] RM_RDN = 3'b010;
+    localparam [2:0] RM_RUP = 3'b011;
+    localparam [2:0] RM_RMM = 3'b100;
+
+    function automatic [31:0] shr_jam32(input [31:0] a, input [15:0] amt);
+        begin
+            if (amt == 0)
+                shr_jam32 = a;
+            else if (amt >= 16'd31)
+                shr_jam32 = {31'b0, a != 0};
+            else
+                shr_jam32 = (a >> amt) | {31'b0, |(a & ~({32{1'b1}} << amt))};
+        end
+    endfunction
+
+    function automatic [36:0] round_pack(input logic sign, input logic signed [15:0] exp_in,
+                                         input logic [31:0] sig_in, input logic [2:0] rm_in);
+        logic round_near_even;
+        logic [7:0] round_inc;
+        logic [6:0] round_bits;
+        logic signed [15:0] exp;
+        logic [31:0] sig;
+        logic [32:0] sig_inc;
+        logic is_tiny;
+        logic [4:0] flags;
+        logic [31:0] ui;
+        logic [15:0] sh;
+        begin
+            round_near_even = (rm_in == RM_RNE);
+            round_inc = 8'h40;
+            if (!round_near_even && (rm_in != RM_RMM)) begin
+                if (rm_in == (sign ? RM_RDN : RM_RUP))
+                    round_inc = 8'h7f;
+                else
+                    round_inc = 8'h00;
+            end
+            exp = exp_in;
+            sig = sig_in;
+            flags = 5'b0;
+            round_bits = sig[6:0];
+            round_pack = 37'b0;
+            if ((exp >= 16'sd253) &&
+                ((exp > 16'sd253) ||
+                 (({1'b0, sig} + {25'b0, round_inc}) >= 33'h80000000))) begin
+                ui = {sign, 8'hff, 23'b0};
+                if (round_inc == 0)
+                    ui = ui - 32'd1;
+                round_pack = {F_OF | F_NX, ui};
+            end else begin
+                if (exp < 0) begin
+                    sig_inc = {1'b0, sig} + {25'b0, round_inc};
+                    is_tiny = (exp < -16'sd1) || (sig_inc < 33'h80000000);
+                    sh = -exp;
+                    sig = shr_jam32(sig, sh);
+                    exp = 0;
+                    round_bits = sig[6:0];
+                    if (is_tiny && (round_bits != 0))
+                        flags = flags | F_UF;
+                end
+                sig = ({1'b0, sig} + {25'b0, round_inc}) >> 7;
+                if (round_bits != 0)
+                    flags = flags | F_NX;
+                if (round_near_even && (round_bits == 7'h40))
+                    sig[0] = 1'b0;
+                if (sig == 0)
+                    exp = 0;
+                ui = {sign, exp[7:0], 23'b0} + sig;
+                round_pack = {flags, ui};
+            end
+        end
+    endfunction
+
+    function automatic [36:0] f2i_round(input [63:0] sig64, input [15:0] round_inc,
+                                        input sign, input unsign, input [2:0] rm_in);
+        logic [11:0] round_bits;
+        logic [63:0] sig2;
+        logic [31:0] mag;
+        logic [31:0] z;
+        logic [4:0] flags;
+        begin
+            flags = 5'b0;
+            z = 32'b0;
+            round_bits = sig64[11:0];
+            sig2 = sig64 + {48'b0, round_inc};
+            if (|sig2[63:44]) begin
+                flags = F_NV;
+                if (unsign)
+                    z = sign ? 32'h00000000 : 32'hffffffff;
+                else
+                    z = sign ? 32'h80000000 : 32'h7fffffff;
+            end else begin
+                mag = sig2[43:12];
+                if ((round_bits == 12'h800) && (rm_in == RM_RNE))
+                    mag[0] = 1'b0;
+                if (unsign) begin
+                    if (sign && (mag != 0)) begin
+                        flags = F_NV;
+                        z = 32'h00000000;
+                    end else begin
+                        z = mag;
+                        if (round_bits != 0)
+                            flags = flags | F_NX;
+                    end
+                end else begin
+                    z = sign ? (~mag + 32'd1) : mag;
+                    if ((z != 0) && (z[31] ^ sign)) begin
+                        flags = F_NV;
+                        z = sign ? 32'h80000000 : 32'h7fffffff;
+                    end else if (round_bits != 0) begin
+                        flags = flags | F_NX;
+                    end
+                end
+            end
+            f2i_round = {flags, z};
+        end
+    endfunction
+
+    assign pack_out = round_pack(pack_sign, pack_exp, pack_sig, rm);
+    assign f2i_out = f2i_round(f2i_sig, f2i_inc, f2i_sign, f2i_uns, rm);
 endmodule
 
 `endif

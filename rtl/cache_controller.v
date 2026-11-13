@@ -107,10 +107,24 @@ module cache_controller(
     wire [31:0]cache_QA;
     wire [`WAYS-1:0]lru[(1<<`WAYS)-1:0];
 
-    assign fit[0] = ~r_flush && (cache_addr0[index] == {1'b1, addr[25:8+`SETS]});
-    assign fit[1] = ~r_flush && (cache_addr1[index] == {1'b1, addr[25:8+`SETS]});
-    assign fit[2] = ~r_flush && (cache_addr2[index] == {1'b1, addr[25:8+`SETS]});
-    assign fit[3] = ~r_flush && (cache_addr3[index] == {1'b1, addr[25:8+`SETS]});
+    // Tag match is on the half-cycle path into the cache data RAM (clk_b is ~clk).
+    // A plain == on the async tag RAM is mapped to a LUT ripple. Compare on a
+    // CCU2C carry chain instead, which is short enough for the 20 ns half cycle.
+    localparam TAG_MSB = 1 + 17 - `SETS;
+    wire [TAG_MSB:0] tag_cmp = {1'b1, addr[25:8+`SETS]};
+    wire [TAG_MSB:0] tag0 = cache_addr0[index];
+    wire [TAG_MSB:0] tag1 = cache_addr1[index];
+    wire [TAG_MSB:0] tag2 = cache_addr2[index];
+    wire [TAG_MSB:0] tag3 = cache_addr3[index];
+    wire tag_eq0, tag_eq1, tag_eq2, tag_eq3;
+    tag_eq_carry #(.WIDTH(TAG_MSB+1)) tag_cmp0 (.a(tag0), .b(tag_cmp), .eq(tag_eq0));
+    tag_eq_carry #(.WIDTH(TAG_MSB+1)) tag_cmp1 (.a(tag1), .b(tag_cmp), .eq(tag_eq1));
+    tag_eq_carry #(.WIDTH(TAG_MSB+1)) tag_cmp2 (.a(tag2), .b(tag_cmp), .eq(tag_eq2));
+    tag_eq_carry #(.WIDTH(TAG_MSB+1)) tag_cmp3 (.a(tag3), .b(tag_cmp), .eq(tag_eq3));
+    assign fit[0] = ~r_flush && tag_eq0;
+    assign fit[1] = ~r_flush && tag_eq1;
+    assign fit[2] = ~r_flush && tag_eq2;
+    assign fit[3] = ~r_flush && tag_eq3;
     assign free[0] = r_flush ? (flushcount[`WAYS+`SETS-1:`SETS] == 0) : ~|cache_lru0[index];
     assign free[1] = r_flush ? (flushcount[`WAYS+`SETS-1:`SETS] == 1) : ~|cache_lru1[index];
     assign free[2] = r_flush ? (flushcount[`WAYS+`SETS-1:`SETS] == 2) : ~|cache_lru2[index];
@@ -181,10 +195,10 @@ module cache_controller(
             3'b000: begin
                 if(mreq && !hit) begin	// cache miss
                     case(fblk)
-                        0: begin waddr <= {cache_addr0[index][17-`SETS:0], index}; if(!r_flush) cache_addr0[index] <= {1'b1, addr[25:8+`SETS]}; end
-                        1: begin waddr <= {cache_addr1[index][17-`SETS:0], index}; if(!r_flush) cache_addr1[index] <= {1'b1, addr[25:8+`SETS]}; end
-                        2: begin waddr <= {cache_addr2[index][17-`SETS:0], index}; if(!r_flush) cache_addr2[index] <= {1'b1, addr[25:8+`SETS]}; end
-                        3: begin waddr <= {cache_addr3[index][17-`SETS:0], index}; if(!r_flush) cache_addr3[index] <= {1'b1, addr[25:8+`SETS]}; end
+                        0: begin waddr <= {tag0[17-`SETS:0], index}; if(!r_flush) cache_addr0[index] <= tag_cmp; end
+                        1: begin waddr <= {tag1[17-`SETS:0], index}; if(!r_flush) cache_addr1[index] <= tag_cmp; end
+                        2: begin waddr <= {tag2[17-`SETS:0], index}; if(!r_flush) cache_addr2[index] <= tag_cmp; end
+                        3: begin waddr <= {tag3[17-`SETS:0], index}; if(!r_flush) cache_addr3[index] <= tag_cmp; end
                     endcase
                     ddr_rd <= ~dirty & ~r_flush;
                     ddr_wr <= dirty;
@@ -220,4 +234,42 @@ module cache_controller(
         endcase
     end
     
+endmodule
+
+// Equality comparator mapped onto the ECP5 carry chain.
+// Each slice propagates carry only while the two bits match.
+module tag_eq_carry #(
+    parameter WIDTH = 15
+) (
+    input  [WIDTH-1:0] a,
+    input  [WIDTH-1:0] b,
+    output eq
+);
+    localparam SLICES = (WIDTH + 1) / 2;
+    localparam PADDED = SLICES * 2;
+
+    wire [PADDED-1:0] aa = {{(PADDED-WIDTH){1'b0}}, a};
+    wire [PADDED-1:0] bb = {{(PADDED-WIDTH){1'b0}}, b};
+    wire [SLICES:0] carry;
+    assign carry[0] = 1'b1;
+
+    genvar i;
+    generate
+        for (i = 0; i < SLICES; i = i + 1) begin : slice
+            CCU2C #(
+                .INIT0(16'h9999),
+                .INIT1(16'h9999),
+                .INJECT1_0("NO"),
+                .INJECT1_1("NO")
+            ) cmp (
+                .CIN(carry[i]),
+                .A0(aa[2*i]),   .B0(bb[2*i]),   .C0(1'b0), .D0(1'b0),
+                .A1(aa[2*i+1]), .B1(bb[2*i+1]), .C1(1'b0), .D1(1'b0),
+                .S0(), .S1(),
+                .COUT(carry[i+1])
+            );
+        end
+    endgenerate
+
+    assign eq = carry[SLICES];
 endmodule
