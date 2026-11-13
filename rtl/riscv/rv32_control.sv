@@ -584,16 +584,6 @@ module rv32_control_unit (
                 csr_src_out = `RV32_CSR_SRC_IMM;
                 rd_write_out = 1;
             end
-            `RV32_INSTR_FXMUL: begin
-                valid_out = 1;
-                rs1_read_out = 1;
-                rs2_read_out = 1;
-                alu_op_out = `RV32_ALU_OP_FXMUL;
-                alu_sub_sra_out = 0;
-                alu_src1_out = `RV32_ALU_SRC1_REG;
-                alu_src2_out = `RV32_ALU_SRC2_REG;
-                rd_write_out = 1;
-            end            
             `RV32_INSTR_DIV: begin
                 valid_out = 1;
                 rs1_read_out = 1;

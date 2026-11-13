@@ -13,11 +13,10 @@
 `define RV32_ALU_OP_MULH    5'b01001
 `define RV32_ALU_OP_MULHSU  5'b01010
 `define RV32_ALU_OP_MULHU   5'b01011
-`define RV32_ALU_OP_FXMUL   5'b01100
-`define RV32_ALU_OP_DIV     5'b01101
-`define RV32_ALU_OP_DIVU    5'b01110
-`define RV32_ALU_OP_REM     5'b01111
-`define RV32_ALU_OP_REMU    5'b10000
+`define RV32_ALU_OP_DIV     5'b01100
+`define RV32_ALU_OP_DIVU    5'b01101
+`define RV32_ALU_OP_REM     5'b01110
+`define RV32_ALU_OP_REMU    5'b01111
 
 `define RV32_ALU_SRC1_REG  2'b00
 `define RV32_ALU_SRC1_PC   2'b01
@@ -27,16 +26,6 @@
 `define RV32_ALU_SRC2_IMM     2'b01
 `define RV32_ALU_SRC2_FOUR    2'b10
 `define RV32_ALU_SRC2_PC_INCR 2'b11
-
-function logic signed [31:0] fix_mul(logic signed [31:0] x, logic signed [31:0] y);
-    logic signed [63:0] x2, y2, mul2;
-    begin
-        x2 = {{32{x[31]}}, x};
-        y2 = {{32{y[31]}}, y};
-        mul2 = (x2 * y2) >>> 16;
-        fix_mul = mul2[31:0];
-    end
-endfunction
 
 module rv32_alu (
     input clk,
@@ -240,7 +229,6 @@ module rv32_alu (
                 `RV32_ALU_OP_MULH,
                 `RV32_ALU_OP_MULHSU,
                 `RV32_ALU_OP_MULHU:   result_out = multiply[63:32];
-                `RV32_ALU_OP_FXMUL:   result_out = fix_mul(src1, src2);
                 default:              result_out = 32'b0;
             endcase
         end
