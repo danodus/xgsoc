@@ -44,7 +44,8 @@ module rv32_control_unit (
     output logic ecall_out,
     output logic ebreak_out,
     output logic mret_out,
-    output logic rd_write_out
+    output logic rd_write_out,
+    output logic [3:0] amo_op_out
 );
     always_comb begin
         valid_out = 0;
@@ -75,6 +76,7 @@ module rv32_control_unit (
         ebreak_out = 0;
         mret_out = 0;
         rd_write_out = 0;
+        amo_op_out = `RV32_AMO_NONE;
 
         casez (instr_in)
             `RV32_INSTR_LUI: begin
@@ -506,6 +508,137 @@ module rv32_control_unit (
                 alu_op_out = `RV32_ALU_OP_MULHU;
                 alu_src1_out = `RV32_ALU_SRC1_REG;
                 alu_src2_out = `RV32_ALU_SRC2_REG;
+                rd_write_out = 1;
+            end
+            `RV32_INSTR_AMOADD_W: begin
+                valid_out = 1;
+                rs1_read_out = 1;
+                rs2_read_out = 1;
+                alu_op_out = `RV32_ALU_OP_ADD_SUB;
+                alu_sub_sra_out = 0;
+                alu_src1_out = `RV32_ALU_SRC1_REG;
+                alu_src2_out = `RV32_ALU_SRC2_IMM;
+                mem_width_out = `RV32_MEM_WIDTH_WORD;
+                amo_op_out = `RV32_AMO_ADD;
+                rd_write_out = 1;
+            end
+            `RV32_INSTR_AMOSWAP_W: begin
+                valid_out = 1;
+                rs1_read_out = 1;
+                rs2_read_out = 1;
+                alu_op_out = `RV32_ALU_OP_ADD_SUB;
+                alu_sub_sra_out = 0;
+                alu_src1_out = `RV32_ALU_SRC1_REG;
+                alu_src2_out = `RV32_ALU_SRC2_IMM;
+                mem_width_out = `RV32_MEM_WIDTH_WORD;
+                amo_op_out = `RV32_AMO_SWAP;
+                rd_write_out = 1;
+            end
+            `RV32_INSTR_LR_W: begin
+                valid_out = 1;
+                rs1_read_out = 1;
+                alu_op_out = `RV32_ALU_OP_ADD_SUB;
+                alu_sub_sra_out = 0;
+                alu_src1_out = `RV32_ALU_SRC1_REG;
+                alu_src2_out = `RV32_ALU_SRC2_IMM;
+                mem_width_out = `RV32_MEM_WIDTH_WORD;
+                amo_op_out = `RV32_AMO_LR;
+                rd_write_out = 1;
+            end
+            `RV32_INSTR_SC_W: begin
+                valid_out = 1;
+                rs1_read_out = 1;
+                rs2_read_out = 1;
+                alu_op_out = `RV32_ALU_OP_ADD_SUB;
+                alu_sub_sra_out = 0;
+                alu_src1_out = `RV32_ALU_SRC1_REG;
+                alu_src2_out = `RV32_ALU_SRC2_IMM;
+                mem_width_out = `RV32_MEM_WIDTH_WORD;
+                amo_op_out = `RV32_AMO_SC;
+                rd_write_out = 1;
+            end
+            `RV32_INSTR_AMOXOR_W: begin
+                valid_out = 1;
+                rs1_read_out = 1;
+                rs2_read_out = 1;
+                alu_op_out = `RV32_ALU_OP_ADD_SUB;
+                alu_sub_sra_out = 0;
+                alu_src1_out = `RV32_ALU_SRC1_REG;
+                alu_src2_out = `RV32_ALU_SRC2_IMM;
+                mem_width_out = `RV32_MEM_WIDTH_WORD;
+                amo_op_out = `RV32_AMO_XOR;
+                rd_write_out = 1;
+            end
+            `RV32_INSTR_AMOOR_W: begin
+                valid_out = 1;
+                rs1_read_out = 1;
+                rs2_read_out = 1;
+                alu_op_out = `RV32_ALU_OP_ADD_SUB;
+                alu_sub_sra_out = 0;
+                alu_src1_out = `RV32_ALU_SRC1_REG;
+                alu_src2_out = `RV32_ALU_SRC2_IMM;
+                mem_width_out = `RV32_MEM_WIDTH_WORD;
+                amo_op_out = `RV32_AMO_OR;
+                rd_write_out = 1;
+            end
+            `RV32_INSTR_AMOAND_W: begin
+                valid_out = 1;
+                rs1_read_out = 1;
+                rs2_read_out = 1;
+                alu_op_out = `RV32_ALU_OP_ADD_SUB;
+                alu_sub_sra_out = 0;
+                alu_src1_out = `RV32_ALU_SRC1_REG;
+                alu_src2_out = `RV32_ALU_SRC2_IMM;
+                mem_width_out = `RV32_MEM_WIDTH_WORD;
+                amo_op_out = `RV32_AMO_AND;
+                rd_write_out = 1;
+            end
+            `RV32_INSTR_AMOMIN_W: begin
+                valid_out = 1;
+                rs1_read_out = 1;
+                rs2_read_out = 1;
+                alu_op_out = `RV32_ALU_OP_ADD_SUB;
+                alu_sub_sra_out = 0;
+                alu_src1_out = `RV32_ALU_SRC1_REG;
+                alu_src2_out = `RV32_ALU_SRC2_IMM;
+                mem_width_out = `RV32_MEM_WIDTH_WORD;
+                amo_op_out = `RV32_AMO_MIN;
+                rd_write_out = 1;
+            end
+            `RV32_INSTR_AMOMAX_W: begin
+                valid_out = 1;
+                rs1_read_out = 1;
+                rs2_read_out = 1;
+                alu_op_out = `RV32_ALU_OP_ADD_SUB;
+                alu_sub_sra_out = 0;
+                alu_src1_out = `RV32_ALU_SRC1_REG;
+                alu_src2_out = `RV32_ALU_SRC2_IMM;
+                mem_width_out = `RV32_MEM_WIDTH_WORD;
+                amo_op_out = `RV32_AMO_MAX;
+                rd_write_out = 1;
+            end
+            `RV32_INSTR_AMOMINU_W: begin
+                valid_out = 1;
+                rs1_read_out = 1;
+                rs2_read_out = 1;
+                alu_op_out = `RV32_ALU_OP_ADD_SUB;
+                alu_sub_sra_out = 0;
+                alu_src1_out = `RV32_ALU_SRC1_REG;
+                alu_src2_out = `RV32_ALU_SRC2_IMM;
+                mem_width_out = `RV32_MEM_WIDTH_WORD;
+                amo_op_out = `RV32_AMO_MINU;
+                rd_write_out = 1;
+            end
+            `RV32_INSTR_AMOMAXU_W: begin
+                valid_out = 1;
+                rs1_read_out = 1;
+                rs2_read_out = 1;
+                alu_op_out = `RV32_ALU_OP_ADD_SUB;
+                alu_sub_sra_out = 0;
+                alu_src1_out = `RV32_ALU_SRC1_REG;
+                alu_src2_out = `RV32_ALU_SRC2_IMM;
+                mem_width_out = `RV32_MEM_WIDTH_WORD;
+                amo_op_out = `RV32_AMO_MAXU;
                 rd_write_out = 1;
             end
             `RV32_INSTR_FENCE: begin

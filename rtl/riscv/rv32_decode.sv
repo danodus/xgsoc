@@ -90,6 +90,7 @@ module rv32_decode (
     output logic rd_write_out,
     output logic rd_fp_out,
     output logic fpu_en_out,
+    output logic [3:0] amo_op_out,
 
     /* data out */
     output logic [31:0] pc_out,
@@ -193,6 +194,7 @@ module rv32_decode (
     logic ebreak;
     logic mret;
     logic rd_write;
+    logic [3:0] amo_op;
 
     assign rs1_read_unreg_out = rs1_read;
     assign rs2_read_unreg_out = rs2_read;
@@ -237,7 +239,8 @@ module rv32_decode (
         .ecall_out(ecall),
         .ebreak_out(ebreak),
         .mret_out(mret),
-        .rd_write_out(rd_write)
+        .rd_write_out(rd_write),
+        .amo_op_out(amo_op)
     );
 
     logic [31:0] imm_value;
@@ -319,6 +322,7 @@ module rv32_decode (
                 rd_write_out <= rd_write;
                 rd_fp_out <= rd_fp;
                 fpu_en_out <= fpu_en;
+                amo_op_out <= amo_op;
 
                 pc_out <= pc_in;
                 pc_incr_out <= pc_incr_in;
@@ -341,6 +345,7 @@ module rv32_decode (
                     rd_write_out <= 0;
                     rd_fp_out <= 0;
                     fpu_en_out <= 0;
+                    amo_op_out <= `RV32_AMO_NONE;
                     alu_op_out <= `RV32_ALU_OP_ADD_SUB;
                     alu_src1_out <= `RV32_ALU_SRC1_REG;
                     alu_src2_out <= `RV32_ALU_SRC2_REG;
@@ -377,6 +382,7 @@ module rv32_decode (
             rd_write_out <= 0;
             rd_fp_out <= 0;
             fpu_en_out <= 0;
+            amo_op_out <= `RV32_AMO_NONE;
 
             pc_out <= 0;
             pc_incr_out <= 32'd4;

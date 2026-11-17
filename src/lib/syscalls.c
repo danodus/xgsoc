@@ -17,6 +17,9 @@
 #include <string.h>
 #include <fcntl.h>
 #include <stdbool.h>
+#include <stdatomic.h>
+#include <stdint.h>
+#include <sys/lock.h>
 
 #include "sys.h"
 
@@ -54,6 +57,12 @@ static fs_context_t g_fs_ctx;
 static char g_filename[FS_MAX_FILENAME_LEN + 1];
 static size_t g_current_pos;
 static unsigned int g_tty_mode = 0x0;
+
+#define NHART 2
+
+static atomic_uint heap_owner;          /* 0 = free, else hartid + 1 */
+static uint32_t heap_depth[NHART];
+static uint32_t saved_mstatus[NHART];
 
 void ebreak()
 {
@@ -505,4 +514,46 @@ long _sysconf(int name)
 {
 	unimplemented_syscall("sysconf");
 	__builtin_unreachable();
+}
+
+static inline uint32_t get_hartid(void) {
+    uint32_t id;
+    __asm__ volatile ("csrr %0, mhartid" : "=r"(id));
+    return id;
+}
+
+void __malloc_lock(struct _reent *reent) {
+    (void)reent;
+    uint32_t hart = get_hartid();
+    uint32_t me = hart + 1;
+
+    if (atomic_load_explicit(&heap_owner, memory_order_relaxed) == me) {
+        heap_depth[hart]++;
+        return;
+    }
+
+    uint32_t mstatus;
+    __asm__ volatile ("csrrci %0, mstatus, 8" : "=r"(mstatus));
+
+    uint32_t expected = 0;
+    while (!atomic_compare_exchange_weak_explicit(
+               &heap_owner, &expected, me,
+               memory_order_acquire, memory_order_relaxed))
+        expected = 0;
+
+    heap_depth[hart] = 1;
+    saved_mstatus[hart] = mstatus;
+}
+
+void __malloc_unlock(struct _reent *reent) {
+    (void)reent;
+    uint32_t hart = get_hartid();
+
+    if (--heap_depth[hart] != 0)
+        return;
+
+    uint32_t mstatus = saved_mstatus[hart];
+    atomic_store_explicit(&heap_owner, 0, memory_order_release);
+    if (mstatus & 0x8)
+        __asm__ volatile ("csrsi mstatus, 8");
 }

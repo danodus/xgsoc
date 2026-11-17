@@ -142,8 +142,8 @@
 `define RV32_CSR_SRC_IMM 1'b0
 `define RV32_CSR_SRC_REG 1'b1
 
-/* MXL=32, I (bit 8), M (bit 12), F (bit 5), C (bit 2). */
-`define RV32_MISA_VALUE 32'h40001124 /* RV32IMFC */
+/* MXL=32, I (bit 8), M (bit 12), A (bit 0), F (bit 5), C (bit 2). */
+`define RV32_MISA_VALUE 32'h40001125 /* RV32IMAFC */
 
 `define RV32_MCAUSE_MACHINE_SOFTWARE_INTERRUPT 4'b0011
 `define RV32_MCAUSE_MACHINE_TIMER_INTERRUPT    4'b0111

@@ -6,7 +6,7 @@ The documentation is available here: https://danodus.github.io/xgsoc/
 
 # Features
 
-- RISC-V (RV32IMFC)
+- RISC-V (RV32IMAFC)
 - UART (1000000-N-8-1)
 - SDRAM (32MiB shared between CPU and video)
 - Set associative cache (4-way with LRU replacement policy)
@@ -129,6 +129,7 @@ The following programs are available:
 | Name            | Description                                         | Min. Config.  |
 | --------------- | --------------------------------------------------- | ------------- |
 | test_mem        | Test memory                                         | `b`           |
+| test_atomic     | Test RISC-V A (LR/SC and AMOs)                      | `b`           |
 | test_fs         | Test filesystem (SD card content erased)            | `b`           |
 | bench_dhrystone | Benchmark Dhrystone                                 | `b`           |
 | bench_coremark  | Benchmark Coremark                                  | `b`           |

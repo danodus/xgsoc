@@ -3,6 +3,7 @@
 
 `include "rv32_branch.sv"
 `include "rv32_csrs.sv"
+`include "rv32_opcodes.sv"
 
 `define RV32_MEM_WIDTH_WORD 2'b00
 `define RV32_MEM_WIDTH_HALF 2'b01
@@ -68,9 +69,11 @@ module rv32_mem (
     input [4:0] rd_in,
     input rd_write_in,
     input rd_fp_in,
+    input [3:0] amo_op_in,
 
     /* control in (from data memory bus) */
     input data_fault_in,
+    input data_ready_in,
 
     /* data in */
     input [31:0] pc_in,
@@ -93,6 +96,7 @@ module rv32_mem (
     output logic [4:0] rd_out,
     output logic rd_write_out,
     output logic rd_fp_out,
+    output logic amo_hold_out,
 
     /* control out (to data memory bus) */
     output logic data_read_out,
@@ -136,14 +140,77 @@ module rv32_mem (
     assign branch_pc_out = branch_pc_in;
     assign branch_mispredicted_out = branch_mispredicted && !flush_in;
 
+    /* A extension. Single hart, one reserved word. Cleared by this hart's
+     * stores, AMOs to that word, any SC, and traps. aq/rl are ignored because
+     * each memory op finishes before the next instruction. Other masters are
+     * not snooped.
+     *
+     * The read strobe drops on data_ready so that ready pulse is not reused
+     * as the following write. The write starts on its own select. */
+    localparam AMO_IDLE  = 2'd0;
+    localparam AMO_READ  = 2'd1;
+    localparam AMO_WRITE = 2'd2;
+
+    logic [1:0] amo_state;
+    logic res_valid;
+    logic [31:2] res_addr;
+    logic [31:0] amo_old;
+
+    logic amo_misaligned;
+    logic amo_present;
+    logic amo_is_lr;
+    logic amo_is_sc;
+    logic sc_hit;
+    logic sc_fail;
+    logic amo_live;
+    logic lr_done;
+    logic wr_done;
+    logic amo_bus_read;
+    logic amo_bus_write;
+    logic word_hit;
+
+    assign amo_misaligned = (amo_op_in != `RV32_AMO_NONE) && (result_in[1:0] != 2'b0);
+    assign amo_present = (amo_op_in != `RV32_AMO_NONE) && !exception_in && !amo_misaligned;
+    assign amo_is_lr = amo_op_in == `RV32_AMO_LR;
+    assign amo_is_sc = amo_op_in == `RV32_AMO_SC;
+    assign sc_hit = res_valid && (res_addr == result_in[31:2]);
+    assign sc_fail = amo_present && amo_is_sc && !sc_hit;
+    assign amo_live = amo_present && !sc_fail;
+    assign lr_done = (amo_state == AMO_READ) && amo_is_lr && data_ready_in;
+    assign wr_done = (amo_state == AMO_WRITE) && data_ready_in;
+    assign amo_bus_read = (amo_state == AMO_READ) && !data_ready_in && (amo_op_in != `RV32_AMO_NONE);
+    assign amo_bus_write = (amo_state == AMO_WRITE) && (amo_op_in != `RV32_AMO_NONE);
+    assign word_hit = res_valid && (res_addr == result_in[31:2]);
+
+    assign amo_hold_out = amo_live && !lr_done && !wr_done;
+
+    function automatic [31:0] amo_result(
+        input [3:0] op,
+        input [31:0] oldv,
+        input [31:0] rs2
+    );
+        case (op)
+            `RV32_AMO_SWAP, `RV32_AMO_SC: amo_result = rs2;
+            `RV32_AMO_ADD:  amo_result = oldv + rs2;
+            `RV32_AMO_XOR:  amo_result = oldv ^ rs2;
+            `RV32_AMO_AND:  amo_result = oldv & rs2;
+            `RV32_AMO_OR:   amo_result = oldv | rs2;
+            `RV32_AMO_MIN:  amo_result = ($signed(oldv) < $signed(rs2)) ? oldv : rs2;
+            `RV32_AMO_MAX:  amo_result = ($signed(oldv) > $signed(rs2)) ? oldv : rs2;
+            `RV32_AMO_MINU: amo_result = (oldv < rs2) ? oldv : rs2;
+            `RV32_AMO_MAXU: amo_result = (oldv > rs2) ? oldv : rs2;
+            default:        amo_result = rs2;
+        endcase
+    endfunction
+
     /* memory access unit */
     logic mem_misaligned;
 
     logic [31:0] read_value;
     logic [3:0] read_mask;
 
-    assign data_read_out = read_in && !mem_misaligned;
-    assign data_write_out = write_in && !mem_misaligned;
+    assign data_read_out = (read_in && !mem_misaligned) || amo_bus_read;
+    assign data_write_out = (write_in && !mem_misaligned) || amo_bus_write;
     assign data_address_out = {result_in[31:2], 2'b0};
 
     always_comb begin
@@ -156,7 +223,10 @@ module rv32_mem (
         endcase
 
         /* write port */
-        if (write_in) begin
+        if (amo_bus_write) begin
+            data_write_value_out = amo_result(amo_op_in, amo_old, rs2_value_in);
+            data_write_mask_out = 4'b1111;
+        end else if (write_in) begin
             case (width_in)
                 `RV32_MEM_WIDTH_WORD: begin
                     data_write_value_out = rs2_value_in;
@@ -248,6 +318,9 @@ module rv32_mem (
                     read_mask = 4'bx;
                 end
             endcase
+        end else if (amo_state == AMO_READ) begin
+            read_value = data_read_value_in;
+            read_mask = 4'b1111;
         end else begin
             read_value = 32'bx;
             read_mask = 4'b0;
@@ -279,6 +352,13 @@ module rv32_mem (
             exception = 1;
             exception_cause = `RV32_MCAUSE_STORE_MISALIGNED_EXCEPTION;
             mem_exception = 1;
+        end else if (amo_op_in != `RV32_AMO_NONE && amo_misaligned) begin
+            exception = 1;
+            mem_exception = 1;
+            if (amo_op_in == `RV32_AMO_LR)
+                exception_cause = `RV32_MCAUSE_LOAD_MISALIGNED_EXCEPTION;
+            else
+                exception_cause = `RV32_MCAUSE_STORE_MISALIGNED_EXCEPTION;
         end else if (read_in && data_fault_in) begin
             exception = 1;
             exception_cause = `RV32_MCAUSE_LOAD_FAULT_EXCEPTION;
@@ -380,7 +460,14 @@ module rv32_mem (
                 rd_write_out <= rd_write_in;
                 rd_fp_out <= rd_fp_in;
 
-                if (read_in)
+                if (amo_op_in != `RV32_AMO_NONE && !amo_misaligned) begin
+                    if (amo_op_in == `RV32_AMO_SC)
+                        rd_value_out <= sc_fail ? 32'd1 : 32'd0;
+                    else if (amo_op_in == `RV32_AMO_LR)
+                        rd_value_out <= data_read_value_in;
+                    else
+                        rd_value_out <= amo_old;
+                end else if (read_in)
                     rd_value_out <= read_value;
                 else if (csr_read_in)
                     rd_value_out <= csr_read_value;
@@ -409,6 +496,43 @@ module rv32_mem (
             rd_write_out <= 0;
             rd_fp_out <= 0;
             rd_value_out <= 0;
+        end
+    end
+
+    always_ff @(posedge clk) begin
+        if (reset) begin
+            amo_state <= AMO_IDLE;
+            res_valid <= 1'b0;
+            res_addr <= 30'b0;
+            amo_old <= 32'b0;
+        end else if (ce_i) begin
+            if (amo_state == AMO_READ && data_ready_in && !amo_is_lr && amo_op_in != `RV32_AMO_NONE)
+                amo_old <= data_read_value_in;
+
+            if (amo_state != AMO_IDLE && amo_op_in == `RV32_AMO_NONE)
+                amo_state <= AMO_IDLE;
+            else if (amo_state == AMO_IDLE && amo_live && !amo_is_sc)
+                amo_state <= AMO_READ;
+            else if (amo_state == AMO_IDLE && amo_live && amo_is_sc)
+                amo_state <= AMO_WRITE;
+            else if (amo_state == AMO_READ && data_ready_in && amo_is_lr)
+                amo_state <= AMO_IDLE;
+            else if (amo_state == AMO_READ && data_ready_in)
+                amo_state <= AMO_WRITE;
+            else if (amo_state == AMO_WRITE && data_ready_in)
+                amo_state <= AMO_IDLE;
+
+            if (!flush_in && exception)
+                res_valid <= 1'b0;
+            else if (!flush_in && lr_done) begin
+                res_valid <= 1'b1;
+                res_addr <= result_in[31:2];
+            end else if (!flush_in && amo_present && amo_is_sc && (sc_fail || wr_done))
+                res_valid <= 1'b0;
+            else if (!flush_in && wr_done && word_hit)
+                res_valid <= 1'b0;
+            else if (!flush_in && write_in && !mem_misaligned && !exception && word_hit)
+                res_valid <= 1'b0;
         end
     end
 endmodule

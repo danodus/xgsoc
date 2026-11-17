@@ -5,6 +5,7 @@
 `include "rv32_branch.sv"
 `include "rv32_csrs.sv"
 `include "rv32_fpu.sv"
+`include "rv32_opcodes.sv"
 
 module rv32_execute #(
     parameter BYPASSING = 0
@@ -67,6 +68,7 @@ module rv32_execute #(
     input rd_write_in,
     input rd_fp_in,
     input fpu_en_in,
+    input [3:0] amo_op_in,
 
     /* control in (from writeback) */
     input [4:0] writeback_rd_in,
@@ -112,6 +114,7 @@ module rv32_execute #(
     output logic [4:0] rd_out,
     output logic rd_write_out,
     output logic rd_fp_out,
+    output logic [3:0] amo_op_out,
 
     /* data out */
     output logic [31:0] pc_out,
@@ -259,7 +262,8 @@ module rv32_execute #(
         .pc_incr_in(pc_incr_in),
         .rs1_value_in(rs1_value),
         .rs2_value_in(rs2_value),
-        .imm_value_in(imm_value_in),
+        /* Atomics address with rs1+0. SRC2 has no zero encoding. */
+        .imm_value_in(amo_op_in != `RV32_AMO_NONE ? 32'b0 : imm_value_in),
 
         /* data out */
         .result_out(alu_result),
@@ -314,6 +318,7 @@ module rv32_execute #(
                 exception_out <= 0;
                 mem_read_out <= 0;
                 mem_write_out <= 0;
+                amo_op_out <= `RV32_AMO_NONE;
                 csr_read_out <= 0;
                 csr_write_out <= 0;
                 branch_op_out <= `RV32_BRANCH_OP_NEVER;
@@ -335,6 +340,7 @@ module rv32_execute #(
                 exception_out <= 0;
                 mem_read_out <= 0;
                 mem_write_out <= 0;
+                amo_op_out <= `RV32_AMO_NONE;
                 csr_read_out <= 0;
                 csr_write_out <= 0;
                 branch_op_out <= `RV32_BRANCH_OP_NEVER;
@@ -360,6 +366,7 @@ module rv32_execute #(
                     exception_out <= 0;
                     mem_read_out <= 0;
                     mem_write_out <= 0;
+                    amo_op_out <= `RV32_AMO_NONE;
                     csr_read_out <= 0;
                     csr_write_out <= 0;
                     branch_op_out <= `RV32_BRANCH_OP_NEVER;
@@ -376,6 +383,7 @@ module rv32_execute #(
                     exception_cause_out <= `RV32_MCAUSE_INSTR_ILLEGAL_EXCEPTION;
                     mem_read_out <= 0;
                     mem_write_out <= 0;
+                    amo_op_out <= `RV32_AMO_NONE;
                     mem_width_out <= mem_width_in;
                     mem_zero_extend_out <= mem_zero_extend_in;
                     mem_fence_out <= 0;
@@ -407,6 +415,7 @@ module rv32_execute #(
                     exception_out <= 0;
                     mem_read_out <= 0;
                     mem_write_out <= 0;
+                    amo_op_out <= `RV32_AMO_NONE;
                     csr_read_out <= 0;
                     csr_write_out <= 0;
                     branch_op_out <= `RV32_BRANCH_OP_NEVER;
@@ -433,6 +442,7 @@ module rv32_execute #(
                     exception_cause_out <= exception_cause_in;
                     mem_read_out <= mem_read_in;
                     mem_write_out <= mem_write_in;
+                    amo_op_out <= amo_op_in;
                     mem_width_out <= mem_width_in;
                     mem_zero_extend_out <= mem_zero_extend_in;
                     mem_fence_out <= mem_fence_in;
@@ -468,6 +478,7 @@ module rv32_execute #(
             exception_out <= 0;
             mem_read_out <= 0;
             mem_write_out <= 0;
+            amo_op_out <= `RV32_AMO_NONE;
             mem_width_out <= 0;
             mem_zero_extend_out <= 0;
             mem_fence_out <= 0;

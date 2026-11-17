@@ -133,6 +133,7 @@ module rv32_core #(
     logic decode_rd_write;
     logic decode_rd_fp;
     logic decode_fpu_en;
+    logic [3:0] decode_amo_op;
 
     /* decode -> execute data */
     logic [31:0] decode_pc;
@@ -178,6 +179,8 @@ module rv32_core #(
     logic [4:0] execute_rd;
     logic execute_rd_write;
     logic execute_rd_fp;
+    logic [3:0] execute_amo_op;
+    logic mem_amo_hold;
 
     /* execute -> mem data */
     logic [31:0] execute_pc;
@@ -271,6 +274,7 @@ module rv32_core #(
         .data_read_in(data_read_out),
         .data_write_in(data_write_out),
         .data_ready_in(data_ready_in),
+        .amo_hold_in(mem_amo_hold),
 
         /* control out */
         .pcgen_stall_out(pcgen_stall),
@@ -430,6 +434,7 @@ module rv32_core #(
         .rd_write_out(decode_rd_write),
         .rd_fp_out(decode_rd_fp),
         .fpu_en_out(decode_fpu_en),
+        .amo_op_out(decode_amo_op),
 
         /* data out */
         .pc_out(decode_pc),
@@ -503,6 +508,7 @@ module rv32_core #(
         .rd_write_in(decode_rd_write),
         .rd_fp_in(decode_rd_fp),
         .fpu_en_in(decode_fpu_en),
+        .amo_op_in(decode_amo_op),
 
         /* control in (from writeback) */
         .writeback_rd_in(mem_rd),
@@ -547,6 +553,7 @@ module rv32_core #(
         .rd_out(execute_rd),
         .rd_write_out(execute_rd_write),
         .rd_fp_out(execute_rd_fp),
+        .amo_op_out(execute_amo_op),
         .alu_busy_out(execute_alu_busy),
 
         /* data out */
@@ -621,9 +628,11 @@ module rv32_core #(
         .rd_in(execute_rd),
         .rd_write_in(execute_rd_write),
         .rd_fp_in(execute_rd_fp),
+        .amo_op_in(execute_amo_op),
 
         /* control in (from memory bus) */
         .data_fault_in(data_fault_in),
+        .data_ready_in(data_ready_in),
 
         /* data in */
         .pc_in(execute_pc),
@@ -646,6 +655,7 @@ module rv32_core #(
         .rd_out(mem_rd),
         .rd_write_out(mem_rd_write),
         .rd_fp_out(mem_rd_fp),
+        .amo_hold_out(mem_amo_hold),
 
         /* control out (to memory bus) */
         .data_read_out(data_read_out),

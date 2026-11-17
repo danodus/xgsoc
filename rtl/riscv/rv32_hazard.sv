@@ -42,6 +42,7 @@ module rv32_hazard_unit #(
     input data_read_in,
     input data_write_in,
     input data_ready_in,
+    input amo_hold_in,
 
     /* control out */
     output logic pcgen_stall_out,
@@ -124,7 +125,7 @@ module rv32_hazard_unit #(
 
     assign pcgen_wait_for_bus = instr_read_in && !instr_ready_in;
     assign fetch_wait_for_mem_fence = decode_mem_fence_unreg_in || decode_mem_fence_in || execute_mem_fence_in;
-    assign execute_wait_for_bus = (data_read_in || data_write_in) && !data_ready_in;
+    assign execute_wait_for_bus = ((data_read_in || data_write_in) && !data_ready_in) || amo_hold_in;
 
     assign pcgen_stall_out = fetch_stall_out || pcgen_wait_for_bus;
 
