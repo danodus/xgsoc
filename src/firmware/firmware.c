@@ -24,6 +24,12 @@ unsigned int read_word()
     return word;
 }
 
+static void uart_drain_rx(void)
+{
+    while (MEM_READ(UART_STATUS) & 1)
+        (void)MEM_READ(UART_DATA);
+}
+
 void echo()
 {
     for (;;) {
@@ -102,7 +108,7 @@ void main(void)
     print("Press a key to bypass the SD card image boot process...\r\n");
     for (int i = 0; i < 1000000; ++i) {
         if (MEM_READ(UART_STATUS) & 1) {
-            MEM_READ(UART_DATA);
+            uart_drain_rx();
             bypass_sd_card = true;
             break;
         }
@@ -150,6 +156,7 @@ void main(void)
             // Read program
             unsigned int addr = RAM_START;
             unsigned int size;
+            uart_drain_rx();
             size = read_word();
 
             if (size == 0) {
