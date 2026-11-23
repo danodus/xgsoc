@@ -13,6 +13,7 @@ CONFIG          BASE_IO + 36
 FB_ADDR         BASE_IO + 40
 VSYNC           BASE_IO + 44
 HW_CONFIG       BASE_IO + 56
+ZOOM            BASE_IO + 128
 =============== =============
 
 CONFIG
@@ -86,3 +87,16 @@ Field   Description
 ======= ============================
 
 Write: -
+
+ZOOM
+^^^^
+
+Read / write. Takes effect on the next vertical blank. ``CONFIG`` then reports the active framebuffer size.
+
+======= ============================
+Field   Description
+======= ============================
+[1:0]   0 = native, 1 = half width and height, 2 = quarter width and height
+======= ============================
+
+HDMI timing does not change. Level 1 displays each source pixel as a 2×2 block. Level 2 displays each source pixel as a 4×4 block, so 1280×720 becomes a 320×180 framebuffer that still fills the screen.

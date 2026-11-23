@@ -44,7 +44,8 @@ module hdmi_av #(
     localparam VSYNC_PULSE_SIZE = 5;
     localparam INVERT_POLARITY = 0;
 `else
-    // VGA, and QVGA displayed in a doubled 640x480 raster.
+    // VGA. A half-size framebuffer can be shown in this timing, or in
+    // 720p and 1080p, by setting the ZOOM register.
     localparam VIDEO_ID_CODE = 1;
     localparam FRAME_WIDTH = 800;
     localparam FRAME_HEIGHT = 525;

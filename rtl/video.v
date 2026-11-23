@@ -35,6 +35,7 @@ module video #(
     parameter V_BP=33     // vertical back porch
 ) (
     input clk, pclk, ce,
+    input [1:0] zoom,
     input [31:0] viddata,
 `ifdef HDMI
     // Transmitter beam. rgb during cycle cx is what the encoder emits as
@@ -74,11 +75,10 @@ assign hend = (hcnt == H_TOTAL-1), vend = (vcnt == V_TOTAL-1);
 assign vblank = (vcnt >= V_RES);
 assign hsync = (hcnt >= H_RES+H_FP) & (hcnt < H_RES+H_FP+H_BP);
 assign vsync = (vcnt >= V_RES+V_FP) & (vcnt < V_RES+V_FP+V_BP);
-`ifdef ZOOM
-assign xfer = hcnt[1:0] == 2'b11;
-`else
-assign xfer = hcnt[0];
-`endif
+// zoom is the log2 of the pixel repeat: 0 native, 1 is 2x2, 2 is 4x4.
+// A FIFO word is two RGB565 pixels, so it covers 2, 4, or 8 output clocks.
+assign xfer = (zoom == 2'd2) ? (hcnt[2:0] == 3'b111) :
+              (zoom == 2'd1) ? (hcnt[1:0] == 2'b11) : hcnt[0];
 assign vid = (~hblank & ~vblank) ? pixbuf[15:0] : 16'd0;
 assign RGB = vid;
 
@@ -90,12 +90,11 @@ assign RGB = vid;
 // is framebuffer pixel 0.
 wire next_line_active = (vcnt == V_TOTAL-1) || (vcnt < V_RES-1);
 wire prefetch = (hcnt == H_TOTAL-2) && next_line_active;
-`ifdef ZOOM
-// Four output pixels per FIFO word: each source pixel is doubled.
-wire pair = ~vblank && (hcnt[1:0] == 2'b10) && (hcnt <= H_RES-6);
-`else
-wire pair = ~vblank && ~hcnt[0] && (hcnt <= H_RES-4);
-`endif
+// Pop the next word at the start of the word's second pixel, and not past
+// the last word of the line. The blanking prefetch supplies word 0.
+wire pair = (zoom == 2'd2) ? (~vblank && (hcnt[2:0] == 3'b100) && (hcnt <= H_RES-12)) :
+            (zoom == 2'd1) ? (~vblank && (hcnt[1:0] == 2'b10) && (hcnt <= H_RES-6)) :
+                             (~vblank && ~hcnt[0] && (hcnt <= H_RES-4));
 wire want = prefetch || pair;
 
 always @(posedge pclk) begin
@@ -106,32 +105,39 @@ always @(posedge pclk) begin
   end else begin
     req <= want;
     vidbuf <= req ? viddata : vidbuf;
-`ifdef ZOOM
-    if (hcnt[1:0] == 2'b00)
-      pixbuf <= vidbuf;
-    else if (hcnt[1:0] == 2'b10)
-      pixbuf <= {16'd0, pixbuf[31:16]};
-`else
-    pixbuf <= hcnt[0] ? {16'd0, pixbuf[31:16]} : vidbuf;
-`endif
+    if (zoom == 2'd2) begin
+      if (hcnt[2:0] == 3'b000)
+        pixbuf <= vidbuf;
+      else if (hcnt[2:0] == 3'b100)
+        pixbuf <= {16'd0, pixbuf[31:16]};
+    end else if (zoom == 2'd1) begin
+      if (hcnt[1:0] == 2'b00)
+        pixbuf <= vidbuf;
+      else if (hcnt[1:0] == 2'b10)
+        pixbuf <= {16'd0, pixbuf[31:16]};
+    end else
+      pixbuf <= hcnt[0] ? {16'd0, pixbuf[31:16]} : vidbuf;
   end
 end
 `else
 always @(posedge pclk) if(ce && init_req_counter == 2'd0) begin  // pixel clock domain
   hcnt <= hend ? 0 : hcnt+1;
   vcnt <= hend ? (vend ? 0 : (vcnt+1)) : vcnt;
-`ifdef ZOOM
-  // The first word is prefetched during the preceding line's blanking interval.
-  hblank <= (hcnt == H_TOTAL-1) ? 1'b0 : (xfer ? (hcnt >= H_RES-1) : hblank);
-`else
-  hblank <= xfer ? (hcnt >= H_RES) : hblank;
-`endif
-`ifdef ZOOM
-  // Keep each half-word for two output clocks while the image is doubled.
-  pixbuf <= ((hcnt[1:0] == 2'b11) || (hcnt[1:0] == 2'b00)) ? vidbuf : {pixbuf[31:16], pixbuf[31:16]};
-`else
-  pixbuf <= xfer ? vidbuf : {16'd0, pixbuf[31:16]};
-`endif
+  if (zoom == 2'd0) begin
+    hblank <= xfer ? (hcnt >= H_RES) : hblank;
+    pixbuf <= xfer ? vidbuf : {16'd0, pixbuf[31:16]};
+  end else if (zoom == 2'd1) begin
+    // The first word is prefetched during the preceding line's blanking interval.
+    // Each half-word is kept for two output clocks while the image is doubled.
+    hblank <= (hcnt == H_TOTAL-1) ? 1'b0 : (xfer ? (hcnt >= H_RES-1) : hblank);
+    pixbuf <= ((hcnt[1:0] == 2'b11) || (hcnt[1:0] == 2'b00)) ? vidbuf : {pixbuf[31:16], pixbuf[31:16]};
+  end else begin
+    hblank <= (hcnt == H_TOTAL-1) ? 1'b0 : (xfer ? (hcnt >= H_RES-1) : hblank);
+    if ((hcnt[2:0] == 3'b111) || (hcnt[2:0] == 3'b000))
+      pixbuf <= vidbuf;
+    else if (hcnt[2:0] == 3'b100)
+      pixbuf <= {16'd0, pixbuf[31:16]};
+  end
 end
 
 always @(posedge pclk) if(ce) begin  // CPU (SRAM) clock domain

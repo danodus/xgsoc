@@ -114,6 +114,7 @@ module soc_top #(
     // 13 PS2 mouse status / --
     // 14 hw configuration / --
     // 15 PCM sample / PCM status
+    // 32 zoom / zoom ([1:0]: 0 native, 1 half, 2 quarter)
 
     logic is_simulation, is_graphite_avail, is_usb_avail, is_ps2_mouse_avail, is_ps2_kbd_avail, is_video_avail, is_audio_avail;
 `ifndef SYNTHESIS
@@ -163,15 +164,11 @@ module soc_top #(
     localparam V_RES = 1080;
     localparam H_POL = 1;
     localparam V_POL = 1;
-`else // VGA/QVGA
+`else // VGA
     localparam H_RES = 640;
     localparam V_RES = 480;
     localparam H_POL = 0;
     localparam V_POL = 0;
-`ifdef VIDEO_QVGA
-`define ZOOM
-`endif // VIDEO_QVGA
-
 `endif
 `endif // VIDEO
 
@@ -182,6 +179,30 @@ module soc_top #(
     logic de;
     logic [15:0] RGB565;
     logic [23:0] RGB888;
+    // zoom_req is the CPU write (0 native, 1 half, 2 quarter). zoom_active
+    // is what scanout is using, copied at the next vertical blank.
+    logic [1:0]     zoom_req = 2'd0;
+    logic [1:0]     zoom_sdram_meta = 2'd0, zoom_sdram = 2'd0;
+    logic [1:0]     zoom_active = 2'd0;
+    logic [1:0]     zoom_cpu_meta = 2'd0, zoom_cpu = 2'd0;
+    logic [1:0]     zoom_pix_meta = 2'd0, zoom_pix = 2'd0;
+    wire [15:0]     fb_hres = (zoom_cpu == 2'd2) ? 16'(H_RES/4) :
+                              (zoom_cpu == 2'd1) ? 16'(H_RES/2) : 16'(H_RES);
+    wire [15:0]     fb_vres = (zoom_cpu == 2'd2) ? 16'(V_RES/4) :
+                              (zoom_cpu == 2'd1) ? 16'(V_RES/2) : 16'(V_RES);
+
+    always_ff @(posedge clk_sdram) begin
+        zoom_sdram_meta <= zoom_req;
+        zoom_sdram <= zoom_sdram_meta;
+    end
+    always_ff @(posedge clk_cpu) begin
+        zoom_cpu_meta <= zoom_active;
+        zoom_cpu <= zoom_cpu_meta;
+    end
+    always_ff @(posedge clk_pixel) begin
+        zoom_pix_meta <= zoom_active;
+        zoom_pix <= zoom_pix_meta;
+    end
 
     assign vga_r_o = RGB888[23:16];
     assign vga_g_o = RGB888[15:8];
@@ -212,7 +233,7 @@ module soc_top #(
     assign sd_cs_n_o = SS[0];
 
     logic [31:0] adr;
-    logic [4:0]  iowadr; // word address
+    logic [5:0]  iowadr; // word address
     logic [31:0] inbus, inbus0;  // data to RISC core
     logic [31:0] inbusvid;
     logic [31:0] outbus;  // data from RISC core
@@ -243,7 +264,7 @@ module soc_top #(
     logic [3:0] spiCtrl;
     logic [19:0] vidadr = 0;
 
-    assign iowadr = adr[6:2];
+    assign iowadr = adr[7:2];
     assign ioenb = (adr[31:28] == 4'hE);
     logic mreq = !ioenb && !pm_sel;
 
@@ -326,6 +347,7 @@ module soc_top #(
 `endif
     .vid_ready(!empty),
 `endif // HDMI
+    .zoom(zoom_pix),
     .de(de), .RGB(RGB565), .hsync(vga_hsync), .vsync(vga_vsync));
 `endif // VIDEO
 
@@ -424,7 +446,7 @@ module soc_top #(
 `endif // USB
 
 `ifdef VIDEO_FB
-    logic [31:0]    fb_addr;     
+    logic [31:0]    fb_addr;
 
 `ifdef VIDEO_GRAPHITE
     // Graphite
@@ -444,13 +466,8 @@ module soc_top #(
 
     graphite #(
         .FB_ADDRESS(DEFAULT_FB_ADDRESS >> 'd1),
-    `ifdef ZOOM
-        .FB_WIDTH(H_RES/2),
-        .FB_HEIGHT(V_RES/2)
-    `else
         .FB_WIDTH(H_RES),
         .FB_HEIGHT(V_RES)
-    `endif
     ) graphite(
         .clk(clk_cpu),
         .reset_i(~rst_n),
@@ -472,7 +489,8 @@ module soc_top #(
         .vsync_i(vga_vsync),
         .swap_o(graphite_swap),
         .front_addr_o(graphite_front_addr),
-        .clear_o(graphite_clear)
+        .clear_o(graphite_clear),
+        .zoom_i(zoom_cpu)
     );
 `endif // VIDEO_GRAPHITE
 
@@ -535,11 +553,7 @@ module soc_top #(
 `else
         (iowadr == 8) ? {32'b0} :
 `endif
-`ifdef ZOOM
-        (iowadr == 9) ? {16'(H_RES/2), 16'(V_RES/2)} :
-`else // ZOOM
-        (iowadr == 9) ? {16'(H_RES), 16'(V_RES)} :
-`endif // ZOOM
+        (iowadr == 9) ? {fb_hres, fb_vres} :
         (iowadr == 10) ? fb_addr :
         (iowadr == 11) ? {31'b0, vga_vsync} :
 `else // VIDEO
@@ -562,6 +576,9 @@ module soc_top #(
 `ifdef USB
         (iowadr >= 16 && iowadr < 32) ? sie_di :
 `endif // USB
+`ifdef VIDEO_FB
+        (iowadr == 6'd32) ? {30'b0, zoom_req} :
+`endif // VIDEO_FB
         32'd0);
 
     assign dataTx = outbus[7:0];
@@ -611,6 +628,7 @@ module soc_top #(
             spiCtrl <= 4'd0;
 `ifdef VIDEO_FB
             fb_addr <= DEFAULT_FB_ADDRESS;
+            zoom_req <= 2'd0;
 `ifdef VIDEO_GRAPHITE
             graphite_cmd_axis_tvalid <= 1'b0;
             use_graphite_front_addr <= 1'b0;
@@ -644,6 +662,10 @@ module soc_top #(
 `ifdef VIDEO_GRAPHITE
                     use_graphite_front_addr <= 1'b0;
 `endif // VIDEO_GRAPHITE
+                end
+                else if (iowadr == 6'd32) begin
+                    if (outbus[1:0] <= 2'd2)
+                        zoom_req <= outbus[1:0];
                 end
 `endif // VIDEO
             end
@@ -877,7 +899,6 @@ module soc_top #(
     end
 `endif
 
-`ifdef ZOOM
     logic [10:0] col_counter = 11'd0;
     logic [10:0] line_counter = 11'd0;
     logic [19:0] line_vidadr = 20'd0;
@@ -885,9 +906,12 @@ module soc_top #(
 
     logic end_of_frame, end_of_line;
     assign end_of_frame = line_counter == V_RES - 1;
-    assign end_of_line = col_counter == 11'(H_RES / 32 - 1);
-    assign line_dup = end_of_line && !line_counter[0];
-`endif
+    assign end_of_line = col_counter == ((zoom_active == 2'd2) ? 11'(H_RES / 64 - 1)
+                                                              : 11'(H_RES / 32 - 1));
+    // Repeat a source line until its last output copy. zoom 1 repeats twice,
+    // zoom 2 repeats four times.
+    assign line_dup = end_of_line && ((zoom_active == 2'd2) ? (line_counter[1:0] != 2'b11)
+                                                             : !line_counter[0]);
 
 `endif // VIDEO_FB
     
@@ -921,11 +945,10 @@ module soc_top #(
                 vid_wr_reset <= 1'b1;
                 vid_quiet <= 2'd0;
                 vidadr <= 20'd0;
-`ifdef ZOOM
                 col_counter <= 11'd0;
                 line_counter <= 11'd0;
                 line_vidadr <= 20'd0;
-`endif
+                zoom_active <= zoom_sdram;
             end
             default: begin
                 vid_wr_reset <= 1'b0;
@@ -956,27 +979,39 @@ module soc_top #(
 `ifdef HDMI
                 if (vid_phase == VID_RUN) begin
 `endif
-`ifdef ZOOM
-                if (col_counter == 11'd0)
-                    line_vidadr <= vidadr;
+                if (zoom_active) begin
+                    if (col_counter == 11'd0)
+                        line_vidadr <= vidadr;
 
-                if (end_of_line) begin
-                    col_counter <= 11'd0;
-                    line_counter <= line_counter + 11'd1;
+                    if (end_of_line) begin
+                        col_counter <= 11'd0;
+                        line_counter <= line_counter + 11'd1;
+                    end else begin
+                        col_counter <= col_counter + 11'd1;
+                    end
+                    if (end_of_frame && end_of_line) begin
+                        vidadr <= 20'd0;
+                        col_counter <= 11'd0;
+                        line_counter <= 11'd0;
+`ifndef HDMI
+                        zoom_active <= zoom_sdram;
+`endif
+                    end else begin
+                        vidadr <= line_dup ? line_vidadr : vidadr + 20'd1;
+                    end
                 end else begin
-                    col_counter <= col_counter + 11'd1;
+                    if (vidadr == 20'(H_RES*V_RES*2/32-1)) begin
+                        vidadr <= 20'd0;
+`ifndef HDMI
+                        zoom_active <= zoom_sdram;
+                        col_counter <= 11'd0;
+                        line_counter <= 11'd0;
+                        line_vidadr <= 20'd0;
+`endif
+                    end else begin
+                        vidadr <= vidadr + 20'b1;
+                    end
                 end
-                if (end_of_frame && end_of_line) begin
-                    vidadr <= 20'd0;
-                    col_counter <= 11'd0;
-                    line_counter <= 11'd0;
-                end else begin
-                    vidadr <= line_dup ? line_vidadr : vidadr + 20'd1;
-                end
-`else // ZOOM
-                if(vidadr == 20'(H_RES*V_RES*2/32-1)) vidadr <= 20'd0;
-                else vidadr <= vidadr + 20'b1;
-`endif // ZOOM
 `ifdef HDMI
                 end
 `endif

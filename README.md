@@ -10,8 +10,7 @@ The documentation is available here: https://danodus.github.io/xgsoc/
 - UART (1000000-N-8-1)
 - SDRAM (32MiB shared between CPU and video)
 - Set associative cache (4-way with LRU replacement policy)
-- QVGA (60 Hz) or VGA (60 Hz) HDMI video output with framebuffer (RGB565)
-- 720p (60 Hz) or 1080p (30 Hz) video modes (experimental)
+- VGA (60 Hz), 720p (60 Hz) or 1080p (30 Hz) HDMI video output with framebuffer (RGB565). The ZOOM register can show that framebuffer at full size, half size, or quarter size in any video mode
 - Graphite 2D/3D graphics accelerator (textured triangles)
 - PS/2 Keyboard
 - PS/2 Mouse
@@ -95,14 +94,13 @@ By default, the configuration is `bvgkm`.
 The following video modes are available:
 | Video Mode     | Description        |
 | -------------- | ------------------ |
-| qvga           | 320x240 60Hz       |
 | vga            | 640x480 60Hz       |
-| 720p           | 1280x720 60Hz (*)  |
-| 1080p          | 1920x1080 30Hz (*) |
-
-(*) Experimental
+| 720p           | 1280x720 60Hz      |
+| 1080p          | 1920x1080 30Hz     |
 
 By default, the video mode is `vga`.
+
+Write the ZOOM register (`BASE_IO + 128`, `0xE0000080`) to scale the framebuffer in the current mode: `0` native, `1` half width and height, `2` quarter width and height. HDMI timing does not change. `CONFIG` reports the active size after the next vertical blank.
 
 ## System Simulation
 

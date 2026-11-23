@@ -58,7 +58,7 @@ ifneq (,$(findstring v,$(CONF)))
   endif
 
   ifeq ($(VIDEO),qvga)
-  DEFINES += -DVIDEO_QVGA
+  $(error VIDEO=qvga was removed; build VIDEO=vga and set the ZOOM register)
   endif
 
   ifeq ($(VIDEO),vga)
