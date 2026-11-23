@@ -40,9 +40,6 @@ SRC = \
   ../lattice/ecp5pll.sv \
   ../bram_true2p_2clk.v \
   ../vqueue.v \
-  ../vdu/vdu.sv \
-  ../vdu/vdu_vram.sv \
-  ../vdu/vdu_display_timings.sv \
   ../../external/graphite/rtl/graphite.sv \
   ../../external/graphite/rtl/graphite_command_processor.sv \
   ../../external/graphite/rtl/graphite_rasterizer.v \
@@ -54,11 +51,7 @@ DEFINES =
 ifneq (,$(findstring v,$(CONF)))
   DEFINES += -DVIDEO -DHDMI
 
-  ifneq (,$(findstring d,$(CONF)))
-    DEFINES += -DVIDEO_VDU
-  else
-    DEFINES += -DVIDEO_FB
-  endif
+  DEFINES += -DVIDEO_FB
 
   ifneq (,$(findstring g,$(CONF)))
     DEFINES += -DVIDEO_GRAPHITE
@@ -70,10 +63,6 @@ ifneq (,$(findstring v,$(CONF)))
 
   ifeq ($(VIDEO),vga)
   DEFINES += -DVIDEO_VGA
-  endif
-
-  ifeq ($(VIDEO),480p)
-  DEFINES += -DVIDEO_480P
   endif
 
   ifeq ($(VIDEO),720p)
@@ -112,13 +101,10 @@ ifneq (,$(findstring u,$(CONF)))
   DEFINES += -DUSB
 endif
 
-# PCM playback needs the framebuffer path (letter v, not the VDU letter d).
 ifneq (,$(findstring v,$(CONF)))
 ifneq (,$(findstring a,$(CONF)))
-ifeq (,$(findstring d,$(CONF)))
   DEFINES += -DAUDIO
   SRC += ../pcm_fifo.sv
-endif
 endif
 endif
 

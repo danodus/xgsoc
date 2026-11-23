@@ -153,12 +153,7 @@ module soc_top #(
 `endif
 
 `ifdef VIDEO_FB    
-`ifdef VIDEO_480P
-    localparam H_RES = 848;
-    localparam V_RES = 480;
-    localparam H_POL = 1;
-    localparam V_POL = 1;
-`elsif VIDEO_720P
+`ifdef VIDEO_720P
     localparam H_RES = 1280;
     localparam V_RES = 720;
     localparam H_POL = 1;
@@ -250,20 +245,17 @@ module soc_top #(
 
     assign iowadr = adr[6:2];
     assign ioenb = (adr[31:28] == 4'hE);
-    logic mreq = !ioenb && !pm_sel && !vdu_sel;
+    logic mreq = !ioenb && !pm_sel;
 
     logic cpu_we, cpu_sel;
-    assign rd = cpu_sel && !pm_sel && !vdu_sel && !cpu_we;
-    assign wr = cpu_sel && !pm_sel && !vdu_sel && cpu_we;
+    assign rd = cpu_sel && !pm_sel && !cpu_we;
+    assign wr = cpu_sel && !pm_sel && cpu_we;
 
     logic [31:0] pmout;
     prom prom(.adr(adr[11:2]), .data(pmout), .clk(clk_cpu), .ce(cpu_ce));
 
     logic pm_sel;
     assign pm_sel = adr[31:28] == 4'hF;
-
-    logic vdu_sel;
-    assign vdu_sel = adr[31:28] == 4'h1;
 
     rv32 #(
         .RESET_VEC_ADDR(32'hF0000000)
@@ -299,15 +291,7 @@ module soc_top #(
     video #(
         .H_RES(H_RES),  // horizontal resolution (pixels)
         .V_RES(V_RES),  // vertical resolution (lines)
-`ifdef VIDEO_480P
-        .CORDW(11),   // signed coordinate width (bits)
-        .H_FP(16),    // horizontal front porch
-        .H_SYNC(112), // horizontal sync
-        .H_BP(112),   // horizontal back porch
-        .V_FP(6),     // vertical front porch
-        .V_SYNC(8),   // vertical sync
-        .V_BP(23)     // vertical back porch
-`elsif VIDEO_720P
+`ifdef VIDEO_720P
         .CORDW(11),   // signed coordinate width (bits)
         .H_FP(110),   // horizontal front porch
         .H_SYNC(40),  // horizontal sync
@@ -493,40 +477,6 @@ module soc_top #(
 `endif // VIDEO_GRAPHITE
 
 `endif // VIDEO_FB
-
-
-`ifdef VIDEO_VDU
-
-    logic vdu_de;
-
-    vdu vdu(
-        .clk(clk_cpu),
-        .reset_i(~rst_n),
-`ifdef HDMI
-        .clk_pix(clk_pixel),
-        .cx(beam_x_i),
-        .cy(beam_y_i),
-`endif
-
-        .sel_i(vdu_sel),
-        .wr_en_i(cpu_we),
-        .wr_mask_i(wmask),
-        .address_in_i(adr[17:2]),
-        .data_in_i(outbus),
-        .data_out_o(),
-        .ack_o(),
-
-        .vga_hsync_o(vga_hsync_o),
-        .vga_vsync_o(vga_vsync_o),
-        .vga_r_o(vga_r_o),
-        .vga_g_o(vga_g_o),
-        .vga_b_o(vga_b_o),
-        .vga_de_o(vdu_de)
-    );
-
-    assign vga_blank_o = ~vdu_de;
-
-`endif // VIDEO_VDU
 
 `ifdef AUDIO
     logic pcm_full;

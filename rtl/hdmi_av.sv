@@ -21,18 +21,7 @@ module hdmi_av #(
     output wire logic [11:0] cx,
     output wire logic [11:0] cy
 );
-`ifdef VIDEO_480P
-    localparam VIDEO_ID_CODE = 0;
-    localparam FRAME_WIDTH = 1088;
-    localparam FRAME_HEIGHT = 517;
-    localparam SCREEN_WIDTH = 848;
-    localparam SCREEN_HEIGHT = 480;
-    localparam HSYNC_PULSE_START = 16;
-    localparam HSYNC_PULSE_SIZE = 112;
-    localparam VSYNC_PULSE_START = 6;
-    localparam VSYNC_PULSE_SIZE = 8;
-    localparam INVERT_POLARITY = 0;
-`elsif VIDEO_720P
+`ifdef VIDEO_720P
     localparam VIDEO_ID_CODE = 4;
     localparam FRAME_WIDTH = 1650;
     localparam FRAME_HEIGHT = 750;

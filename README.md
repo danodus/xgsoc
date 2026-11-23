@@ -11,7 +11,7 @@ The documentation is available here: https://danodus.github.io/xgsoc/
 - SDRAM (32MiB shared between CPU and video)
 - Set associative cache (4-way with LRU replacement policy)
 - QVGA (60 Hz) or VGA (60 Hz) HDMI video output with framebuffer (RGB565)
-- 480p (60 Hz), 720p (60 Hz) or 1080p (30 Hz) video modes (experimental)
+- 720p (60 Hz) or 1080p (30 Hz) video modes (experimental)
 - Graphite 2D/3D graphics accelerator (textured triangles)
 - PS/2 Keyboard
 - PS/2 Mouse
@@ -97,7 +97,6 @@ The following video modes are available:
 | -------------- | ------------------ |
 | qvga           | 320x240 60Hz       |
 | vga            | 640x480 60Hz       |
-| 480p           | 848x480 60Hz (*)   |
 | 720p           | 1280x720 60Hz (*)  |
 | 1080p          | 1920x1080 30Hz (*) |
 

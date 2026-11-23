@@ -53,9 +53,7 @@ module ulx3s_v31_top(
     assign wifi_en = 1'b1;
 
 `ifdef VIDEO
-`ifdef VIDEO_480P
-    localparam pixel_clock_hz = 34_000_000; // DMT: 33.75MHz
-`elsif VIDEO_720P
+`ifdef VIDEO_720P
     localparam pixel_clock_hz = 75_000_000; // DMT: 74.25MHz
 `elsif VIDEO_1080P
     localparam pixel_clock_hz = 75_000_000; // DMT: 74.25MHz
