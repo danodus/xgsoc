@@ -91,8 +91,16 @@ module rv32_fetch #(
 
     logic redirect;
 
+    /* jal/jalr are predicted not-taken, so the sequential word is never
+     * executed. Holding fetch keeps that word from becoming a cache demand
+     * while ce is still high enough for the redirect to retire. */
+    logic xfer_hold;
+    wire arm_xfer_hold;
+
     assign overwrite_pc_out = overwrite_pc;
     assign redirect = overwrite_pc || trap_in || branch_mispredicted_in;
+    assign arm_xfer_hold = !branch_predicted_taken && !(need_fetch && instr_fault_in) &&
+                           (opcode == `RV32_OPCODE_JAL || opcode == 7'b1100111);
 
     rv32_decompress decompress (
         .instr_in(comp_half),
@@ -153,7 +161,7 @@ module rv32_fetch #(
                         instr_read_value_in[1:0] != 2'b11 &&
                         instr_read_value_in[17:16] != 2'b11;
 
-    assign instr_read_out = need_fetch && !hold_upper;
+    assign instr_read_out = need_fetch && !hold_upper && !xfer_hold;
     assign instr_address_out = fetch_addr;
 
     assign sign = issued_instr[31];
@@ -201,6 +209,7 @@ module rv32_fetch #(
         instr_out = `RV32_INSTR_NOP;
         residue_valid = 1'b0;
         residue = 16'b0;
+        xfer_hold = 1'b0;
     end
 
     always_ff @(posedge clk) begin
@@ -212,69 +221,87 @@ module rv32_fetch #(
                     overwritten_pc <= trap_in ? trap_pc_in : branch_pc_in;
                 end
             end else if (redirect) begin
+                xfer_hold <= 0;
                 overwrite_pc <= 0;
                 trap <= 0;
                 pc <= next_pc;
                 residue_valid <= 1'b0;
+            end else if (xfer_hold) begin
+                /* Park on the jump until its redirect (or an older one) arrives. */
             end else if (absorb) begin
                 residue <= instr_read_value_in[31:16];
                 residue_valid <= 1'b1;
             end else begin
                 overwrite_pc <= 0;
                 trap <= 0;
-                pc <= next_pc;
-                /* A taken prediction or a fence leaves the other halfword on the
-                 * wrong path, or requires the next fetch to observe stores. */
-                if (branch_predicted_taken || issued_instr[6:0] == 7'b0001111) begin
+                if (arm_xfer_hold) begin
+                    xfer_hold <= 1;
                     residue_valid <= 1'b0;
-                end else if (residue_valid && residue[1:0] == 2'b11) begin
-                    residue <= instr_read_value_in[31:16];
-                    residue_valid <= 1'b1;
-                end else if (!residue_valid && !pc[1] && instr_read_value_in[1:0] != 2'b11) begin
-                    residue <= instr_read_value_in[31:16];
-                    residue_valid <= 1'b1;
                 end else begin
-                    residue_valid <= 1'b0;
+                    pc <= next_pc;
+                    /* A taken prediction or a fence leaves the other halfword on the
+                     * wrong path, or requires the next fetch to observe stores. */
+                    if (branch_predicted_taken || issued_instr[6:0] == 7'b0001111) begin
+                        residue_valid <= 1'b0;
+                    end else if (residue_valid && residue[1:0] == 2'b11) begin
+                        residue <= instr_read_value_in[31:16];
+                        residue_valid <= 1'b1;
+                    end else if (!residue_valid && !pc[1] && instr_read_value_in[1:0] != 2'b11) begin
+                        residue <= instr_read_value_in[31:16];
+                        residue_valid <= 1'b1;
+                    end else begin
+                        residue_valid <= 1'b0;
+                    end
                 end
             end
 
             if (!stall_in) begin
-                valid_out <= 1;
-                exception_out <= 0;
-                branch_predicted_taken_out <= branch_predicted_taken;
-                instr_out <= issued_instr;
-                pc_out <= pc;
-                pc_incr_out <= issued_len;
-    `ifdef RISCV_FORMAL
-                intr_out <= trap || trap_in;
-                next_pc_out <= next_pc;
-    `endif
-
-                if (need_fetch && instr_fault_in) begin
-                    valid_out <= 0;
-                    exception_out <= 1;
-                    exception_cause_out <= `RV32_MCAUSE_INSTR_FAULT_EXCEPTION;
-                    branch_predicted_taken_out <= 0;
-    `ifdef RISCV_FORMAL
-                    instr_out <= 0;
-    `else
-                    instr_out <= `RV32_INSTR_NOP;
-    `endif
-                end
-
-                if (flush_in || absorb) begin
+                if (xfer_hold && !redirect) begin
                     valid_out <= 0;
                     exception_out <= 0;
                     branch_predicted_taken_out <= 0;
                     instr_out <= `RV32_INSTR_NOP;
                     pc_out <= 0;
                     pc_incr_out <= 32'd4;
+                end else begin
+                    valid_out <= 1;
+                    exception_out <= 0;
+                    branch_predicted_taken_out <= branch_predicted_taken;
+                    instr_out <= issued_instr;
+                    pc_out <= pc;
+                    pc_incr_out <= issued_len;
+    `ifdef RISCV_FORMAL
+                    intr_out <= trap || trap_in;
+                    next_pc_out <= next_pc;
+    `endif
+
+                    if (need_fetch && instr_fault_in) begin
+                        valid_out <= 0;
+                        exception_out <= 1;
+                        exception_cause_out <= `RV32_MCAUSE_INSTR_FAULT_EXCEPTION;
+                        branch_predicted_taken_out <= 0;
+    `ifdef RISCV_FORMAL
+                        instr_out <= 0;
+    `else
+                        instr_out <= `RV32_INSTR_NOP;
+    `endif
+                    end
+
+                    if (flush_in || absorb) begin
+                        valid_out <= 0;
+                        exception_out <= 0;
+                        branch_predicted_taken_out <= 0;
+                        instr_out <= `RV32_INSTR_NOP;
+                        pc_out <= 0;
+                        pc_incr_out <= 32'd4;
+                    end
                 end
             end
         end
 
         if (reset) begin
             overwrite_pc <= 0;
+            xfer_hold <= 0;
             valid_out <= 0;
             exception_out <= 0;
             branch_predicted_taken_out <= 0;
